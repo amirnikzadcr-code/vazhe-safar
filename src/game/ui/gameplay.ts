@@ -62,6 +62,12 @@ export function showGameplay(
   /* crossword board */
   const board = h("div", { class: "vz-board" });
 
+  /* words progress pill + remaining word-length dots (clarity: "what's left?") */
+  const wordsRow = h("div", { class: "vz-words-row" });
+  const pill = h("div", { class: "vz-words-pill" });
+  const dots = h("div", { class: "vz-word-dots", "aria-label": T.dotsLabel });
+  wordsRow.append(pill, dots);
+
   /* bottom controls + wheel */
   const bottom = h("div", { class: "vz-bottom" });
   const controls = h("div", { class: "vz-controls" });
@@ -77,7 +83,7 @@ export function showGameplay(
   const wheelHost = h("div", { class: "vz-wheel-host" });
   bottom.append(controls, wheelHost);
 
-  screen.append(scene, board, bottom);
+  screen.append(scene, board, wordsRow, bottom);
   container.append(screen);
 
   /* ---------- state ---------- */
@@ -159,6 +165,25 @@ export function showGameplay(
     }
   };
 
+  /* ---------- words progress rendering ---------- */
+  const renderWordsRow = (): void => {
+    const foundN = foundWords.size;
+    const totalN = level.words.length;
+    pill.innerHTML = `${T.wordsProgress}&nbsp;<b>${faNum(foundN)}/${faNum(totalN)}</b>`;
+    dots.innerHTML = "";
+    // one bubble per word length (sorted) — done ones turn gold
+    const lens = [...level.words].sort((a, b) => a.length - b.length);
+    const doneLens = [...foundWords].map((w) => w.length);
+    const consumed = new Set<number>();
+    lens.forEach((w, i) => {
+      const d = h("span", { class: "vz-word-dot", text: faNum(w.length) });
+      d.style.animationDelay = `${i * 60}ms`;
+      const idx = doneLens.findIndex((L, j) => L === w.length && !consumed.has(j));
+      if (idx >= 0) { consumed.add(idx); d.classList.add("done"); }
+      dots.append(d);
+    });
+  };
+
   /* ---------- props (the world comes alive) ---------- */
 
   const spawnProp = (animate = true): void => {
@@ -210,6 +235,8 @@ export function showGameplay(
       buzz([15, 30, 15], Save.data.settings.haptics);
       spawnProp(true);
       floatWord(word, false);
+      renderWordsRow();
+      tutorialOnWord(foundWords.size);
       if (foundWords.size === level.words.length) {
         setTimeout(() => completeLevel(), 900);
       }
@@ -324,6 +351,7 @@ export function showGameplay(
     propCount = 0;
     propsLayer.innerHTML = "";
     buildBoard();
+    renderWordsRow();
     wheel.shuffle();
   };
 
@@ -430,34 +458,87 @@ export function showGameplay(
     }
   }
 
-  /* ---------- tutorial ---------- */
+  /* ---------- tutorial (interactive, spotlight + animated hand) ---------- */
 
-  if (chId === 1 && lvId === 1 && !Save.data.tutorialDone) {
+  // steps react to real progress: hand demo → board → world → hint.
+  // Each step can be advanced by tap or automatically by finding words.
+  const tutHost = (() => {
+    if (!(chId === 1 && lvId === 1 && !Save.data.tutorialDone)) return null;
+
     const tut = h("div", { class: "vz-tutorial" });
+    const dim = h("div", { class: "vz-tut-dim dim-wheel" });
     const card = h("div", { class: "vz-tut-card" });
-    card.append(h("h3", { class: "vz-modal-title", text: T.tutorialTitle }));
-    const steps = [T.tutorial1, T.tutorial2, T.tutorial3];
-    let step = 0;
-    const txt = h("p", { class: "vz-tut-txt", text: steps[0] });
-    const dots = h("div", { class: "vz-tut-dots" });
-    for (let i = 0; i < 3; i++) dots.append(h("span", { class: `vz-tut-dot ${i === 0 ? "on" : ""}` }));
-    const nextB = actionBtn(T.gotIt, "vz-primary", () => {
-      step++;
-      if (step < steps.length) {
-        txt.textContent = steps[step];
-        dots.querySelectorAll(".vz-tut-dot").forEach((d, i) => d.classList.toggle("on", i === step));
-        Audio.sfxClick();
-      } else {
-        Save.markTutorialDone();
-        tut.classList.add("hide");
-        setTimeout(() => tut.remove(), 420);
-        // demonstrate on the wheel
-        wheel.pulseLetters(level.words[0], 1200);
-      }
-    });
-    card.append(txt, dots, nextB);
-    tut.append(h("div", { class: "vz-tut-dim" }), card);
+    const txt = h("p", { class: "vz-tut-txt" });
+    const dotsNav = h("div", { class: "vz-tut-dots" });
+    const nextB = actionBtn(T.next, "vz-primary", () => advance());
+    card.append(txt, dotsNav, nextB);
+    tut.append(dim, card);
     screen.append(tut);
+
+    // animated dragging hand over the wheel — mounted INSIDE the overlay
+    // (after the dim) so the spotlight never covers it
+    const hand = h("div", { class: "vz-tut-hand show", "aria-hidden": "true" });
+    hand.innerHTML =
+      '<svg viewBox="0 0 24 24" width="54" height="54" fill="rgba(255,244,214,0.96)" stroke="#8a5a24" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.55))"><path d="M9 11V4.8a1.8 1.8 0 0 1 3.6 0V10l4.3.9a2.2 2.2 0 0 1 1.7 2.4l-.5 3.6a4 4 0 0 1-4 3.4h-2.7a4 4 0 0 1-3-1.35L5 15.4a1.9 1.9 0 0 1 2.7-2.6L9 13.9V11z"/></svg>';
+    // drag path follows the wheel's letter ring (arc right → bottom → left)
+    const placeHand = (): void => {
+      const wr = wheelHost.getBoundingClientRect();
+      const sr = tut.getBoundingClientRect();
+      const R = Math.min(wr.width, wr.height) / 2 - 64;
+      hand.style.left = `${wr.left - sr.left + wr.width / 2 + R * 0.72}px`;
+      hand.style.top = `${wr.top - sr.top + wr.height / 2 - R * 0.5}px`;
+      hand.style.setProperty("--hx1", `${-R * 0.2}px`);
+      hand.style.setProperty("--hy1", `${R * 1.05}px`);
+      hand.style.setProperty("--hx2", `${-R * 1.42}px`);
+      hand.style.setProperty("--hy2", `${R * 0.35}px`);
+      hand.style.setProperty("--hx3", `${-R * 0.2}px`);
+      hand.style.setProperty("--hy3", `${-R * 1.0}px`);
+    };
+    tut.append(hand);
+    requestAnimationFrame(placeHand);
+    const onR = (): void => placeHand();
+    window.addEventListener("resize", onR);
+
+    const steps: { text: string; dim: string; hand: boolean }[] = [
+      { text: T.tutHandStep, dim: "dim-wheel", hand: true },
+      { text: T.tutBoardStep, dim: "dim-board", hand: false },
+      { text: T.tutWorldStep, dim: "dim-scene", hand: false },
+      { text: T.tutHintStep, dim: "dim-wheel", hand: false },
+    ];
+    let step = 0;
+    const render = (): void => {
+      txt.textContent = steps[step].text;
+      dotsNav.innerHTML = "";
+      steps.forEach((_, i) => dotsNav.append(h("span", { class: `vz-tut-dot ${i === step ? "on" : ""}` })));
+      dim.className = `vz-tut-dim ${steps[step].dim}`;
+      hand.classList.toggle("show", steps[step].hand);
+      nextB.querySelector(".vz-btn-lb")!.textContent = step === steps.length - 1 ? T.playNow : T.next;
+      Audio.sfxClick();
+    };
+    const finish = (): void => {
+      Save.markTutorialDone();
+      tut.classList.add("hide");
+      setTimeout(() => tut.remove(), 420);
+      window.removeEventListener("resize", onR);
+      wheel.pulseLetters(level.words[0], 1200);
+    };
+    function advance(): void {
+      step++;
+      if (step < steps.length) render();
+      else finish();
+    }
+    render();
+    return {
+      onWord: (): void => { if (step < steps.length) { step++; if (step < steps.length) render(); else finish(); } },
+      hide: (): void => { if (step < steps.length) { step = steps.length; finish(); } },
+    };
+  })();
+
+  /** called after each found word — lets the tutorial react to real play */
+  function tutorialOnWord(foundN: number): void {
+    if (!tutHost) return;
+    if (foundN === 1 || foundN === 2) tutHost.onWord();
+    else if (foundN > 2) tutHost.hide();
   }
 
   /* ---------- parallax + resize ---------- */
@@ -485,6 +566,7 @@ export function showGameplay(
 
   /* ---------- boot ---------- */
   buildBoard();
+  renderWordsRow();
   fx.setAmbient(theme.ambient);
   fx.start();
   Audio.ensure();

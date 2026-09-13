@@ -9,6 +9,7 @@ import { Save, SaveData } from "../core/save";
 import { CHAPTERS } from "../data/chapters";
 import { T } from "../i18n";
 import { ICONS, actionBtn, iconBtn, coinBadge, modal, toast, starRow, screenHeader, svgIcon } from "./components";
+import { chapterVignette } from "./vignette";
 
 export interface Nav {
   goMenu(): void;
@@ -41,8 +42,10 @@ function heroBg(url: string, cls = ""): HTMLDivElement {
 }
 
 const MENU_MUSIC: MusicConfig = {
-  root: 261.63, cents: [0, 204, 340, 498, 702, 906, 1040], bpm: 62,
-  meter: 6, perc: "none", lead: "ney", density: 0.3, octave: 0, drone: 0.7,
+  root: 261.63, cents: [0, 204, 340, 498, 702, 906, 1040], bpm: 56,
+  meter: 6, perc: "none", lead: "ney", octave: 0, drone: 0.75,
+  motif: [[0, 1.5], [1, 0.5], [2, 1], [1, 0.5], [0, 1.5], [-1, 0.5], [3, 1], [2, 0.5], [1, 0.5], [0, 3]],
+  motifB: [[2, 0.5], [1, 0.5], [0, 1], [-1, 0.5], [1, 0.5], [0, 2.5]],
 };
 
 /* ================= SPLASH ================= */
@@ -91,12 +94,26 @@ export function showMenu(container: HTMLElement, nav: Nav): () => void {
 }
 
 /* ================= CHAPTER SELECT ================= */
+
+/** girih-style 8-point star medallion (SVG) */
+const GIRIH_STAR = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+  <g opacity="0.9">
+    <path d="M24 4 L28 16 L40 12 L32 22 L44 24 L32 26 L40 36 L28 32 L24 44 L20 32 L8 36 L16 26 L4 24 L16 22 L8 12 L20 16 Z"/>
+    <circle cx="24" cy="24" r="7.5" opacity="0.7"/>
+  </g>
+</svg>`;
+
 export function showChapters(container: HTMLElement, nav: Nav): () => void {
   const el = h("div", { class: "vz-screen vz-chapters" });
   const coins = coinBadge();
   el.append(screenHeader(T.chooseChapter, () => nav.goMenu(), coins));
   const list = h("div", { class: "vz-ch-list" });
   const totalStars = Save.totalStars();
+
+  // poetic lead line — makes the page feel alive, not a bare grid
+  const lead = h("p", { class: "vz-ch-lead" });
+  lead.innerHTML = `⭐ ${faNum(totalStars)} ${T.starsCount} · ${T.chooseChapter}`;
+  list.append(lead);
 
   CHAPTERS.forEach((ch) => {
     const unlocked = Save.chapterUnlocked(ch.id);
@@ -113,6 +130,8 @@ export function showChapters(container: HTMLElement, nav: Nav): () => void {
     card.innerHTML = `
       <img class="vz-ch-bg" src="${ch.bg}" alt="" draggable="false"/>
       <div class="vz-ch-shade"></div>
+      <div class="vz-ch-arch"></div>
+      <div class="vz-ch-emblem">${GIRIH_STAR}<span>${faNum(ch.id)}</span></div>
       <div class="vz-ch-info">
         <div class="vz-ch-num">${T.chapter} ${faNum(ch.id)}</div>
         <div class="vz-ch-title">${ch.title}</div>
@@ -124,6 +143,7 @@ export function showChapters(container: HTMLElement, nav: Nav): () => void {
           : `<span class="vz-ch-lock">${svgIcon(ICONS.lock, 22)}</span>`}
       </div>
       <div class="vz-ch-bar"><i style="width:${(done / 10) * 100}%"></i></div>`;
+    card.prepend(chapterVignette(ch.id));
     card.addEventListener("click", () => {
       if (!unlocked) { toast(T.completeChapter, "warn"); return; }
       nav.goLevels(ch.id);
@@ -382,6 +402,7 @@ export function showGuide(container: HTMLElement, nav: Nav): () => void {
   };
 
   body.append(h("h3", { class: "vz-sub-title", text: T.guideHowTitle }));
+  body.append(buildGuideDemo());
   body.append(
     step("👆", T.guide1T, T.guide1B),
     step("🧩", T.guide2T, T.guide2B),
@@ -414,4 +435,28 @@ export function showGuide(container: HTMLElement, nav: Nav): () => void {
   el.append(body);
   container.append(el);
   return () => el.remove();
+}
+
+/** animated mini wheel: shows the drag path drawing itself, loops forever */
+function buildGuideDemo(): HTMLElement {
+  const demo = h("div", { class: "vz-guide-demo", "aria-hidden": "true" });
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("class", "vz-gd-path");
+  svg.setAttribute("viewBox", "0 0 150 110");
+  const path = document.createElementNS(svgNS, "path");
+  path.setAttribute("d", "M 118 30 L 96 82 L 54 82 L 32 30");
+  svg.append(path);
+  // three letter nodes + word result
+  const nodes: [number, number, string][] = [
+    [118, 30, "ب"], [96, 82, "ا"], [54, 82, "ر"],
+  ];
+  for (const [x, y, chTxt] of nodes) {
+    const n = h("span", { class: "vz-gd-node", text: chTxt });
+    n.style.left = `${x - 15}px`;
+    n.style.top = `${y - 15}px`;
+    demo.append(n);
+  }
+  demo.append(svg);
+  return demo;
 }

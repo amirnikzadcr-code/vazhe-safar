@@ -221,13 +221,14 @@ export function makeCrossword(words: string[], levelSeed: number): CrosswordLayo
   let best: CrosswordLayout | null = null;
   let bestScore = Infinity;
   let bestIslands = Infinity;
-  for (let i = 0; i < 48; i++) {
+  const attempts = words.length >= 6 ? 110 : 64;
+  for (let i = 0; i < attempts; i++) {
     const res = attempt(words, levelSeed * 7919 + i * 104729 + 13);
     if (!res) continue;
     const { score, islands } = layoutScore(res);
     if (score < bestScore) { bestScore = score; best = res; bestIslands = islands; }
     // single compact island — good enough, stop early to keep loading snappy
-    if (bestIslands === 1 && bestScore <= 160) break;
+    if (bestIslands === 1 && bestScore <= (words.length >= 6 ? 200 : 160)) break;
   }
   return best;
 }
