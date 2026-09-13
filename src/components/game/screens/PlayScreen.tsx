@@ -1,11 +1,13 @@
 "use client";
 /* ------------------------------------------------------------------
- * PlayScreen — reference layout:
+ * PlayScreen — reference layout (like the mockup photo):
  *   top: pause / مرحله chip / progress chip
- *   board: white rounded panel, MEASURED auto-fit cells (never overflows)
- *   wheel: wooden ring with letter tiles, tap or drag to spell
+ *   board: CREAM panel — every word is its OWN separate row of small
+ *          parchment tiles (never overlaps: measured auto-fit)
+ *   wheel: wooden ring with white letter tiles, tap or drag to spell
  *   bottom-left shuffle, bottom-right hint (with coin cost)
- * Word found → CSS pop (no canvas = zero lag). Win modal is bounded.
+ * No crossword generator → level opens instantly, zero CPU spike.
+ * Word found → staggered gold pop + sparkle burst (pure CSS, 60fps).
  * ------------------------------------------------------------------ */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Sheet, useToast, ToastHost } from "@/components/game/ui/kit";
@@ -13,7 +15,6 @@ import { Pause, Shuffle, Lightbulb } from "@/components/game/icons";
 import { StarGold } from "@/components/game/icons";
 import { getLevel, isRealWord } from "@/game/data/levelsIndex";
 import { CHAPTERS } from "@/game/data/chapters";
-import { makeCrossword, CrosswordLayout } from "@/game/crossword";
 import { letters, faNum, canBuild, buzz } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { Save, COSTS, REWARDS } from "@/game/core/save";
@@ -34,11 +35,16 @@ export function PlayScreen({
 }) {
   const theme = CHAPTERS[ch - 1];
   const level = useMemo(() => getLevel(ch, lv), [ch, lv]);
-  const layout = useMemo(() => makeCrossword(level.words, level.id)!, [level]);
+  /* each word displayed separately, longest first (stable, pretty rows) */
+  const wordRows = useMemo(
+    () => [...level.words].sort((a, b) => letters(b).length - letters(a).length || (a < b ? -1 : 1)),
+    [level],
+  );
   const wheelLetters = useMemo(() => letters(level.wheel), [level]);
 
   const [found, setFound] = useState<Set<string>>(new Set());
-  const [revealed, setRevealed] = useState<Set<string>>(new Set()); // "r,c"
+  const [revealed, setRevealed] = useState<Set<string>>(new Set()); // "word#idx"
+  const [justFound, setJustFound] = useState<{ word: string; k: number } | null>(null);
   const [shaking, setShaking] = useState(false);
   const [won, setWon] = useState<{ stars: number; coins: number } | null>(null);
   const [paused, setPaused] = useState(false);
@@ -53,19 +59,11 @@ export function PlayScreen({
 
   const { toast, show } = useToast();
 
-  /* ------------ derived: every filled board cell ------------ */
-  const cellFilled = useMemo(() => {
-    const s = new Set<string>();
-    for (const p of layout.placements) {
-      if (!found.has(p.word)) continue;
-      const ls = letters(p.word);
-      for (let i = 0; i < ls.length; i++) {
-        s.add(p.dir === "v" ? `${p.r + i},${p.c}` : `${p.r},${p.c - i}`);
-      }
-    }
-    for (const k of revealed) s.add(k);
-    return s;
-  }, [found, revealed, layout]);
+  /* letters of a word currently visible (found = all, hint = some) */
+  const letterShown = useCallback((word: string, idx: number, isFound: boolean) => {
+    if (isFound) return true;
+    return revealed.has(`${word}#${idx}`);
+  }, [revealed]);
 
   const markFound = useCallback((word: string, byPlayer: boolean) => {
     if (foundRef.current.has(word)) return;
@@ -73,6 +71,7 @@ export function PlayScreen({
     next.add(word);
     foundRef.current = next; /* immediate — guards double calls same tick */
     setFound(next);
+    setJustFound({ word, k: (justFound?.k ?? 0) + 1 });
     Save.countWord();
     Save.addCoins(REWARDS.perWord);
     setEarned((e) => ({ ...e, words: e.words + 1 }));
@@ -83,26 +82,25 @@ export function PlayScreen({
       Save.markTutorialDone();
       setTutorial(false);
     }
-  }, [coinsBump]);
+  }, [coinsBump, justFound]);
 
   /* words completed purely by hints → auto-found */
   useEffect(() => {
-    for (const p of layout.placements) {
-      if (found.has(p.word)) continue;
-      const ls = letters(p.word);
+    for (const w of wordRows) {
+      if (found.has(w)) continue;
+      const ls = letters(w);
       let all = true;
       for (let i = 0; i < ls.length; i++) {
-        const k = p.dir === "v" ? `${p.r + i},${p.c}` : `${p.r},${p.c - i}`;
-        if (!cellFilled.has(k)) { all = false; break; }
+        if (!revealed.has(`${w}#${i}`)) { all = false; break; }
       }
-      if (all) markFound(p.word, false);
+      if (all) markFound(w, false);
     }
-  }, [cellFilled, found, layout, markFound]);
+  }, [revealed, found, wordRows, markFound]);
 
   /* all words done → finish */
   useEffect(() => {
-    if (won || layout.placements.length === 0) return;
-    if (found.size >= layout.placements.length) {
+    if (won || wordRows.length === 0) return;
+    if (found.size >= wordRows.length) {
       const stars = mistakesRef.current === 0 ? 3 : mistakesRef.current <= 2 ? 2 : 1;
       const total = REWARDS.perStar * stars;
       Save.addCoins(total);
@@ -112,16 +110,16 @@ export function PlayScreen({
       const t = setTimeout(() => setWon({ stars, coins: total }), 300);
       return () => clearTimeout(t);
     }
-  }, [found, layout, won, ch, lv, coinsBump]);
+  }, [found, wordRows, won, ch, lv, coinsBump]);
 
   /* ------------ submit (from wheel release) ------------ */
   const submit = useCallback((str: string) => {
     if (!str || str.length < 2) return;
-    if (layout.placements.some((p) => p.word === str) && !foundRef.current.has(str)) {
+    if (wordRows.includes(str) && !foundRef.current.has(str)) {
       markFound(str, true);
       return;
     }
-    const uniq = new Set(layout.placements.map((p) => p.word));
+    const uniq = new Set(wordRows);
     if (!uniq.has(str) && isRealWord(str) && canBuild(str, level.wheel)) {
       if (Save.addBonusWord(ch, lv, str)) {
         Save.countBonus();
@@ -139,27 +137,26 @@ export function PlayScreen({
     Audio.sfxWrong();
     buzz(40, Save.data.settings.haptics);
     setShaking(true);
-  }, [layout, level, ch, lv, coinsBump, show, markFound]);
+  }, [wordRows, level, ch, lv, coinsBump, show, markFound]);
 
   /* mid-drag auto-complete check — never counts a mistake */
   const checkAuto = useCallback((str: string): boolean => {
     if (str.length < 2) return false;
-    if (layout.placements.some((p) => p.word === str) && !foundRef.current.has(str)) {
+    if (wordRows.includes(str) && !foundRef.current.has(str)) {
       markFound(str, true);
       return true;
     }
     return false;
-  }, [layout, markFound]);
+  }, [wordRows, markFound]);
 
-  /* ------------ hint ------------ */
+  /* ------------ hint: reveal next letter of the first unfound word ------------ */
   const doHint = () => {
     if (won) return;
-    const nextWord = layout.placements.find((p) => !foundRef.current.has(p.word));
+    const nextWord = wordRows.find((w) => !foundRef.current.has(w));
     if (!nextWord) return;
-    const ls = letters(nextWord.word);
+    const ls = letters(nextWord);
     for (let i = 0; i < ls.length; i++) {
-      const k = nextWord.dir === "v" ? `${nextWord.r + i},${nextWord.c}` : `${nextWord.r},${nextWord.c - i}`;
-      if (!cellFilled.has(k)) {
+      if (!revealed.has(`${nextWord}#${i}`) && !(foundRef.current.has(nextWord))) {
         if (!Save.spendCoins(COSTS.hint)) {
           Audio.sfxWrong();
           show("سکه کافی ندارید!");
@@ -167,8 +164,8 @@ export function PlayScreen({
           return;
         }
         coinsBump();
-        setRevealed((prev) => new Set(prev).add(k));
-        Audio.sfxHint();
+        setRevealed((prev) => new Set(prev).add(`${nextWord}#${i}`));
+        Audio.sfxReveal();
         show("یک حرف آشکار شد");
         return;
       }
@@ -180,10 +177,10 @@ export function PlayScreen({
     Audio.sfxShuffle();
   };
 
-  const starsDone = layout.placements.filter((p) => found.has(p.word)).length;
+  const starsDone = wordRows.filter((w) => found.has(w)).length;
 
   return (
-    <Sheet bg={theme.bg} bgDim={0.2}>
+    <Sheet bg={theme.bg} bgDim={0.12}>
       {/* top bar */}
       <div className="topbar">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -194,17 +191,22 @@ export function PlayScreen({
         </div>
         <span className="chip" style={{ fontSize: 14 }}>
           <StarGold size={17} />
-          {faNum(starsDone)}/{faNum(layout.placements.length)}
+          {faNum(starsDone)}/{faNum(wordRows.length)}
         </span>
       </div>
 
-      {/* board — Amirza style: parchment tiles on the scene, no hard panel */}
+      {/* board — every word its OWN row, cream panel like the reference photo */}
       <div
         className={`board-box ${shaking ? "shake" : ""}`}
         onAnimationEnd={() => setShaking(false)}
-        style={{ flex: "1 1 auto", margin: "4px 14px 0", maxHeight: "42%", minHeight: 150 }}
+        style={{ flex: "1 1 auto", margin: "4px 14px 0", maxHeight: "44%", minHeight: 130 }}
       >
-        <Board layout={layout} filled={cellFilled} />
+        <WordBoard
+          words={wordRows}
+          found={found}
+          isShown={letterShown}
+          justFound={justFound}
+        />
       </div>
 
       {/* wheel */}
@@ -217,11 +219,8 @@ export function PlayScreen({
         />
       </div>
 
-      {/* helper row */}
+      {/* helper row — like the reference: shuffle bottom-LEFT, hint bottom-RIGHT */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 18px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))", position: "relative", zIndex: 20 }}>
-        <button type="button" aria-label="بر زدن" className="ib3 green" onClick={doShuffle}>
-          <Shuffle size={20} />
-        </button>
         <button
           type="button"
           aria-label="راهنما"
@@ -234,6 +233,9 @@ export function PlayScreen({
             <span className="coin-ic" style={{ width: 13, height: 13 }} />
             {faNum(COSTS.hint)}
           </span>
+        </button>
+        <button type="button" aria-label="بر زدن" className="ib3 green" onClick={doShuffle}>
+          <Shuffle size={20} />
         </button>
       </div>
 
@@ -278,51 +280,71 @@ export function PlayScreen({
   );
 }
 
-/* ================= Board (measured, auto-fit — never overflows) ================= */
-function Board({ layout, filled }: { layout: CrosswordLayout; filled: Set<string> }) {
+/* ================= WordBoard — each word = its own separate row.
+   Uniform tile size measured from the longest word → smaller tiles,
+   mathematically guaranteed to fit: overlap is impossible. ================= */
+function WordBoard({
+  words, found, isShown, justFound,
+}: {
+  words: string[];
+  found: Set<string>;
+  isShown: (word: string, idx: number, isFound: boolean) => boolean;
+  justFound: { word: string; k: number } | null;
+}) {
   const boxRef = useRef<HTMLDivElement>(null);
-  const [cell, setCell] = useState(26);
+  const [tile, setTile] = useState(30);
+  const longest = useMemo(() => Math.max(3, ...words.map((w) => letters(w).length)), [words]);
 
   useLayoutEffect(() => {
     const el = boxRef.current;
     if (!el) return;
     const calc = () => {
-      const w = el.clientWidth - 22;
-      const h = el.clientHeight - 22;
-      if (w <= 0 || h <= 0) return;
-      const c = Math.floor(Math.min(w / layout.cols, h / layout.rows, 54));
-      setCell(Math.max(16, c));
+      const w = el.clientWidth;
+      if (w <= 0) return;
+      /* width for longest word: tile*len + inner gaps(4px)*(len-1) + row padding */
+      const c = Math.floor((w - 28 - 4 * (longest - 1)) / longest);
+      setTile(Math.max(20, Math.min(36, c)));
     };
     calc();
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [layout]);
+  }, [longest]);
 
   return (
-    <div ref={boxRef} style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}>
-      <div
-        dir="ltr"
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${layout.cols}, ${cell}px)`,
-          gridAutoRows: `${cell}px`,
-          gap: Math.max(3, Math.round(cell * 0.12)),
-        }}
-      >
-        {layout.grid.map((row, r) =>
-          row.map((ch, c) => {
-            const key = `${r},${c}`;
-            const isFill = filled.has(key);
-            if (!ch) return <span key={key} className="bcell gap" style={{ width: cell, height: cell }} />;
-            return (
-              <span key={key} className={`bcell ${isFill ? "fill" : "empty"}`} style={{ width: cell, height: cell, fontSize: Math.round(cell * 0.58) }}>
-                {ch}
+    <div ref={boxRef} className="wboard" style={{ ["--wt" as string]: `${tile}px` }}>
+      {words.map((w) => {
+        const ls = letters(w);
+        const isF = found.has(w);
+        const isJf = justFound?.word === w;
+        return (
+          <div
+            key={w}
+            className={`wrow ${isF ? "done" : ""}`}
+            data-jf={isJf ? justFound!.k : undefined}
+          >
+            {ls.map((ch, i) => {
+              const shown = isShown(w, i, isF);
+              return (
+                <span
+                  key={i}
+                  className={`wtile ${isF ? "fill" : shown ? "reveal" : "empty"}`}
+                  style={{ animationDelay: isF ? `${i * 45}ms` : shown ? "0ms" : undefined, fontSize: Math.round(tile * 0.6) }}
+                >
+                  {shown ? ch : ""}
+                </span>
+              );
+            })}
+            {isF && (
+              <span className="wsparkles" aria-hidden>
+                {Array.from({ length: 6 }, (_, s) => (
+                  <i key={s} style={{ ["--dx" as string]: `${(s - 2.5) * 26}px`, ["--dy" as string]: `${-18 - (s % 3) * 14}px`, ["--dd" as string]: `${s * 45}ms` }} />
+                ))}
               </span>
-            );
-          }),
-        )}
-      </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -358,9 +380,6 @@ function Wheel({
     selRef.current = next;
     setSel(next);
   };
-
-  /* note: selection is always empty between drags; restart resets found/revealed
-     only, so no extra clearing logic is needed when letters change. */
 
   const tileAt = (clientX: number, clientY: number): number | null => {
     const el = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
@@ -454,17 +473,19 @@ function Wheel({
           />
         </svg>
       )}
-      {positions.map(({ idx, x, y }) => (
-        <span
-          key={idx}
-          data-tile={idx}
-          className={`tile ${sel.includes(idx) ? "sel" : ""}`}
-          style={{ left: `${x}%`, top: `${y}%` }}
-          aria-label={ls[idx]}
-        >
-          {ls[idx]}
-        </span>
-      ))}
+      <div key={shuffleKey} style={{ position: "absolute", inset: 0 }}>
+        {positions.map(({ idx, x, y }, pi) => (
+          <span
+            key={idx}
+            data-tile={idx}
+            className={`tile tile-in ${sel.includes(idx) ? "sel" : ""}`}
+            style={{ left: `${x}%`, top: `${y}%`, ["--i" as string]: pi }}
+            aria-label={ls[idx]}
+          >
+            {ls[idx]}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

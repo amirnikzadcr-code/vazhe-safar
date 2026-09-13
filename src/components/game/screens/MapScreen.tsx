@@ -66,8 +66,9 @@ export function MapScreen({
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
             aria-hidden
           >
-            <path d={d} fill="none" stroke="rgba(120,80,30,.45)" strokeWidth={26} strokeLinecap="round" vectorEffect="non-scaling-stroke" opacity={0.55} />
-            <path d={d} fill="none" stroke="#e8c98f" strokeWidth={20} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <path d={d} fill="none" stroke="rgba(52,132,64,.8)" strokeWidth={27} strokeLinecap="round" vectorEffect="non-scaling-stroke" opacity={0.85} />
+            <path d={d} fill="none" stroke="#8fd07a" strokeWidth={23} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <path d={d} fill="none" stroke="#f2e2bd" strokeWidth={16} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             <path d={d} fill="none" stroke="#fff7e2" strokeWidth={4.5} strokeDasharray="10 9" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           </svg>
 

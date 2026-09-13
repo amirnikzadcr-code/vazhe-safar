@@ -42,7 +42,8 @@
     box-shadow: 0 30px 80px rgba(0,0,0,.45), 0 0 0 10px rgba(255,255,255,.08);
   }
 }
-.vz-page { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.vz-page { position: absolute; inset: 0; display: flex; flex-direction: column; animation: screenIn .26s cubic-bezier(.2,.9,.3,1) both; }
+@keyframes screenIn { from { opacity: 0; transform: scale(.985) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 .vz-fill { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
 /* =================== CHUNKY 3D BUTTONS (addictive palette) =================== */
@@ -241,41 +242,76 @@
 }
 .tile.used { filter: grayscale(.4) brightness(.92); }
 
-/* =================== BOARD — Amirza style: parchment tiles float on the
-   scene inside a soft dark mat; NO hard white panel =================== */
+/* =================== BOARD — cream panel like the reference photo;
+   every word is its OWN separate row (never overlaps) =================== */
 .board-box {
-  background:
-    radial-gradient(120% 100% at 50% 0%, rgba(48,30,8,.40) 0%, rgba(48,30,8,.30) 55%, rgba(48,30,8,.16) 100%);
-  border: 1.5px solid rgba(255,240,210,.22);
+  background: linear-gradient(180deg, #fffdf4 0%, #fdf3dd 55%, #f9e9c8 100%);
+  border: 2.5px solid #fff;
+  outline: 2px solid #e3c58c;
   border-radius: 24px;
-  box-shadow: inset 0 3px 12px rgba(15,8,0,.35), 0 6px 18px rgba(10,20,40,.22);
-  padding: 10px;
+  box-shadow: inset 0 2px 0 #fff, inset 0 -6px 14px rgba(190,140,60,.14), 0 10px 22px rgba(20,40,70,.28);
+  padding: 8px 10px;
   display: grid; place-items: center;
   overflow: hidden;
 }
-.bcell {
+.wboard {
+  display: flex; flex-wrap: wrap; gap: 9px 18px;
+  align-items: center; justify-content: center;
+  width: 100%; max-height: 100%; overflow: hidden;
+  padding: 2px;
+}
+.wrow {
+  position: relative;
+  display: flex; gap: 4px; direction: rtl;
+}
+.wtile {
+  width: var(--wt, 30px); height: var(--wt, 30px);
   display: flex; align-items: center; justify-content: center;
-  border-radius: 24%;
-  font-weight: 800; color: #4a2c0d;
-  background: linear-gradient(180deg, #fffdf4 0%, #f9edd2 100%);
-  border: 1.5px solid #cfa964;
-  box-shadow: inset 0 -2px 0 rgba(150,100,30,.30), inset 0 1.5px 0 #fff, 0 2.5px 5px rgba(25,12,0,.38);
-  line-height: 1;
+  border-radius: 26%;
+  font-weight: 800; color: #5b3a12; line-height: 1;
+  background: linear-gradient(180deg, #ffffff 0%, #fdf4de 100%);
+  border: 1.5px solid #d9b878;
+  box-shadow: inset 0 -2.5px 0 rgba(170,120,40,.22), inset 0 1.5px 0 #fff, 0 2.5px 4px rgba(70,40,0,.16);
 }
-.bcell.empty {
-  background: rgba(36,22,6,.44);
-  border: 1.5px solid rgba(255,238,200,.16);
-  box-shadow: inset 0 2px 6px rgba(0,0,0,.38);
-  color: transparent;
+.wtile.empty {
+  background: linear-gradient(180deg, #f4e8cd 0%, #eedcb8 100%);
+  border-color: #d9bd84;
+  box-shadow: inset 0 2px 4px rgba(120,80,20,.16), inset 0 -1.5px 0 rgba(255,255,255,.6);
 }
-.bcell.gap { background: transparent; border-color: transparent; box-shadow: none; }
-.bcell.fill {
-  background: linear-gradient(180deg, #fffce9 0%, #ffedbe 100%);
+.wtile.reveal {
+  background: linear-gradient(180deg, #fffef2 0%, #ffedbe 100%);
   border-color: #e0b158;
-  animation: pop .34s cubic-bezier(.2,1.6,.4,1) both;
+  animation: revealIn .3s cubic-bezier(.2,1.5,.4,1) both;
 }
-.bcell.hintglow { border-color: #2ea648; box-shadow: 0 0 0 3px rgba(46,166,72,.35), inset 0 -3px 0 #f3e2bd; }
+.wrow.done .wtile {
+  background: linear-gradient(180deg, #fff8dc 0%, #ffd97e 100%);
+  border-color: #eaa928;
+  color: #7a4d00;
+  box-shadow: inset 0 -2.5px 0 rgba(180,110,10,.28), inset 0 1.5px 0 #fff, 0 2.5px 5px rgba(150,90,0,.25);
+  animation: pop .38s cubic-bezier(.2,1.6,.4,1) both;
+}
+@keyframes revealIn { 0% { transform: scale(.4); } 70% { transform: scale(1.16); } 100% { transform: scale(1); } }
 @keyframes pop { 0% { transform: scale(.3); } 70% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+/* sparkle burst on the row that was just completed (bounded, pure CSS) */
+.wsparkles { position: absolute; inset: -8px -12px; pointer-events: none; overflow: visible; }
+.wsparkles i {
+  position: absolute; left: 50%; top: 50%;
+  width: 7px; height: 7px; border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #fff7cf, #ffc93c 65%, #f79c0d);
+  box-shadow: 0 0 6px 1px rgba(255,200,60,.85);
+  opacity: 0;
+  animation: sparkFly .62s ease-out var(--dd, 0ms) both;
+}
+@keyframes sparkFly {
+  0% { transform: translate(-50%,-50%) scale(.4); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -20px))) scale(1); opacity: 0; }
+}
+
+/* wheel letter tiles — springy staggered entrance on mount/shuffle */
+.tile-in { animation: tileIn .42s cubic-bezier(.2,1.6,.4,1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+@keyframes tileIn { 0% { opacity: 0; transform: scale(.2); } 65% { opacity: 1; transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
 
 /* =================== TOP BAR =================== */
 .topbar {

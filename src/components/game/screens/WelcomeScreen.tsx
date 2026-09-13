@@ -2,9 +2,10 @@
 /* ------------------------------------------------------------------
  * WelcomeScreen + Splash
  * ------------------------------------------------------------------ */
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Btn, Vines } from "@/components/game/ui/kit";
 import { Audio } from "@/game/core/audio";
+import { preloadAssets } from "@/game/core/preload";
 
 /* ---------- Welcome back ---------- */
 export function WelcomeScreen({
@@ -56,28 +57,49 @@ export function WelcomeScreen({
   );
 }
 
-/* ---------- Splash ---------- */
+/* ---------- Splash: preloads EVERY image with real progress ---------- */
 export function Splash({ onDone }: { onDone: () => void }) {
+  const [prog, setProg] = useState(0);
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
   useEffect(() => {
-    const t = setTimeout(onDone, 1600);
-    return () => clearTimeout(t);
-  }, [onDone]);
+    let finished = false;
+    const t0 = Date.now();
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      doneRef.current();
+    };
+    /* splash shows at least 1.7s (branding) and at most 8s (safety) */
+    preloadAssets((p) => {
+      const minTime = 1700;
+      const elapsed = Date.now() - t0;
+      if (p >= 1 && elapsed >= minTime) finish();
+      else if (p >= 1) setTimeout(finish, minTime - elapsed);
+      setProg(p);
+    }).then(() => {
+      const elapsed = Date.now() - t0;
+      if (elapsed < 1700) setTimeout(finish, 1700 - elapsed);
+      else finish();
+    });
+    const cap = setTimeout(finish, 8000);
+    return () => clearTimeout(cap);
+  }, []);
   return (
     <div className="vz-page" style={{ background: "linear-gradient(180deg,#8fd0ff 0%,#5cb2ef 55%,#3d9df0 100%)", alignItems: "center", justifyContent: "center" }}>
       <Vines />
-      
+
       <img src="/assets/char/seat.webp" alt="" className="pop-in" style={{ height: "min(34vh, 240px)", objectFit: "contain", filter: "drop-shadow(0 16px 22px rgba(10,30,60,.35))" }} />
       <h1 className="title3d pop-in" data-t="واژه‌سفر" style={{ fontSize: "clamp(44px, 14vw, 64px)", marginTop: 6, animationDelay: ".15s" }}>
         واژه‌سفر
       </h1>
       <div
         className="rise-in"
-        style={{ marginTop: 14, width: 150, height: 10, borderRadius: 999, background: "rgba(255,255,255,.4)", overflow: "hidden", animationDelay: ".3s" }}
+        style={{ marginTop: 14, width: 170, height: 12, borderRadius: 999, background: "rgba(255,255,255,.4)", overflow: "hidden", border: "2px solid rgba(255,255,255,.7)", animationDelay: ".3s", padding: 2 }}
         aria-hidden
       >
-        <div style={{ width: "40%", height: "100%", borderRadius: 999, background: "#fff", animation: "shimmer 1.1s ease-in-out infinite alternate" }} />
+        <div style={{ width: `${Math.round(Math.max(8, prog * 100))}%`, height: "100%", borderRadius: 999, background: "linear-gradient(180deg,#ffe08a,#f79c0d)", transition: "width .25s ease" }} />
       </div>
-      <style>{`@keyframes shimmer { from { transform: translateX(-60%);} to { transform: translateX(190%);} }`}</style>
       <span style={{ position: "absolute", bottom: 24, color: "rgba(255,255,255,.9)", fontWeight: 700, fontSize: 13, textShadow: "0 2px 4px rgba(0,0,0,.3)" }}>
         برای شروع آماده می‌شویم…
       </span>

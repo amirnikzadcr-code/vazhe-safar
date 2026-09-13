@@ -704,6 +704,7 @@ class AudioEngine {
     const base = roots[step % 3];
     [1, 1.26, 1.5].forEach((m, i) =>
       this.note(base * m, 0.26, 0.55, i * 0.08));
+    this.sfxOsc({ type: "sine", f0: base * 4, dur: 0.3, vol: 0.08, delay: 0.24 });
     this.sfxNoise({ dur: 0.32, vol: 0.04, freq: 5000, q: 3, delay: 0.06 });
   }
 
@@ -727,6 +728,13 @@ class AudioEngine {
   sfxHint(): void {
     this.sfxOsc({ type: "sine", f0: 660, f1: 1760, dur: 0.5, vol: 0.14, curve: "exp" });
     this.sfxNoise({ dur: 0.5, vol: 0.04, freq: 4200, q: 2 });
+  }
+
+  /** shimmer for a letter revealed into a word slot */
+  sfxReveal(): void {
+    this.note(1174.7, 0.2, 0.4);
+    this.note(1567.98, 0.18, 0.5, 0.07);
+    this.sfxNoise({ dur: 0.4, vol: 0.035, freq: 6200, q: 4, delay: 0.04 });
   }
 
   sfxShuffle(): void {

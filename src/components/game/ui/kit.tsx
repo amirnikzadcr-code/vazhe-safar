@@ -144,12 +144,22 @@ export function Sheet({
   blur?: number;
   style?: CSSProperties;
 }) {
+  /* fade the background in only when decoded → no half-painted flash */
+  const [bgReady, setBgReady] = useState(false);
+  useEffect(() => { setBgReady(false); }, [bg]);
   return (
     <div className="vz-page fade-in" style={style}>
       {bg && (
         <>
-          
-          <img src={bg} alt="" className="vz-fill" style={{ filter: blur ? `blur(${blur}px)` : undefined }} />
+          <img
+            src={bg}
+            alt=""
+            className={`vz-fill ${bgReady ? "fade-in" : ""}`}
+            style={{ filter: blur ? `blur(${blur}px)` : undefined, opacity: bgReady ? undefined : 0 }}
+            fetchPriority="high"
+            decoding="async"
+            onLoad={() => setBgReady(true)}
+          />
           <div style={{ position: "absolute", inset: 0, background: `rgba(10,30,50,${bgDim})` }} />
         </>
       )}
@@ -162,27 +172,46 @@ export function Sheet({
   );
 }
 
-/* ---------- corner vine SVG decoration ---------- */
+/* ---------- corner vine decoration — lush leaves + pink flowers,
+   matching the leafy frame of the reference mockup ---------- */
 export function Vines() {
-  const vine = (
-    <path
-      d="M2 62 C2 30 18 14 52 10 M2 62 C6 40 22 30 44 30 M14 22 C22 16 30 16 38 20 M2 62 C10 54 24 52 36 56"
-      fill="none" stroke="#2f8f4e" strokeWidth="7" strokeLinecap="round"
-    />
+  const leaf = (x: number, y: number, r: number, rot: number, fill: string, key: string) => (
+    <ellipse key={key} cx={x} cy={y} rx={13 * r} ry={6 * r} fill={fill} transform={`rotate(${rot} ${x} ${y})`} />
   );
-  const leaf = (x: number, y: number, r: number, rot: number, fill: string) => (
-    <ellipse key={`${x}-${y}-${rot}`} cx={x} cy={y} rx={11 * r} ry={5.5 * r} fill={fill} transform={`rotate(${rot} ${x} ${y})`} />
+  const flower = (x: number, y: number, s: number, key: string) => (
+    <g key={key} transform={`translate(${x} ${y}) scale(${s})`}>
+      {[0, 72, 144, 216, 288].map((a) => (
+        <ellipse key={a} cx="0" cy="-3.2" rx="2.1" ry="3.1" fill="#ff8fb0" transform={`rotate(${a})`} />
+      ))}
+      <circle cx="0" cy="0" r="1.7" fill="#ffd94e" />
+    </g>
+  );
+  const corner = (flip: string, keyPrefix: string) => (
+    <g transform={flip}>
+      {/* main vines */}
+      <path d="M2 74 C2 34 20 14 62 9 M2 74 C8 44 26 32 52 30 M14 20 C24 13 34 13 44 18 M2 74 C12 62 28 58 44 62"
+        fill="none" stroke="#2f8f4e" strokeWidth="8" strokeLinecap="round" />
+      {/* leaves along the vines */}
+      {leaf(62, 9, 1.1, -32, "#3fae5c", `${keyPrefix}-l1`)}
+      {leaf(50, 15, 0.9, -10, "#2f8f4e", `${keyPrefix}-l2`)}
+      {leaf(52, 30, 1, 24, "#43b962", `${keyPrefix}-l3`)}
+      {leaf(38, 34, 0.85, 55, "#57cc74", `${keyPrefix}-l4`)}
+      {leaf(44, 18, 0.8, -60, "#3fae5c", `${keyPrefix}-l5`)}
+      {leaf(44, 62, 0.95, -8, "#2f8f4e", `${keyPrefix}-l6`)}
+      {leaf(30, 56, 0.8, -40, "#43b962", `${keyPrefix}-l7`)}
+      {leaf(18, 22, 0.9, -75, "#57cc74", `${keyPrefix}-l8`)}
+      {/* tiny pink blossoms */}
+      {flower(56, 20, 1, `${keyPrefix}-f1`)}
+      {flower(30, 40, 0.85, `${keyPrefix}-f2`)}
+      {flower(60, 48, 0.75, `${keyPrefix}-f3`)}
+    </g>
   );
   return (
     <svg aria-hidden className="float-slow" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5 }}>
-      <g>
-        {vine}
-        {leaf(52, 10, 1, -30, "#43b962")}{leaf(44, 30, 0.9, 20, "#2f8f4e")}
-        {leaf(36, 56, 0.9, -10, "#43b962")}{leaf(20, 20, 0.8, -60, "#57cc74")}
-      </g>
-      <g transform="translate(100% 0) scale(-1 1)">{vine}{leaf(52, 10, 1, -30, "#43b962")}{leaf(44, 30, 0.9, 20, "#2f8f4e")}{leaf(36, 56, 0.9, -10, "#43b962")}</g>
-      <g transform="translate(0 100%) scale(1 -1)">{vine}{leaf(52, 10, 1, -30, "#43b962")}{leaf(44, 30, 0.9, 20, "#2f8f4e")}</g>
-      <g transform="translate(100% 100%) scale(-1 -1)">{vine}{leaf(52, 10, 1, -30, "#43b962")}{leaf(36, 56, 0.9, -10, "#43b962")}</g>
+      {corner("", "tl")}
+      {corner("translate(100% 0) scale(-1 1)", "tr")}
+      {corner("translate(0 100%) scale(1 -1)", "bl")}
+      {corner("translate(100% 100%) scale(-1 -1)", "br")}
     </svg>
   );
 }
