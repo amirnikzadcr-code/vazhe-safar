@@ -112,9 +112,11 @@ def key_image(name, tol):
 
 if __name__ == "__main__":
     jobs = {
-        "hello": 74,
-        "point": 74,
-        "cheer": 78,   # brighter green bg -> slightly higher tol
+        "seat": 70,
+        "thumb": 70,
+        "rest": 70,
+        "gift": 72,
+        "chest": 58,   # darker green bg -> lower tol
     }
     if len(sys.argv) > 1:
         jobs = {k: v for k, v in jobs.items() if k in sys.argv}

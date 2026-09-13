@@ -1,33 +1,29 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { game } from "@/game/core/engine";
+import { GameApp } from "@/components/game/GameApp";
+import { Audio } from "@/game/core/audio";
 import "./game.css";
 
 export default function Home() {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
+  const startedRef = useRef(false);
 
+  /* resume audio context on first user gesture (mobile autoplay policy) */
   useEffect(() => {
-    if (!hostRef.current) return;
-    // guard against React StrictMode double-mount
-    if (cleanupRef.current) {
-      cleanupRef.current();
-      cleanupRef.current = null;
-    }
-    cleanupRef.current = game.mount(hostRef.current);
-    return () => {
-      cleanupRef.current?.();
-      cleanupRef.current = null;
+    const resume = () => {
+      if (startedRef.current) return;
+      startedRef.current = true;
+      Audio.ensure();
     };
+    window.addEventListener("pointerdown", resume, { once: true });
+    return () => window.removeEventListener("pointerdown", resume);
   }, []);
 
   return (
-    <main
-      className="vz-page"
-      aria-label="واژه‌سفر — بازی پازل کلمات ایرانی"
-    >
-      <div ref={hostRef} id="vz-host" />
+    <main className="vz-body" dir="rtl" lang="fa" aria-label="واژه‌سفر — بازی پازل کلمات ایرانی">
+      <div className="vz-phone">
+        <GameApp />
+      </div>
     </main>
   );
 }
