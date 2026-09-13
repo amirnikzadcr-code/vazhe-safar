@@ -1,0 +1,20 @@
+{
+  "name": "واژه‌سفر — Safar-e Vazhe",
+  "short_name": "واژه‌سفر",
+  "description": "بازی پازل کلمات ایرانی‌الهام با ۱۰۰ مرحله در ۱۰ فصل",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#141b28",
+  "theme_color": "#1b2432",
+  "lang": "fa",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/assets/icons/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
