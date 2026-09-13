@@ -1644,3 +1644,23 @@ input[type="range"]::-webkit-slider-thumb {
   position: absolute;
   z-index: 3;
 }
+
+/* v1.3f — complete-modal mascot: centered, bubble below bird, inside card */
+.vz-complete-body .vz-mascot { margin: 4px auto 52px; }
+.vz-complete-body .vz-mascot-bubble {
+  top: calc(100% + 2px);
+  right: 50%;
+  left: auto;
+  transform: translateX(50%) translateY(6px) scale(0.85);
+  transform-origin: 50% 0%;
+  max-width: 236px;
+  font-size: 11.5px;
+}
+.vz-complete-body .vz-mascot-bubble::after {
+  top: auto; bottom: 100%;
+  margin-right: -7px; margin-left: 0;
+  border-top-color: transparent;
+  border-bottom-color: rgba(232, 181, 77, 0.85);
+}
+.vz-complete-body .vz-mascot-bubble.show { transform: translateX(50%) translateY(0) scale(1); }
+.vz-complete-body .vz-mascot-bubble.out { transform: translateX(50%) translateY(-8px) scale(0.9); }
