@@ -66,14 +66,20 @@ export function showSplash(container: HTMLElement, onDone: () => void): () => vo
 /* ================= MAIN MENU ================= */
 export function showMenu(container: HTMLElement, nav: Nav): () => void {
   const el = h("div", { class: "vz-screen vz-menu" });
-  el.append(heroBg("/assets/bg/menu.webp"));
-  // ornamental Persian pattern wash over the hero (brown-on-brown)
-  el.append(h("div", { class: "vz-menu-pattern", "aria-hidden": "true" }));
+  el.append(heroBg("/assets/bg/menu.webp?v=4"));
+  // drifting clouds — the happy blue sky feels alive
+  for (let i = 0; i < 3; i++) {
+    const c = h("div", { class: `vz-cloud vz-cloud-${i + 1}`, "aria-hidden": "true" });
+    el.append(c);
+  }
+  // soft light veil (keeps sky bright — no heavy dark wash)
+  el.append(h("div", { class: "vz-menu-light", "aria-hidden": "true" }));
 
   const title = h("div", { class: "vz-menu-title" });
   title.innerHTML = `<h1>${T.gameTitle}</h1><p>${T.gameTagline}</p>`;
 
-  const mascot = createMascot(96, "vz-mascot-menu");
+  // عمو دانا stands in the city square, waving hello
+  const mascot = createMascot(150, "vz-mascot-menu");
   const col = h("div", { class: "vz-menu-col" });
   const target = continueTarget();
   const hasProgress = Save.totalWords() > 0;
@@ -84,10 +90,10 @@ export function showMenu(container: HTMLElement, nav: Nav): () => void {
   const chaptersBtn = actionBtn(T.chapters, "vz-secondary vz-big-btn", () => nav.goChapters(), ICONS.flag);
   const row = h("div", { class: "vz-menu-row" });
   row.append(
-    iconBtn(ICONS.chart, T.progress, () => nav.goProgress()),
-    iconBtn(ICONS.gift, T.rewards, () => nav.goRewards()),
-    iconBtn(ICONS.book, T.guide, () => nav.goGuide()),
-    iconBtn(ICONS.gear, T.settings, () => nav.openSettings()),
+    iconBtn(ICONS.chart, T.progress, () => nav.goProgress(), "vz-ib-blue"),
+    iconBtn(ICONS.gift, T.rewards, () => nav.goRewards(), "vz-ib-pink"),
+    iconBtn(ICONS.book, T.guide, () => nav.goGuide(), "vz-ib-purple"),
+    iconBtn(ICONS.gear, T.settings, () => nav.openSettings(), "vz-ib-teal"),
   );
   col.append(playBtn, chaptersBtn, row);
   el.append(title, mascot.el, col);

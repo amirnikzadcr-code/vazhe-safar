@@ -147,24 +147,50 @@ export function showGameplay(
       }
     }
     board.append(grid);
-    sizeBoard();
+    // measure once the flex layout has settled — never synchronously
+    requestAnimationFrame(sizeBoard);
   };
 
+  /* v1.4 fix — the grid MUST always fit its panel: we measure the real
+     board box (after flex layout) instead of guessing reserves, and never
+     clamp the cell above the computed fit (the old 22px floor made big
+     grids overflow the frame / hide behind the wheel). */
   const sizeBoard = (): void => {
     const grid = board.querySelector(".vz-grid") as HTMLElement | null;
     if (!grid) return;
-    const availW = screen.clientWidth - 32 - 30; // side margins + panel padding
-    // vertical budget: screen − scene − fixed bottom block (min wheel + helpers) + top overlap
-    const sceneH = scene.offsetHeight;
-    const BOTTOM_RESERVE = 296; // helpers (~64) + wheel min (200) + paddings
-    const TOP_OVERLAP = 26;     // board overlaps scene via negative margin
-    const availH = Math.max(72, screen.clientHeight - sceneH - BOTTOM_RESERVE + TOP_OVERLAP);
+    const cs = getComputedStyle(board);
+    const availW = board.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const availH = board.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    if (availW <= 0 || availH <= 0) return;
+    const GAP = 5;
     const cell = Math.floor(Math.min(
-      (availW - (layout!.cols - 1) * 5) / layout!.cols,
-      (availH - (layout!.rows - 1) * 5) / layout!.rows,
+      (availW - (layout!.cols - 1) * GAP) / layout!.cols,
+      (availH - (layout!.rows - 1) * GAP) / layout!.rows,
       46,
     ));
-    grid.style.setProperty("--cell", `${clamp(cell, 22, 46)}px`);
+    // big grid? shrink the cinematic scene to buy the board real estate
+    // (hysteresis: compact below 22px, back to full above 30px — no loops)
+    if (cell < 22 && !screen.classList.contains("vz-compact-scene")) {
+      screen.classList.add("vz-compact-scene");
+      return; // ResizeObserver refires after the scene shrinks
+    }
+    if (cell > 30 && screen.classList.contains("vz-compact-scene")) {
+      screen.classList.remove("vz-compact-scene");
+      return;
+    }
+    if (cell < 14) {
+      // extreme squeeze (tiny landscape windows): scale the whole grid down
+      const base = 14;
+      const wPx = base * layout!.cols + (layout!.cols - 1) * GAP;
+      const hPx = base * layout!.rows + (layout!.rows - 1) * GAP;
+      const scale = Math.min(availW / wPx, availH / hPx, 1);
+      grid.style.setProperty("--cell", `${base}px`);
+      grid.style.transform = `scale(${scale})`;
+      grid.style.transformOrigin = "center center";
+    } else {
+      grid.style.setProperty("--cell", `${cell}px`);
+      grid.style.transform = "";
+    }
   };
 
   const fillWord = (word: string, cls = "found"): void => {
@@ -413,7 +439,9 @@ export function showGameplay(
     if (noMistakes) content.append(h("div", { class: "vz-perfect", text: bonusFound.size ? T.perfectLevel : T.noMistakes }));
     else if (stars === 2) content.append(h("div", { class: "vz-perfect soft", text: T.goodLevel }));
 
-    const mascot = createMascot(84);
+    // v1.4: real human guide, strictly bounded inside the card (no overflow,
+    // no janky float — entrance plays once, then rests)
+    const mascot = createMascot(104, "vz-mascot-modal");
     mascot.setPose("cheer");
     mascot.say(stars === 3 ? T.mascotPerfect : T.mascotGood, 3200);
     content.append(mascot.el);
@@ -629,6 +657,9 @@ export function showGameplay(
     sizeBoard();
   };
   window.addEventListener("resize", onResize);
+  // any layout shift (fonts, orientation, wheel settle) re-fits the grid
+  const boardRO = new ResizeObserver(() => sizeBoard());
+  boardRO.observe(board);
 
   /* ---------- boot ---------- */
   buildBoard();
@@ -647,6 +678,7 @@ export function showGameplay(
   return () => {
     destroyed = true;
     fx.stop();
+    boardRO.disconnect();
     window.removeEventListener("resize", onResize);
     screen.remove();
   };

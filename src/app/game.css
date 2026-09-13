@@ -1664,3 +1664,257 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .vz-complete-body .vz-mascot-bubble.show { transform: translateX(50%) translateY(0) scale(1); }
 .vz-complete-body .vz-mascot-bubble.out { transform: translateX(50%) translateY(-8px) scale(0.9); }
+
+/* ==================================================================
+   v1.4 HAPPY CITY LAYER — blue-sky menu, real human guide,
+   candy-addictive buttons, bullet-proof crossword board sizing
+   (appended last — wins the cascade)
+   ================================================================== */
+
+/* ---------- 1) mascot: human guide assets ---------- */
+.vz-mascot {
+  filter: none; /* v1.3 drop-shadow removed: cheaper + cleaner cutout */
+  animation: vzMzFloat 4.2s ease-in-out infinite;
+  transform-origin: 50% 96%;
+}
+.vz-mascot .vz-mascot-img {
+  width: 100%; height: auto; display: block;
+  user-select: none; -webkit-user-drag: none;
+  pointer-events: none;
+}
+.vz-mascot-shadow {
+  position: absolute; bottom: -7px; left: 50%;
+  width: 74%; height: 12px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at 50% 50%, rgba(30, 16, 4, 0.4), rgba(30, 16, 4, 0) 70%);
+  border-radius: 50%;
+}
+@keyframes vzMzFloat {
+  0%, 100% { transform: translateY(0) rotate(-0.8deg); }
+  50% { transform: translateY(-6px) rotate(0.8deg); }
+}
+/* win modal: strictly bounded guide + calm bubble that lives INSIDE the card */
+.vz-complete-body .vz-mascot.vz-mascot-modal {
+  width: auto; height: 118px;
+  margin: 6px auto 10px;
+  animation: vzMzCelebrate 0.9s cubic-bezier(0.2, 1.5, 0.4, 1) 1;
+}
+.vz-complete-body .vz-mascot.vz-mascot-modal .vz-mascot-img { width: auto; height: 100%; }
+.vz-complete-body .vz-mascot.vz-mascot-modal .vz-mascot-bubble {
+  position: static; transform: none; margin: 8px auto 0;
+  max-width: 250px; font-size: 12px;
+  animation: vzFadeIn 0.4s 0.5s ease backwards;
+}
+.vz-complete-body .vz-mascot.vz-mascot-modal .vz-mascot-bubble::after { display: none; }
+.vz-complete-body .vz-mascot.vz-mascot-modal .vz-mascot-bubble.show,
+.vz-complete-body .vz-mascot.vz-mascot-modal .vz-mascot-bubble.out { transform: none; }
+@keyframes vzMzCelebrate {
+  0% { opacity: 0; transform: translateY(20px) scale(0.7); }
+  55% { opacity: 1; transform: translateY(-6px) scale(1.06); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* chapters guide: compact */
+.vz-mascot-chapters { width: 58px; }
+.vz-mascot-chapters .vz-mascot-bubble { max-width: 190px; }
+/* tutorial guide */
+.vz-tut-row .vz-mascot { width: 64px; }
+
+/* ---------- 2) main menu: happy city in bright daylight ---------- */
+.vz-menu-light {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(30, 60, 100, 0.14) 0%, rgba(30, 60, 100, 0) 22%),
+    linear-gradient(0deg, rgba(28, 46, 30, 0.55) 0%, rgba(28, 46, 30, 0.18) 26%, rgba(20, 30, 46, 0) 48%);
+}
+.vz-cloud {
+  position: absolute; z-index: 1; pointer-events: none;
+  width: 130px; height: 40px; border-radius: 999px;
+  background: radial-gradient(ellipse at 50% 40%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.55) 62%, rgba(255, 255, 255, 0) 78%);
+  filter: blur(2px);
+  opacity: 0.9;
+  will-change: transform;
+}
+.vz-cloud-1 { top: 9%;  animation: vzCloudDrift 46s linear infinite; }
+.vz-cloud-2 { top: 20%; width: 90px; height: 30px; opacity: 0.7; animation: vzCloudDrift 64s linear infinite reverse; }
+.vz-cloud-3 { top: 31%; width: 160px; height: 44px; opacity: 0.55; animation: vzCloudDrift 88s linear infinite; }
+@keyframes vzCloudDrift {
+  from { transform: translateX(-30vw); }
+  to   { transform: translateX(115vw); }
+}
+/* sticker-style golden logo that pops on the bright sky */
+.vz-menu-title h1 {
+  background: linear-gradient(180deg, #fffbe8 12%, #ffe28a 40%, #f5b23c 72%, #e8931f 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 2.2px rgba(88, 46, 8, 0.62);
+  paint-order: stroke fill;
+  filter:
+    drop-shadow(0 3px 0 rgba(120, 70, 14, 0.85))
+    drop-shadow(0 12px 26px rgba(30, 16, 0, 0.4));
+  font-size: 58px;
+}
+.vz-menu-title p {
+  color: #fffdf4;
+  font-weight: 700;
+  text-shadow:
+    0 1px 0 rgba(90, 50, 10, 0.9), 0 2px 0 rgba(90, 50, 10, 0.7),
+    0 6px 18px rgba(30, 20, 4, 0.55);
+}
+/* عمو دانا — big friendly guide standing on the plaza (left, like the reference) */
+.vz-menu .vz-mascot-menu {
+  position: absolute;
+  z-index: 3;
+  left: 3%;
+  top: auto;               /* neutralize v1.3d top:45% */
+  margin: 0;               /* neutralize v1.3d negative margin */
+  bottom: calc(232px + env(safe-area-inset-bottom));
+  width: auto; height: min(43vh, 372px);
+  animation: vzMzMenuIn 0.9s 0.25s cubic-bezier(0.2, 1.3, 0.35, 1) backwards, vzMzFloat 4.2s ease-in-out 1.4s infinite;
+}
+.vz-menu .vz-mascot-menu .vz-mascot-img { width: auto; height: 100%; }
+.vz-menu .vz-mascot-menu .vz-mascot-shadow { bottom: -4px; }
+@keyframes vzMzMenuIn {
+  0% { opacity: 0; transform: translateY(46px) scale(0.82); }
+  65% { opacity: 1; transform: translateY(-8px) scale(1.03); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* greeting bubble floats above his head, over the open sky */
+.vz-menu .vz-mascot-menu .vz-mascot-bubble {
+  top: auto; bottom: calc(100% - 30px);
+  left: 50%; right: auto;
+  transform: translateX(-50%) translateY(10px) scale(0.85);
+  transform-origin: 50% 100%;
+  max-width: 226px; font-size: 12.5px;
+  background:
+    var(--vz-pattern-3),
+    linear-gradient(170deg, rgba(58, 34, 18, 0.97), rgba(38, 21, 11, 0.98));
+  border-color: rgba(255, 214, 120, 0.75);
+}
+.vz-menu .vz-mascot-menu .vz-mascot-bubble.show { transform: translateX(-50%) translateY(0) scale(1); }
+.vz-menu .vz-mascot-menu .vz-mascot-bubble.out { transform: translateX(-50%) translateY(-8px) scale(0.9); }
+@media (max-height: 820px) {
+  .vz-menu .vz-mascot-menu { height: 37vh; }
+  .vz-menu-title h1 { font-size: 50px; }
+}
+@media (max-height: 700px) {
+  .vz-menu .vz-mascot-menu { height: 33vh; }
+}
+
+/* ---------- 3) candy-addictive buttons ---------- */
+.vz-btn { border-radius: 22px; font-weight: 800; }
+.vz-btn:active { transform: translateY(5px) scale(0.98); }
+/* primary = juicy green (the "play" candy) */
+.vz-primary {
+  background: linear-gradient(180deg, #a6eE3c 0%, #6fce12 46%, #54ad04 100%);
+  background: linear-gradient(180deg, #a6ee3c 0%, #6fce12 46%, #54ad04 100%);
+  color: #ffffff;
+  text-shadow: 0 1.5px 0 rgba(52, 104, 4, 0.75);
+  border: 1.5px solid #bdf56a;
+  box-shadow:
+    0 7px 0 #3f8a04,
+    0 14px 26px rgba(64, 138, 4, 0.42),
+    inset 0 2px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -4px 10px rgba(46, 96, 2, 0.4);
+}
+.vz-primary:hover { filter: brightness(1.05); }
+.vz-primary:active { box-shadow: 0 2px 0 #3f8a04, 0 6px 14px rgba(64, 138, 4, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.45); transform: translateY(5px) scale(0.98); }
+/* secondary = golden candy */
+.vz-secondary {
+  background: linear-gradient(180deg, #ffdf7e 0%, #f7b93c 48%, #e89a20 100%);
+  color: #5c3406;
+  text-shadow: 0 1px 0 rgba(255, 244, 210, 0.6);
+  border: 1.5px solid #ffe9a8;
+  box-shadow:
+    0 7px 0 #b8730f,
+    0 14px 26px rgba(184, 115, 15, 0.38),
+    inset 0 2px 0 rgba(255, 252, 240, 0.7),
+    inset 0 -4px 10px rgba(160, 96, 10, 0.35);
+}
+.vz-secondary:active { box-shadow: 0 2px 0 #b8730f, 0 6px 14px rgba(184, 115, 15, 0.35), inset 0 2px 0 rgba(255, 252, 240, 0.6); transform: translateY(5px) scale(0.98); }
+/* danger = cherry candy */
+.vz-danger {
+  background: linear-gradient(180deg, #ff8a70 0%, #f2543c 48%, #d63a28 100%);
+  color: #fff;
+  text-shadow: 0 1.5px 0 rgba(140, 30, 14, 0.8);
+  border: 1.5px solid #ffb3a0;
+  box-shadow:
+    0 6px 0 #9c2416,
+    0 12px 22px rgba(214, 58, 40, 0.4),
+    inset 0 2px 0 rgba(255, 235, 228, 0.5);
+}
+.vz-danger:active { box-shadow: 0 2px 0 #9c2416, inset 0 2px 0 rgba(255, 235, 228, 0.4); transform: translateY(4px) scale(0.98); }
+/* colorful icon buttons — every destination has its own flavor */
+.vz-icon-btn {
+  border-radius: 50%;
+  width: 54px; height: 54px;
+  color: #ffffff;
+  border-width: 1.5px;
+  background: linear-gradient(180deg, #8a9bb0 0%, #5f7288 100%);
+  box-shadow: 0 5px 0 rgba(43, 56, 72, 0.95), 0 10px 18px rgba(10, 14, 20, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.4);
+}
+.vz-icon-btn:active { transform: translateY(4px) scale(0.94); box-shadow: 0 1px 0 rgba(43, 56, 72, 0.95), inset 0 2px 0 rgba(255, 255, 255, 0.3); }
+.vz-ib-blue   { background: linear-gradient(180deg, #5cc8ff 0%, #2196e8 100%); box-shadow: 0 5px 0 #0f5f9e, 0 10px 18px rgba(16, 96, 160, 0.4), inset 0 2px 0 rgba(255,255,255,0.45); }
+.vz-ib-blue:active { box-shadow: 0 1px 0 #0f5f9e, inset 0 2px 0 rgba(255,255,255,0.35); }
+.vz-ib-pink   { background: linear-gradient(180deg, #ff92b9 0%, #f4588f 100%); box-shadow: 0 5px 0 #b62c60, 0 10px 18px rgba(182, 44, 96, 0.4), inset 0 2px 0 rgba(255,255,255,0.45); }
+.vz-ib-pink:active { box-shadow: 0 1px 0 #b62c60, inset 0 2px 0 rgba(255,255,255,0.35); }
+.vz-ib-purple { background: linear-gradient(180deg, #b78cff 0%, #8250ee 100%); box-shadow: 0 5px 0 #5527a8, 0 10px 18px rgba(85, 39, 168, 0.4), inset 0 2px 0 rgba(255,255,255,0.45); }
+.vz-ib-purple:active { box-shadow: 0 1px 0 #5527a8, inset 0 2px 0 rgba(255,255,255,0.35); }
+.vz-ib-teal   { background: linear-gradient(180deg, #4fe0cd 0%, #16b3a0 100%); box-shadow: 0 5px 0 #0a7a6d, 0 10px 18px rgba(10, 122, 109, 0.4), inset 0 2px 0 rgba(255,255,255,0.45); }
+.vz-ib-teal:active { box-shadow: 0 1px 0 #0a7a6d, inset 0 2px 0 rgba(255,255,255,0.35); }
+/* generic small action buttons inside modals inherit candy push */
+.vz-modal-btns .vz-btn { border-radius: 18px; }
+
+/* ---------- 4) gameplay layout: board ALWAYS fits ---------- */
+.vz-scene { flex: 0 1 42%; min-height: 148px; }
+.vz-board {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: -26px 14px 8px;
+  overflow: hidden;
+}
+.vz-words-row { flex: 0 0 auto; margin: 0 0 4px; }
+.vz-bottom { flex: 0 0 auto; gap: 6px; }
+.vz-wheel-host {
+  flex: 0 0 auto;
+  height: clamp(176px, 29dvh, 292px);
+  min-height: 0; max-height: none;
+}
+@media (max-height: 700px) {
+  .vz-wheel-host { height: clamp(158px, 26dvh, 240px); }
+}
+
+/* ---------- 5) modals: silky & lag-free ---------- */
+.vz-modal-wrap {
+  background: rgba(20, 11, 5, 0.74);
+  backdrop-filter: none; /* backdrop blur over animated canvas = jank */
+}
+.vz-level-title, .vz-coin-badge, .vz-ch-lead { backdrop-filter: none; }
+.vz-big-star { filter: none; }
+.vz-big-star.on { filter: drop-shadow(0 0 10px rgba(255, 204, 92, 0.55)); }
+.vz-complete-stars { min-height: 52px; }
+
+/* ---------- 6) misc: keep every screen coherent ---------- */
+.vz-screen.vz-menu { background: #7fc4ec; } /* under the hero while it loads */
+
+/* ---------- 7) splash: bright morning sky (matches the city) ---------- */
+.vz-splash {
+  background:
+    radial-gradient(720px 420px at 50% 14%, rgba(255, 238, 168, 0.55), transparent 62%),
+    linear-gradient(180deg, #8fd0f4 0%, #bce4f8 52%, #eaf6d8 100%);
+}
+.vz-splash-ring {
+  background: conic-gradient(from 140deg, #ffd75e, #f0a232, #ffd75e);
+  box-shadow: 0 0 60px rgba(255, 200, 60, 0.55);
+}
+.vz-splash-ring2 { background: linear-gradient(160deg, #fff6dd, #ffe9b0); }
+.vz-splash-logo { color: #e8931f; }
+.vz-splash-title { color: #4a2c08; text-shadow: 0 2px 0 rgba(255, 248, 226, 0.65); }
+.vz-splash-tag { color: #6d4c22; font-weight: 600; }
+.vz-splash-load { background: rgba(74, 44, 8, 0.18); }
+.vz-splash-bar { background: linear-gradient(90deg, #f7b93c, #6fce12); }
+
+/* ---------- 8) compact scene for big crossword grids ---------- */
+.vz-screen.vz-compact-scene .vz-scene {
+  flex-basis: 22%;
+  min-height: 104px;
+}
+.vz-screen.vz-compact-scene .vz-veil { background: linear-gradient(180deg, rgba(23,13,8,0.5) 0%, transparent 40%, rgba(29,16,10,0.55) 100%); }
