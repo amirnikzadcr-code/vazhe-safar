@@ -61,6 +61,8 @@ export function PlayScreen({
   const [paused, setPaused] = useState(false);
   const [shuffleKey, setShuffleKey] = useState(0);
   const [tutorial, setTutorial] = useState(() => !Save.data.tutorialDone && ch === 1 && lv === 1);
+  const [tutFading, setTutFading] = useState(false);
+  const tutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [earned, setEarned] = useState({ words: 0, bonus: 0 });
   const mistakesRef = useRef(0);
   const foundRef = useRef<Set<string>>(new Set());
@@ -72,6 +74,18 @@ export function PlayScreen({
   useEffect(() => { foundRef.current = found; }, [found]);
 
   const { toast, show } = useToast();
+
+  /* -------- tutorial: fades out on the FIRST drag (user request:
+   * "باید وقتی یبار میکشی محو بشه") — no more stuck overlay ------- */
+  const dismissTutorial = useCallback(() => {
+    if (!Save.data.tutorialDone) Save.markTutorialDone();
+    setTutFading((f) => {
+      if (f) return f;
+      tutTimerRef.current = setTimeout(() => setTutorial(false), 420);
+      return true;
+    });
+  }, []);
+  useEffect(() => () => { if (tutTimerRef.current) clearTimeout(tutTimerRef.current); }, []);
 
   const clearPending = useCallback(() => {
     for (const t of timersRef.current) clearTimeout(t);
@@ -109,10 +123,7 @@ export function PlayScreen({
     Audio.sfxWordFound(foundRef.current.size + pendingRef.current.size);
     buzz([18, 30, 18], Save.data.settings.haptics);
     coinsBump();
-    if (byPlayer && !Save.data.tutorialDone) {
-      Save.markTutorialDone();
-      setTutorial(false);
-    }
+    if (byPlayer) dismissTutorial();
     fxKRef.current += 1;
     const k = fxKRef.current;
     setWheelFx({ word, k });
@@ -122,7 +133,7 @@ export function PlayScreen({
       commitFound(word);
     }, CELEBRATE_MS);
     timersRef.current.push(t);
-  }, [coinsBump, commitFound]);
+  }, [coinsBump, commitFound, dismissTutorial]);
 
   /* words completed purely by hints → auto-found */
   useEffect(() => {
@@ -234,8 +245,8 @@ export function PlayScreen({
       {/* top bar */}
       <div className="topbar">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button type="button" aria-label="توقف" className="ib3" onClick={() => { Audio.sfxClick(); setPaused(true); }}>
-            <PauseIc />
+          <button type="button" aria-label="منو" className="ib3 sunset" onClick={() => { Audio.sfxClick(); setPaused(true); }}>
+            <MenuLines />
           </button>
           <span className="chip" style={{ fontSize: 14 }}>مرحله {faNum((ch - 1) * 10 + lv)}</span>
         </div>
@@ -268,6 +279,7 @@ export function PlayScreen({
           reward={REWARDS.perWord}
           onAuto={checkAuto}
           onRelease={submit}
+          onFirstDrag={dismissTutorial}
         />
       </div>
 
@@ -276,8 +288,7 @@ export function PlayScreen({
         <button
           type="button"
           aria-label="راهنما"
-          className="ib3 helper"
-          style={{ ["--ib" as string]: "#ffedbe", ["--ib-edge" as string]: "#c98a0a", ["--ib-fg" as string]: "#8a5500" }}
+          className="ib3 helper honey"
           onClick={doHint}
         >
           <HintBulb size={26} />
@@ -291,10 +302,11 @@ export function PlayScreen({
         </button>
       </div>
 
-      {/* tutorial overlay (pointer-events none → wheel stays playable) */}
+      {/* tutorial overlay (pointer-events none → wheel stays playable;
+       * fades away on the FIRST drag) */}
       {tutorial && (
         <div
-          className="fade-in"
+          className={`fade-in ${tutFading ? "tut-out" : ""}`}
           style={{ position: "absolute", inset: 0, zIndex: 55, background: "rgba(10,26,46,.35)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: "36%", pointerEvents: "none" }}
         >
           <div style={{ textAlign: "center" }}>
@@ -341,12 +353,13 @@ export function PlayScreen({
   );
 }
 
-/* small inline pause glyph (keeps icon import list tidy) */
-function PauseIc() {
+/* three-line menu glyph (user request: pause button → hamburger icon) */
+function MenuLines() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
-      <rect x="6" y="4.5" width="4.2" height="15" rx="1.8" fill="currentColor" />
-      <rect x="13.8" y="4.5" width="4.2" height="15" rx="1.8" fill="currentColor" />
+    <svg width="20" height="20" viewBox="0 0 24 24" className="menu-ic" aria-hidden>
+      <path d="M4.5 6.6h15" stroke="#fff" strokeWidth="2.7" strokeLinecap="round" />
+      <path d="M4.5 12h15" stroke="#ffe08a" strokeWidth="2.7" strokeLinecap="round" />
+      <path d="M4.5 17.4h15" stroke="#fff" strokeWidth="2.7" strokeLinecap="round" />
     </svg>
   );
 }
@@ -424,7 +437,7 @@ function WordBoard({
    While `fx` is set (word celebrated) the selection polyline stays
    visible, tiles glow in a cascade and new drags are blocked. ================= */
 function Wheel({
-  letters: ls, shuffleKey, fx, reward, onAuto, onRelease,
+  letters: ls, shuffleKey, fx, reward, onAuto, onRelease, onFirstDrag,
 }: {
   letters: string[];
   shuffleKey: number;
@@ -432,13 +445,20 @@ function Wheel({
   reward: number;
   onAuto: (str: string) => boolean;
   onRelease: (str: string) => "new" | "known" | false;
+  onFirstDrag?: () => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const lineRef = useRef<SVGPolylineElement | null>(null);
   const [sel, setSel] = useState<number[]>([]);
-  const [tip, setTip] = useState<{ x: number; y: number } | null>(null);
   const [celebK, setCelebK] = useState(0);
   const selRef = useRef<number[]>([]);
   const dragRef = useRef(false);
+  const firstDragRef = useRef(false);
+  const centersRef = useRef<{ idx: number; x: number; y: number }[]>([]);
+  const tipTargetRef = useRef<{ x: number; y: number } | null>(null);
+  const tipCurRef = useRef<{ x: number; y: number } | null>(null);
+  const rafRef = useRef(0);
+  const rRef = useRef(46); /* hit radius in px, measured per stroke */
 
   const positions = useMemo(() => {
     const n = ls.length;
@@ -455,78 +475,145 @@ function Wheel({
   const applySel = (next: number[]) => {
     selRef.current = next;
     setSel(next);
+    paintLine();
+  };
+
+  /* ------- BUTTERY DRAG (user request: «ب شدت نرم روان بکن») -------
+   * • selection line is painted by DIRECT DOM writes (polyline.points)
+   *   → pointermove causes ZERO React re-renders
+   * • hit-test by cached tile centers + distance (no elementFromPoint
+   *   per move, no layout thrash)
+   * • the tail CHASES the finger with a lerp in a rAF loop and retracts
+   *   into the last caught tile when the stroke ends */
+  const paintLine = () => {
+    const el = lineRef.current;
+    if (!el) return;
+    const pts = selRef.current
+      .map((i) => centersRef.current.find((c) => c.idx === i))
+      .filter(Boolean)
+      .map((c) => `${c!.x},${c!.y}`);
+    const tip = tipCurRef.current;
+    if (tip) pts.push(`${tip.x},${tip.y}`);
+    el.setAttribute("points", pts.join(" "));
+  };
+
+  const tick = () => {
+    const tipT = tipTargetRef.current;
+    const tipC = tipCurRef.current;
+    if (tipT && tipC) {
+      tipC.x += (tipT.x - tipC.x) * 0.45;
+      tipC.y += (tipT.y - tipC.y) * 0.45;
+      if (Math.abs(tipT.x - tipC.x) < 0.7 && Math.abs(tipT.y - tipC.y) < 0.7) {
+        tipC.x = tipT.x; tipC.y = tipT.y;
+      }
+    }
+    paintLine();
+    const settled = !dragRef.current && tipT && tipC && tipT.x === tipC.x && tipT.y === tipC.y;
+    if (settled) { rafRef.current = 0; return; } /* tail fully retracted → stop the loop */
+    rafRef.current = requestAnimationFrame(tick);
+  };
+  const ensureRaf = () => { if (!rafRef.current) rafRef.current = requestAnimationFrame(tick); };
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
+
+  /* cache tile centers in PIXELS once per stroke (1 layout read) */
+  const measure = () => {
+    const r = wrapRef.current!.getBoundingClientRect();
+    centersRef.current = positions.map((p) => ({
+      idx: p.idx,
+      x: (p.x / 100) * r.width,
+      y: (p.y / 100) * r.height,
+    }));
+    rRef.current = Math.max(30, r.width * 0.15);
+    return r;
+  };
+
+  /* distance hit-test — never misses between tiles, super cheap */
+  const hitTile = (lx: number, ly: number): number | null => {
+    const R = rRef.current;
+    let best: number | null = null;
+    let bestD = R * R;
+    for (const c of centersRef.current) {
+      const dx = c.x - lx, dy = c.y - ly;
+      const d = dx * dx + dy * dy;
+      if (d <= bestD) { bestD = d; best = c.idx; }
+    }
+    return best;
   };
 
   /* fx set → celebrate; fx cleared (word landed) → release selection */
   useEffect(() => {
     if (fx) setCelebK(fx.k);
-    else if (celebK) { applySel([]); setCelebK(0); }
+    else if (celebK) {
+      applySel([]);
+      tipTargetRef.current = null;
+      tipCurRef.current = null;
+      paintLine();
+      setCelebK(0);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fx]);
 
-  const tileAt = (clientX: number, clientY: number): number | null => {
-    const el = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
-    const t = el?.closest("[data-tile]") as HTMLElement | null;
-    return t ? Number(t.dataset.tile) : null;
-  };
-
-  const toLocal = (clientX: number, clientY: number) => {
-    const r = wrapRef.current!.getBoundingClientRect();
-    return {
-      x: ((clientX - r.left) / r.width) * 100,
-      y: ((clientY - r.top) / r.height) * 100,
-    };
+  const endStroke = (keepLineDuringFx: boolean) => {
+    dragRef.current = false;
+    if (keepLineDuringFx) {
+      /* tail retracts into the last caught tile while the celebration plays */
+      const cur = selRef.current;
+      const last = cur.length ? centersRef.current.find((c) => c.idx === cur[cur.length - 1]) : null;
+      if (last) { tipTargetRef.current = { x: last.x, y: last.y }; ensureRaf(); return; }
+    }
+    applySel([]);
+    tipTargetRef.current = null;
+    tipCurRef.current = null;
+    paintLine();
   };
 
   const down = (e: React.PointerEvent) => {
     if (celebK) return; /* celebrating → inputs locked for the moment */
-    const i = tileAt(e.clientX, e.clientY);
-    if (i === null || Number.isNaN(i)) return;
+    const r = measure();
+    const lx = e.clientX - r.left, ly = e.clientY - r.top;
+    const i = hitTile(lx, ly);
+    if (i === null) return;
+    if (!firstDragRef.current) { firstDragRef.current = true; onFirstDrag?.(); }
     dragRef.current = true;
     try { wrapRef.current?.setPointerCapture(e.pointerId); } catch { /* noop */ }
     applySel([i]);
-    setTip(toLocal(e.clientX, e.clientY));
+    const c = centersRef.current.find((c) => c.idx === i)!;
+    tipCurRef.current = { x: c.x, y: c.y };
+    tipTargetRef.current = { x: lx, y: ly };
+    ensureRaf();
     Audio.sfxLetter(0);
   };
 
   const move = (e: React.PointerEvent) => {
     if (!dragRef.current) return;
-    const local = toLocal(e.clientX, e.clientY);
-    setTip(local);
-    const i = tileAt(e.clientX, e.clientY);
+    const r = wrapRef.current!.getBoundingClientRect();
+    const lx = e.clientX - r.left, ly = e.clientY - r.top;
+    tipTargetRef.current = { x: lx, y: ly };
+    const i = hitTile(lx, ly);
     const cur = selRef.current;
-    if (i !== null && !Number.isNaN(i) && !cur.includes(i)) {
+    if (i !== null && !cur.includes(i)) {
       const next = [...cur, i];
       Audio.sfxLetter(next.length);
       applySel(next);
+      /* tail snaps to the newly caught tile — then keeps chasing */
+      const c = centersRef.current.find((c) => c.idx === i)!;
+      tipCurRef.current = { x: c.x, y: c.y };
       /* auto-submit on exact unfound word (no mistake penalty) —
        * selection stays visible through the celebration */
-      if (onAuto(next.map((k) => ls[k]).join(""))) {
-        dragRef.current = false;
-        setTip(null);
-      }
+      if (onAuto(next.map((k) => ls[k]).join(""))) endStroke(true);
     }
+    ensureRaf();
   };
 
   const up = () => {
     if (!dragRef.current) return;
-    dragRef.current = false;
     const cur = selRef.current;
     if (cur.length >= 2) {
       const r = onRelease(cur.map((k) => ls[k]).join(""));
-      if (r === "new") { setTip(null); return; } /* keep line during fx */
+      if (r === "new") { endStroke(true); return; } /* keep line during fx */
     }
-    applySel([]);
-    setTip(null);
+    endStroke(false);
   };
-
-  /* selection polyline in the 0–100 viewBox space (no ref reads) */
-  const linePts = sel
-    .map((i) => positions.find((p) => p.idx === i))
-    .filter(Boolean)
-    .map((p) => `${p!.x},${p!.y}`)
-    .join(" ");
-  const tipPt = tip ? ` ${tip.x},${tip.y}` : "";
 
   return (
     <div
@@ -545,21 +632,18 @@ function Wheel({
       <div className="wheel-hub">
         <StarGold size={26} />
       </div>
-      {sel.length > 0 && (
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} aria-hidden>
-          <polyline
-            points={linePts + tipPt}
-            fill="none"
-            stroke="rgba(255,190,40,.92)"
-            strokeWidth={2.6}
-            vectorEffect="non-scaling-stroke"
-            style={{ strokeWidth: 9 }}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={0.85}
-          />
-        </svg>
-      )}
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible" }} aria-hidden>
+        <polyline
+          ref={lineRef}
+          points=""
+          fill="none"
+          stroke="rgba(255,190,40,.92)"
+          strokeWidth={9}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={0.85}
+        />
+      </svg>
       <div key={shuffleKey} style={{ position: "absolute", inset: 0 }}>
         {positions.map(({ idx, x, y }, pi) => (
           <span
@@ -602,11 +686,13 @@ function Wheel({
   );
 }
 
-/* tutorial hand */
+/* tutorial hand — performs a real drag arc (down → glide → up) */
 function HandSvg() {
   return (
-    <svg className="tut-hand" width="54" height="54" viewBox="0 0 24 24" aria-hidden style={{ margin: "0 auto", display: "block", filter: "drop-shadow(0 4px 6px rgba(0,0,0,.4))" }}>
-      <path fill="#ffd9b3" stroke="#b97c3f" strokeWidth="0.8" d="M11 9V4.8a1.4 1.4 0 0 1 2.8 0V9m0-2.4a1.4 1.4 0 0 1 2.8 0V9m0-1.2a1.4 1.4 0 0 1 2.8 0v4.7c0 4.2-2.6 7-6.4 7-3 0-4.6-1.4-6-3.8l-2-3.6c-.6-1-.3-1.9.5-2.3.7-.4 1.7-.1 2.3.8l1 1.4V6.2a1.4 1.4 0 0 1 2.8 0" />
-    </svg>
+    <span className="hand-drag" style={{ margin: "0 auto", display: "block", width: 54 }}>
+      <svg className="tut-hand" width="54" height="54" viewBox="0 0 24 24" aria-hidden style={{ display: "block", filter: "drop-shadow(0 4px 6px rgba(0,0,0,.4))" }}>
+        <path fill="#ffd9b3" stroke="#b97c3f" strokeWidth="0.8" d="M11 9V4.8a1.4 1.4 0 0 1 2.8 0V9m0-2.4a1.4 1.4 0 0 1 2.8 0V9m0-1.2a1.4 1.4 0 0 1 2.8 0v4.7c0 4.2-2.6 7-6.4 7-3 0-4.6-1.4-6-3.8l-2-3.6c-.6-1-.3-1.9.5-2.3.7-.4 1.7-.1 2.3.8l1 1.4V6.2a1.4 1.4 0 0 1 2.8 0" />
+      </svg>
+    </span>
   );
 }

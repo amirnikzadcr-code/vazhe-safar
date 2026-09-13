@@ -1,14 +1,10 @@
 "use client";
 /* ------------------------------------------------------------------
- * ShopScreen — coin packs (demo pricing) + special bundle + free bonus
+ * ShopScreen — coin packs (demo pricing) + special bundle
  * ------------------------------------------------------------------ */
-import { useEffect, useState } from "react";
 import { Sheet, TopBar, Btn, useToast, ToastHost } from "@/components/game/ui/kit";
-import { Sparkles, Gift as GiftIc, Play } from "@/components/game/icons";
+import { Sparkles } from "@/components/game/icons";
 import { faNum } from "@/game/core/utils";
-import { Save } from "@/game/core/save";
-import { Audio } from "@/game/core/audio";
-import { bumpSave } from "@/components/game/useSave";
 
 const PACKS = [
   { coins: 50,   price: "۵۰۰ تومان",  hot: false },
@@ -17,38 +13,11 @@ const PACKS = [
   { coins: 1200, price: "۹٬۹۰۰ تومان", hot: false },
 ];
 
-const FREE_KEY = "vz_free30_at";
-const COOLDOWN = 10 * 60 * 1000;
-
 export function ShopScreen({ coins, onBack }: { coins: number; onBack: () => void }) {
   const { toast, show } = useToast();
-  const [, tick] = useState(0);
-  const [freeReady, setFreeReady] = useState(false);
-
-  useEffect(() => {
-    const calc = () => {
-      const last = Number(localStorage.getItem(FREE_KEY) || 0);
-      setFreeReady(Date.now() - last >= COOLDOWN);
-    };
-    calc();
-    const t = setInterval(calc, 5000);
-    return () => clearInterval(t);
-  }, []);
-  void tick;
-
-  const grabFree = () => {
-    const last = Number(localStorage.getItem(FREE_KEY) || 0);
-    if (Date.now() - last < COOLDOWN) return;
-    localStorage.setItem(FREE_KEY, String(Date.now()));
-    Save.addCoins(30);
-    Audio.sfxCoin();
-    bumpSave();
-    setFreeReady(false);
-    show("۳۰ سکه هدیه گرفتید!");
-  };
 
   return (
-    <Sheet bg="/assets/bg/home2.webp" bgDim={0.32} blur={2}>
+    <Sheet bg="/assets/bg/home2.webp" bgDim={0.34}>
       <TopBar coins={coins} onBack={onBack} title="فروشگاه" />
 
       <div className="scrolly">
@@ -84,12 +53,6 @@ export function ShopScreen({ coins, onBack }: { coins: number; onBack: () => voi
             </div>
             <Btn color="teal" style={{ fontSize: 14, padding: ".5em 1.1em" }} onClick={() => show("به‌زودی در نسخهٔ اندروید!")}>اطلاعات</Btn>
           </div>
-
-          {/* free bonus */}
-          <Btn wide color={freeReady ? "gold" : "green"} size="big" onClick={grabFree} disabled={!freeReady}>
-            <Play size={20} />
-            {freeReady ? "جایزهٔ رایگان: ۳۰ سکه بگیر!" : "جایزهٔ بعدی تا چند دقیقهٔ دیگر"}
-          </Btn>
 
           <p style={{ textAlign: "center", color: "#ffe9c8", fontSize: 12, fontWeight: 600, textShadow: "0 2px 4px rgba(0,0,0,.4)" }}>
             خریدهای واقعی فقط در نسخهٔ اندروید فعال می‌شوند.

@@ -78,7 +78,8 @@ export function HomeScreen({
               className="float-slow"
               style={{
                 height: "min(50vh, 370px)", maxWidth: "98%", objectFit: "contain",
-                filter: "drop-shadow(0 18px 22px rgba(10,30,60,.35))",
+                /* NOTE: no CSS filter here — drop-shadow on an animated
+                   image re-rasterizes every frame and lags the phone */
               }}
             />
           </div>

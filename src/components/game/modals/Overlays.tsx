@@ -2,7 +2,7 @@
 /* Pause / Settings / Daily Gift / About modals */
 import { useEffect, useState } from "react";
 import { Modal, Btn } from "@/components/game/ui/kit";
-import { Music, Volume2, Vibrate, Languages, ShieldCheck, Info, Gift as GiftIc } from "@/components/game/icons";
+import { Music, Volume2, Vibrate, ShieldCheck, Info, Gift as GiftIc } from "@/components/game/icons";
 import { faNum } from "@/game/core/utils";
 import { Save } from "@/game/core/save";
 import { Audio } from "@/game/core/audio";
@@ -24,6 +24,40 @@ export function PauseModal({
         <Btn wide color="gold" onClick={onRestart}>شروع دوباره</Btn>
         <Btn wide color="blue" onClick={onSettings}>تنظیمات</Btn>
         <Btn wide color="red" onClick={onExit}>خروج به نقشه</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------------- Exit confirmation (hardware back button) ----------------
+ * user request: pressing the phone's back/exit button must ASK first —
+ *   • during the game → «می‌خواهی به صفحهٔ اصلی برگردی؟»
+ *   • on the home screen → «می‌خواهی از بازی خارج شوی؟»              */
+export function ExitConfirmModal({
+  mode, onClose, onConfirm,
+}: {
+  mode: "app" | "map";
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal title={mode === "app" ? "خروج از بازی" : "بازگشت"} onClose={onClose}>
+      <div style={{ textAlign: "center" }}>
+        <img
+          src="/assets/char/thumb.webp"
+          alt="عمو دانا"
+          className="breathe"
+          style={{ width: 84, height: 84, borderRadius: 999, objectFit: "cover", objectPosition: "50% 20%", border: "3px solid #fff", boxShadow: "0 5px 0 #cfa14f, 0 8px 14px rgba(0,0,0,.25)", margin: "2px auto 10px", display: "block" }}
+        />
+        <p style={{ fontWeight: 800, color: "#5d3a12", fontSize: 16.5, margin: "0 0 14px" }}>
+          {mode === "app" ? "می‌خواهی از بازی خارج شوی؟" : "می‌خواهی به صفحهٔ اصلی برگردی؟"}
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Btn wide color="red" onClick={onConfirm}>
+            {mode === "app" ? "بله، خارج می‌شوم" : "بله، به صفحهٔ اصلی"}
+          </Btn>
+          <Btn wide color="green" onClick={onClose}>نه، ادامه می‌دهم</Btn>
+        </div>
       </div>
     </Modal>
   );
@@ -93,9 +127,6 @@ export function SettingsModal({ onClose, onAbout }: { onClose: () => void; onAbo
         </SetRow>
         <SetRow icon={<Vibrate size={20} />} title="لرزش">
           <Toggle label="لرزش" on={s.haptics} onChange={(v) => { Save.setSetting("haptics", v); refresh(); }} />
-        </SetRow>
-        <SetRow icon={<Languages size={20} />} title="زبان">
-          <span className="chip" style={{ fontSize: 13 }}>فارسی</span>
         </SetRow>
         <SetRow icon={<ShieldCheck size={20} />} title="حریم خصوصی">
           <Btn color="blue" onClick={() => onAbout("privacy")} style={{ fontSize: 14, padding: ".45em 1.1em" }}>مشاهده</Btn>
@@ -183,7 +214,7 @@ export function AboutModal({ tab, onClose }: { tab: "privacy" | "about"; onClose
           <>
             <p><b>واژه‌سفر</b> — سفری واژه‌به‌واژه در سرزمین قصه‌ها؛ ۱۰ فصل، ۱۰۰ مرحله، با همراهی عمو دانا و گربه‌اش.</p>
             <p>همهٔ گرافیک‌ها و موسیقی‌های این بازی اصلی و اختصاصی‌اند: موسیقی به‌صورت زنده و رویه‌ای با گام‌های دستگاهی ایرانی (شور، همایون، سه‌گاه و…) ساخته می‌شود و تصاویر با هوش مصنوعی برای همین بازی تولید شده‌اند.</p>
-            <p style={{ fontSize: 12.5, opacity: 0.75 }}>نسخهٔ ۱.۵.۰ — ساخته‌شده با عشق برای واژه‌بازهای ایرانی</p>
+            <p style={{ fontSize: 12.5, opacity: 0.75 }}>نسخهٔ ۱.۹.۰ — ساخته‌شده با عشق برای واژه‌بازهای ایرانی</p>
           </>
         )}
       </div>

@@ -1,8 +1,18 @@
 "use client";
 /* ------------------------------------------------------------------
  * GameApp — screen router + global modals + audio lifecycle
+ * v1.9:
+ *  • beautiful direction-aware page transitions (slide + fade +
+ *    golden streak) — no more dead jumps between screens
+ *  • Android hardware back (Capacitor App plugin) + web popstate:
+ *      - a modal is open        → close it
+ *      - during the game        → ASK «به صفحهٔ اصلی برگردم؟»
+ *      - on the home screen     → ASK «از بازی خارج شوم؟»
+ *      - other screens          → back to home
+ *  • app sent to background / restored → music + sfx fully paused
+ *    and resumed (Audio.pauseAll / resumeAll)
  * ------------------------------------------------------------------ */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSave } from "@/components/game/useSave";
 import { Save } from "@/game/core/save";
 import { Audio } from "@/game/core/audio";
@@ -17,7 +27,7 @@ import { ShopScreen } from "@/components/game/screens/ShopScreen";
 import { ChallengeScreen } from "@/components/game/screens/ChallengeScreen";
 import { DoneScreen } from "@/components/game/screens/DoneScreen";
 import { WelcomeScreen, Splash } from "@/components/game/screens/WelcomeScreen";
-import { GiftModal, SettingsModal, AboutModal } from "@/components/game/modals/Overlays";
+import { GiftModal, SettingsModal, AboutModal, ExitConfirmModal } from "@/components/game/modals/Overlays";
 
 type View =
   | { k: "splash" }
@@ -31,15 +41,45 @@ type View =
   | { k: "challenge" }
   | { k: "done"; ch: number };
 
-type ModalKind = null | "settings" | "gift" | "privacy" | "about";
+type ModalKind = null | "settings" | "gift" | "privacy" | "about" | "exitApp" | "exitMap";
+
+/* screen depth — used to pick the transition direction */
+const ORDER: Record<View["k"], number> = {
+  splash: 0, welcome: 1, home: 2, library: 3, missions: 3, shop: 3, challenge: 3, map: 4, play: 5, done: 6,
+};
+
+const viewKey = (v: View) =>
+  v.k === "play" ? `play:${v.ch}:${v.lv}` : v.k === "map" ? `map:${v.ch}` : v.k === "done" ? `done:${v.ch}` : v.k;
 
 export function GameApp() {
   const { data, bump } = useSave();
-  const [view, setView] = useState<View>({ k: "splash" });
+  const [view, setViewState] = useState<View>({ k: "splash" });
+  const [dir, setDir] = useState<"fwd" | "back">("fwd");
+  const [streakK, setStreakK] = useState(0);
   const [modal, setModal] = useState<ModalKind>(null);
   const [playKey, setPlayKey] = useState(0);
   const { toast, show } = useToast();
   const musicRef = useRef<string>("");
+  const viewRef = useRef<View>(view);
+  const modalRef = useRef<ModalKind>(modal);
+  const streakTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { modalRef.current = modal; }, [modal]);
+
+  /* ----- navigation WITH transition ----- */
+  const setView = useCallback((next: View) => {
+    const cur = viewRef.current;
+    const curK = viewKey(cur);
+    const nextK = viewKey(next);
+    if (nextK === curK) return;
+    viewRef.current = next;
+    setDir(ORDER[next.k] >= ORDER[cur.k] ? "fwd" : "back");
+    setStreakK((k) => k + 1);
+    setViewState(next);
+    if (streakTimer.current) clearTimeout(streakTimer.current);
+    streakTimer.current = setTimeout(() => setStreakK(0), 400);
+  }, []);
+  useEffect(() => () => { if (streakTimer.current) clearTimeout(streakTimer.current); }, []);
 
   /* ----- boot: audio settings; first-screen decided by Splash timer ----- */
   useEffect(() => {
@@ -70,9 +110,59 @@ export function GameApp() {
     }
   }, [view]);
 
+  /* ----- AUDIO LIFECYCLE — never play while the game is closed ----- */
+  useEffect(() => {
+    const onVis = () => { if (document.hidden) Audio.pauseAll(); else Audio.resumeAll(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  /* ----- HARDWARE BACK BUTTON (Android) + web browser back ----- */
+  const exitApp = useCallback(() => {
+    Audio.pauseAll();
+    import("@capacitor/app")
+      .then(({ App }) => { void App.exitApp(); })
+      .catch(() => { window.close(); });
+  }, []);
+
+  const backAction = useCallback(() => {
+    if (modalRef.current) { setModal(null); return; }
+    const v = viewRef.current;
+    if (v.k === "play") { setModal("exitMap"); return; }          // ask before leaving the level
+    if (v.k === "splash" || v.k === "welcome" || v.k === "home") { setModal("exitApp"); return; } // ask before quitting
+    Save.markSeen();
+    setView({ k: "home" });
+  }, [setView]);
+
+  useEffect(() => {
+    let dead = false;
+    const subs: { remove: () => Promise<void> | void }[] = [];
+    import("@capacitor/app")
+      .then(({ App }) => {
+        if (dead) return;
+        void App.addListener("backButton", backAction).then((s) => { subs.push(s); });
+        void App.addListener("appStateChange", (st) => {
+          if (st.isActive) Audio.resumeAll(); else Audio.pauseAll();
+        }).then((s) => { subs.push(s); });
+      })
+      .catch(() => { /* web build — plugin listeners unavailable */ });
+    return () => { dead = true; void Promise.all(subs.map((s) => s.remove())); };
+  }, [backAction]);
+
+  /* web fallback: browser/phone back inside a normal browser session */
+  useEffect(() => {
+    try { history.pushState({ vz: 1 }, "", location.href); } catch { /* noop */ }
+    const onPop = () => {
+      try { history.pushState({ vz: 1 }, "", location.href); } catch { /* noop */ }
+      backAction();
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [backAction]);
+
   const coins = data.coins;
 
-  /* ----- navigation ----- */
+  /* ----- navigation helpers ----- */
   const boot = () => {
     const d = Save.data;
     const away = d.lastSeen > 0 && Date.now() - d.lastSeen > 4 * 3600_000;
@@ -112,99 +202,111 @@ export function GameApp() {
     }
   };
 
+  /* ----- screen renderer ----- */
+  const renderScreen = (v: View) => {
+    switch (v.k) {
+      case "splash":
+        return <Splash onDone={boot} />;
+      case "welcome":
+        return (
+          <WelcomeScreen
+            onContinue={() => {
+              const last = Save.data.last;
+              setView({ k: "map", ch: last?.ch ?? 1 });
+            }}
+            onHome={goHome}
+          />
+        );
+      case "home":
+        return (
+          <HomeScreen
+            coins={coins}
+            stars={Save.totalStars()}
+            giftReady={isGiftReady()}
+            onPlay={() => {
+              const last = data.last;
+              setView({ k: "map", ch: last?.ch ?? 1 });
+            }}
+            onGift={() => setModal("gift")}
+            onLibrary={() => setView({ k: "library" })}
+            onMissions={() => setView({ k: "missions" })}
+            onShop={() => setView({ k: "shop" })}
+            onSettings={() => setModal("settings")}
+          />
+        );
+      case "map":
+        return (
+          <MapScreen
+            ch={v.ch}
+            coins={coins}
+            onBack={goHome}
+            onShop={() => setView({ k: "shop" })}
+            onPlay={(lv) => goPlay(v.ch, lv, "map")}
+          />
+        );
+      case "play":
+        return (
+          <PlayScreen
+            key={`${v.ch}:${v.lv}:${playKey}`}
+            ch={v.ch}
+            lv={v.lv}
+            coins={coins}
+            coinsBump={bump}
+            onExit={() => setView({ k: "map", ch: v.ch })}
+            onNext={() => afterWin(v.ch, v.lv, v.from)}
+            onSettings={() => setModal("settings")}
+            onShop={() => setView({ k: "shop" })}
+          />
+        );
+      case "library":
+        return (
+          <LibraryScreen
+            coins={coins}
+            onBack={goHome}
+            onShop={() => setView({ k: "shop" })}
+            onOpen={(ch) => setView({ k: "map", ch })}
+          />
+        );
+      case "missions":
+        return <MissionsScreen coins={coins} onBack={goHome} onChallenge={() => setView({ k: "challenge" })} />;
+      case "shop":
+        return <ShopScreen coins={coins} onBack={goHome} />;
+      case "challenge":
+        return (
+          <ChallengeScreen
+            coins={coins}
+            onBack={goHome}
+            onShop={() => setView({ k: "shop" })}
+            onStart={startChallenge}
+          />
+        );
+      case "done":
+        return (
+          <DoneScreen
+            ch={v.ch}
+            coins={coins}
+            onLibrary={() => setView({ k: "library" })}
+            onNext={() => {
+              if (v.ch < 10) setView({ k: "map", ch: v.ch + 1 });
+              else goHome();
+            }}
+          />
+        );
+    }
+  };
+
+  const curKey = viewKey(view);
+
   /* ----- render ----- */
   return (
     <>
-      {view.k === "splash" && <Splash onDone={boot} />}
+      {/* the active screen — remounts with a direction-aware entrance */}
+      <div key={curKey} className={`page-enter ${dir}`}>
+        {renderScreen(view)}
+      </div>
 
-      {view.k === "welcome" && (
-        <WelcomeScreen
-          onContinue={() => {
-            const last = Save.data.last;
-            setView({ k: "map", ch: last?.ch ?? 1 });
-          }}
-          onHome={goHome}
-        />
-      )}
-
-      {view.k === "home" && (
-        <HomeScreen
-          coins={coins}
-          stars={Save.totalStars()}
-          giftReady={isGiftReady()}
-          onPlay={() => {
-            const last = data.last;
-            setView({ k: "map", ch: last?.ch ?? 1 });
-          }}
-          onGift={() => setModal("gift")}
-          onLibrary={() => setView({ k: "library" })}
-          onMissions={() => setView({ k: "missions" })}
-          onShop={() => setView({ k: "shop" })}
-          onSettings={() => setModal("settings")}
-        />
-      )}
-
-      {view.k === "map" && (
-        <MapScreen
-          ch={view.ch}
-          coins={coins}
-          onBack={goHome}
-          onShop={() => setView({ k: "shop" })}
-          onPlay={(lv) => goPlay(view.ch, lv, "map")}
-        />
-      )}
-
-      {view.k === "play" && (
-        <PlayScreen
-          key={`${view.ch}:${view.lv}:${playKey}`}
-          ch={view.ch}
-          lv={view.lv}
-          coins={coins}
-          coinsBump={bump}
-          onExit={() => setView({ k: "map", ch: view.ch })}
-          onNext={() => afterWin(view.ch, view.lv, view.from)}
-          onSettings={() => setModal("settings")}
-          onShop={() => setView({ k: "shop" })}
-        />
-      )}
-
-      {view.k === "library" && (
-        <LibraryScreen
-          coins={coins}
-          onBack={goHome}
-          onShop={() => setView({ k: "shop" })}
-          onOpen={(ch) => setView({ k: "map", ch })}
-        />
-      )}
-
-      {view.k === "missions" && (
-        <MissionsScreen coins={coins} onBack={goHome} onChallenge={() => setView({ k: "challenge" })} />
-      )}
-
-      {view.k === "shop" && (
-        <ShopScreen coins={coins} onBack={goHome} />
-      )}
-
-      {view.k === "challenge" && (
-        <ChallengeScreen
-          coins={coins}
-          onBack={goHome}
-          onShop={() => setView({ k: "shop" })}
-          onStart={startChallenge}
-        />
-      )}
-
-      {view.k === "done" && (
-        <DoneScreen
-          ch={view.ch}
-          coins={coins}
-          onLibrary={() => setView({ k: "library" })}
-          onNext={() => {
-            if (view.ch < 10) setView({ k: "map", ch: view.ch + 1 });
-            else goHome();
-          }}
-        />
-      )}
+      {/* golden motion streak that sweeps across on every navigation */}
+      {streakK > 0 && <div key={`streak-${streakK}`} className={`page-streak ${dir}`} aria-hidden />}
 
       {/* global modals */}
       {modal === "gift" && <GiftModal onClose={() => { setModal(null); bump(); }} />}
@@ -216,6 +318,16 @@ export function GameApp() {
       )}
       {(modal === "about" || modal === "privacy") && (
         <AboutModal tab={modal} onClose={() => setModal(null)} />
+      )}
+      {modal === "exitApp" && (
+        <ExitConfirmModal mode="app" onClose={() => setModal(null)} onConfirm={exitApp} />
+      )}
+      {modal === "exitMap" && (
+        <ExitConfirmModal
+          mode="map"
+          onClose={() => setModal(null)}
+          onConfirm={() => { setModal(null); goHome(); }}
+        />
       )}
 
       <ToastHost toast={toast} />

@@ -416,17 +416,18 @@
 .nav-item:active .nav-orb.c-pink, .nav-item:active .nav-orb.c-blue,
 .nav-item:active .nav-orb.c-violet, .nav-item:active .nav-orb.c-orange { transform: translateY(3px); }
 
-/* play button — breathing ring (colored, no white glow) */
-.play-juicy { position: relative; overflow: visible; animation: playGlow 1.9s ease-in-out infinite; }
-@keyframes playGlow {
-  0%, 100% {
-    box-shadow: inset 0 2px 1px rgba(255,255,255,.65), inset 0 -3px 2px rgba(0,0,0,.16),
-      0 5px 0 var(--b3-edge), 0 9px 16px rgba(23,74,35,.35), 0 0 0 0 rgba(126,255,160,.50);
-  }
-  50% {
-    box-shadow: inset 0 2px 1px rgba(255,255,255,.65), inset 0 -3px 2px rgba(0,0,0,.16),
-      0 5px 0 var(--b3-edge), 0 9px 16px rgba(23,74,35,.35), 0 0 0 15px rgba(126,255,160,0);
-  }
+/* play button — breathing ring via a cheap composited pseudo layer
+   (animating box-shadow repaints the button every frame → phone lag) */
+.play-juicy { position: relative; }
+.play-juicy::after {
+  content: ""; position: absolute; inset: -5px; border-radius: 999px;
+  border: 3px solid rgba(126,255,160,.55); pointer-events: none;
+  animation: playRing 1.9s ease-out infinite;
+}
+@keyframes playRing {
+  0% { transform: scale(.965); opacity: .8; }
+  70% { transform: scale(1.13); opacity: 0; }
+  100% { transform: scale(1.13); opacity: 0; }
 }
 /* (white shine sweep REMOVED from the play button — no backlight) */
 
@@ -559,7 +560,8 @@
 .anim-gift, .anim-book, .anim-trophy, .anim-bag, .anim-play,
 .bulb-ic, .shuffle-ic { transform-box: fill-box; }
 
-.nav-orb svg { filter: drop-shadow(0 1.5px 1px rgba(70,20,0,.35)); }
+/* (drop-shadow removed — these SVGs are permanently animated; a filter
+   would force full re-rasterization every frame and lag the home screen) */
 
 .anim-gift { animation: icWiggle 2.6s ease-in-out infinite; transform-origin: 50% 88%; }
 @keyframes icWiggle {
@@ -598,8 +600,8 @@
 /* hint bulb — breathing glow + twinkling rays */
 .bulb-ic { animation: bulbGlow 2s ease-in-out infinite; transform-origin: 50% 60%; }
 @keyframes bulbGlow {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255,200,60,0)); }
-  50% { transform: scale(1.07); filter: drop-shadow(0 0 5px rgba(255,190,40,.8)); }
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
 }
 .bulb-rays path { animation: icTwinkle 2s ease-in-out infinite; }
 .bulb-rays path:nth-child(2), .bulb-rays path:nth-child(5) { animation-delay: .35s; }
@@ -711,5 +713,59 @@
 @media (prefers-reduced-motion: reduce) {
   .anim-gift, .anim-book, .anim-trophy, .anim-bag, .anim-play, .anim-gear,
   .bulb-ic, .shuffle-ic, .map-flower, .map-butterfly, .map-cloud,
-  .map-bunting, .star-twinkle, .chip .coin-ic { animation: none; }
+  .map-bunting, .star-twinkle, .chip .coin-ic, .menu-ic, .hand-drag { animation: none; }
+  .page-streak { display: none; }
+}
+
+/* =================== v1.9 — PAGE TRANSITIONS ===================
+   Direction-aware entrance + golden streak sweep. Transform/opacity
+   only → fully composited, no jank even on low-end phones. */
+.page-enter { position: absolute; inset: 0; }
+.page-enter.fwd  { animation: pageFwd  .34s cubic-bezier(.22,.9,.3,1) both; }
+.page-enter.back { animation: pageBack .34s cubic-bezier(.22,.9,.3,1) both; }
+@keyframes pageFwd  { from { opacity: .25; transform: translateX(-9%) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes pageBack { from { opacity: .25; transform: translateX(9%)  scale(.99); } to { opacity: 1; transform: none; } }
+
+.page-streak { position: absolute; inset: -12% 0; z-index: 45; pointer-events: none; opacity: 0; }
+.page-streak.fwd {
+  background: linear-gradient(90deg, rgba(255,236,170,0) 8%, rgba(255,236,170,.2) 38%, rgba(255,255,255,.5) 52%, rgba(255,236,170,.2) 66%, rgba(255,236,170,0) 92%);
+  animation: streakFwd .38s cubic-bezier(.3,.6,.3,1) both;
+}
+.page-streak.back {
+  background: linear-gradient(270deg, rgba(255,236,170,0) 8%, rgba(255,236,170,.2) 38%, rgba(255,255,255,.5) 52%, rgba(255,236,170,.2) 66%, rgba(255,236,170,0) 92%);
+  animation: streakBack .38s cubic-bezier(.3,.6,.3,1) both;
+}
+@keyframes streakFwd  { 0% { transform: translateX(-42%); opacity: 1; } 100% { transform: translateX(42%); opacity: 0; } }
+@keyframes streakBack { 0% { transform: translateX(42%);  opacity: 1; } 100% { transform: translateX(-42%); opacity: 0; } }
+
+/* =================== v1.9 — PLAY SCREEN BUTTONS ===================
+   colorful + animated (user request: «رنگی و شاد تر + آیکون انیمیشنی») */
+.ib3.sunset { --ib:#ff9060; --ib-edge:#a63c10; --ib-fg:#fff; background: linear-gradient(180deg,#ffb28a 0%, var(--ib) 55%, #e06428 100%); }
+.ib3.honey  { --ib:#ffd76e; --ib-edge:#b47708; --ib-fg:#8a5500; background: linear-gradient(180deg,#ffedb8 0%, var(--ib) 55%, #f0a92c 100%); }
+
+/* hamburger: idle breathe + lines squeeze into the middle on press */
+.menu-ic { display: inline-flex; animation: menuBreathe 2.4s ease-in-out infinite; transform-origin: 50% 50%; }
+@keyframes menuBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.09); } }
+.menu-ic path { transition: transform .18s cubic-bezier(.3,1.4,.4,1); transform-origin: 50% 50%; }
+.ib3:active .menu-ic path:nth-child(1) { transform: translateY(5.4px) scaleX(.85); }
+.ib3:active .menu-ic path:nth-child(2) { transform: scaleX(.55); }
+.ib3:active .menu-ic path:nth-child(3) { transform: translateY(-5.4px) scaleX(.85); }
+
+/* hint bulb kicks happily when pressed */
+.ib3:active .bulb-ic { animation: icKick .32s cubic-bezier(.3,1.5,.4,1); }
+@keyframes icKick { 0% { transform: scale(1); } 45% { transform: scale(1.25) rotate(10deg); } 100% { transform: scale(1) rotate(0); } }
+
+/* =================== v1.9 — TUTORIAL ===================
+   fades away on the FIRST drag (user request) + the hand performs a
+   real arc drag (press → glide → release) instead of tapping in place */
+.tut-out { animation: tutFade .42s ease both; pointer-events: none !important; }
+@keyframes tutFade { to { opacity: 0; transform: translateY(12px); } }
+.hand-drag { animation: handDrag 2.1s cubic-bezier(.45,.1,.4,1) infinite; }
+@keyframes handDrag {
+  0%   { transform: translate(6px, -14px) scale(1); }
+  16%  { transform: translate(6px, -14px) scale(.9); }
+  46%  { transform: translate(64px, -46px) scale(.9); }
+  58%  { transform: translate(64px, -46px) scale(1); }
+  80%  { transform: translate(10px, -18px) scale(1); }
+  100% { transform: translate(6px, -14px) scale(1); }
 }

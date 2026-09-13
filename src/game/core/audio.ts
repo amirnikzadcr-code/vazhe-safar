@@ -241,6 +241,19 @@ class AudioEngine {
     this.stopTrack(true);
   }
 
+  /* ---------------- app lifecycle (user request: music must NOT keep
+   * playing when the game is closed / sent to background) ---------------- */
+
+  /** app went to background (or is closing) → freeze the whole engine */
+  pauseAll(): void {
+    try { this.ctx?.suspend(); } catch { /* noop */ }
+  }
+
+  /** app back in foreground → continue seamlessly */
+  resumeAll(): void {
+    try { if (this.ctx && this.ctx.state === "suspended") void this.ctx.resume(); } catch { /* noop */ }
+  }
+
   /* ——— rendered studio tracks ——— */
 
   private async fetchTrack(name: string): Promise<AudioBuffer | null> {
