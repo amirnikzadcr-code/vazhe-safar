@@ -55,7 +55,7 @@ export function MapScreen({
   const line = lines[(ch - 1) % lines.length];
 
   return (
-    <Sheet bg={theme.bg} bgDim={0.14} blur={1.5}>
+    <Sheet bg={theme.bg} bgDim={0.14}>
       <TopBar coins={coins} onBack={onBack} onShop={onShop} title={`${theme.title}`} />
 
       <div className="map-scroll">
@@ -88,9 +88,9 @@ export function MapScreen({
                   {!unlocked ? <Lock size={22} /> : faNum(lv)}
                 </button>
                 {rec && rec.stars > 0 && (
-                  <span className="node-stars" style={{ bottom: -13, width: "100%", justifyContent: "center" }}>
+                  <span className="node-stars" style={{ bottom: -15, left: "50%", width: 74, transform: "translateX(-50%)", justifyContent: "center" }}>
                     {Array.from({ length: 3 }, (_, s) => (
-                      <StarGold key={s} size={13} className={s < rec.stars ? "" : "star-ic off"} />
+                      <StarGold key={s} size={14} className={s < rec.stars ? "" : "star-ic off"} />
                     ))}
                   </span>
                 )}

@@ -241,32 +241,38 @@
 }
 .tile.used { filter: grayscale(.4) brightness(.92); }
 
-/* =================== BOARD (auto-fit — never overflows) =================== */
+/* =================== BOARD — Amirza style: parchment tiles float on the
+   scene inside a soft dark mat; NO hard white panel =================== */
 .board-box {
-  background: linear-gradient(180deg, rgba(255,253,246,.96), rgba(255,244,221,.96));
-  border: 3px solid #fff;
-  outline: 2px solid #e5c07b;
-  border-radius: 22px;
-  box-shadow: 0 10px 24px rgba(23,46,80,.28);
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(48,30,8,.40) 0%, rgba(48,30,8,.30) 55%, rgba(48,30,8,.16) 100%);
+  border: 1.5px solid rgba(255,240,210,.22);
+  border-radius: 24px;
+  box-shadow: inset 0 3px 12px rgba(15,8,0,.35), 0 6px 18px rgba(10,20,40,.22);
   padding: 10px;
   display: grid; place-items: center;
   overflow: hidden;
 }
 .bcell {
   display: flex; align-items: center; justify-content: center;
-  border-radius: 26%;
-  font-weight: 800; color: #5d3a12;
-  background: #fff;
-  border: 2px solid #e8c98f;
-  box-shadow: inset 0 -3px 0 #f3e2bd, 0 2px 3px rgba(120,80,20,.14);
+  border-radius: 24%;
+  font-weight: 800; color: #4a2c0d;
+  background: linear-gradient(180deg, #fffdf4 0%, #f9edd2 100%);
+  border: 1.5px solid #cfa964;
+  box-shadow: inset 0 -2px 0 rgba(150,100,30,.30), inset 0 1.5px 0 #fff, 0 2.5px 5px rgba(25,12,0,.38);
   line-height: 1;
 }
-.bcell.empty { background: #fdf3dc; color: transparent; }
+.bcell.empty {
+  background: rgba(36,22,6,.44);
+  border: 1.5px solid rgba(255,238,200,.16);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.38);
+  color: transparent;
+}
 .bcell.gap { background: transparent; border-color: transparent; box-shadow: none; }
 .bcell.fill {
-  background: radial-gradient(circle at 38% 28%, #fffef6 0%, #ffe9a8 70%, #ffd76e 100%);
-  border-color: #f2b13c;
-  animation: pop .32s cubic-bezier(.2,1.6,.4,1) both;
+  background: linear-gradient(180deg, #fffce9 0%, #ffedbe 100%);
+  border-color: #e0b158;
+  animation: pop .34s cubic-bezier(.2,1.6,.4,1) both;
 }
 .bcell.hintglow { border-color: #2ea648; box-shadow: 0 0 0 3px rgba(46,166,72,.35), inset 0 -3px 0 #f3e2bd; }
 @keyframes pop { 0% { transform: scale(.3); } 70% { transform: scale(1.18); } 100% { transform: scale(1); } }
@@ -354,8 +360,50 @@
   transform: rotate(135deg);
 }
 
+/* =================== HOME — juicy colored nav orbs (addictive) =================== */
+.nav-orb.c-pink {
+  background: linear-gradient(180deg, #ffb1c9 0%, #ff6392 55%, #f43f77 100%); color: #fff;
+  box-shadow: inset 0 2px 1px rgba(255,255,255,.55), inset 0 -3px 4px rgba(150,15,65,.35), 0 4px 0 #bd2f60, 0 7px 12px rgba(120,10,50,.3);
+}
+.nav-orb.c-blue {
+  background: linear-gradient(180deg, #9cd9ff 0%, #46a5f2 55%, #2f8ce0 100%); color: #fff;
+  box-shadow: inset 0 2px 1px rgba(255,255,255,.55), inset 0 -3px 4px rgba(10,60,120,.35), 0 4px 0 #1b5da0, 0 7px 12px rgba(15,60,110,.3);
+}
+.nav-orb.c-violet {
+  background: linear-gradient(180deg, #dcc6ff 0%, #a66bf4 55%, #8e4ae6 100%); color: #fff;
+  box-shadow: inset 0 2px 1px rgba(255,255,255,.55), inset 0 -3px 4px rgba(70,20,140,.35), 0 4px 0 #6a2fb0, 0 7px 12px rgba(60,15,120,.3);
+}
+.nav-orb.c-orange {
+  background: linear-gradient(180deg, #ffd899 0%, #ff9c3f 55%, #fb841c 100%); color: #fff;
+  box-shadow: inset 0 2px 1px rgba(255,255,255,.55), inset 0 -3px 4px rgba(160,75,0,.35), 0 4px 0 #c05e00, 0 7px 12px rgba(140,65,0,.3);
+}
+.nav-item:active .nav-orb.c-pink, .nav-item:active .nav-orb.c-blue,
+.nav-item:active .nav-orb.c-violet, .nav-item:active .nav-orb.c-orange { transform: translateY(3px); }
+
+/* play button — breathing glow ring + periodic shine sweep */
+.play-juicy { position: relative; overflow: visible; animation: playGlow 1.9s ease-in-out infinite; }
+@keyframes playGlow {
+  0%, 100% {
+    box-shadow: inset 0 2px 1px rgba(255,255,255,.65), inset 0 -3px 2px rgba(0,0,0,.16),
+      0 5px 0 var(--b3-edge), 0 9px 16px rgba(23,74,35,.35), 0 0 0 0 rgba(126,255,160,.50);
+  }
+  50% {
+    box-shadow: inset 0 2px 1px rgba(255,255,255,.65), inset 0 -3px 2px rgba(0,0,0,.16),
+      0 5px 0 var(--b3-edge), 0 9px 16px rgba(23,74,35,.35), 0 0 0 15px rgba(126,255,160,0);
+  }
+}
+.play-shine { position: relative; overflow: hidden; }
+.play-shine::before {
+  content: ""; position: absolute; top: -8px; bottom: -8px; width: 34%; left: -60%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,.5) 50%, transparent 100%);
+  transform: skewX(-18deg);
+  animation: shineSweep 3s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes shineSweep { 0% { left: -60%; } 52% { left: 135%; } 100% { left: 135%; } }
+
 /* =================== MISC ANIMS =================== */
-.float-slow { animation: floatY 3.2s ease-in-out infinite; }
+.float-slow { animation: floatY 3.2s ease-in-out infinite; will-change: transform; }
 @keyframes floatY { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 .breathe { animation: breathe 2.6s ease-in-out infinite; }
 @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.035); } }
@@ -365,9 +413,9 @@
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .rise-in { animation: riseIn .38s cubic-bezier(.2,1.4,.4,1) both; }
 @keyframes riseIn { from { opacity: 0; transform: translateY(26px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
-.pop-in { animation: popIn .45s cubic-bezier(.2,1.7,.4,1) both; }
+.pop-in { animation: popIn .45s cubic-bezier(.2,1.7,.4,1) both; will-change: transform, opacity; }
 @keyframes popIn { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
-.star-pop { animation: starPop .55s cubic-bezier(.2,1.8,.4,1) both; }
+.star-pop { animation: starPop .55s cubic-bezier(.2,1.8,.4,1) both; will-change: transform, opacity; }
 @keyframes starPop { 0% { opacity: 0; transform: scale(0) rotate(-90deg); } 65% { opacity: 1; transform: scale(1.3) rotate(8deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
 
 /* confetti — pure CSS, bounded, zero JS on main thread */

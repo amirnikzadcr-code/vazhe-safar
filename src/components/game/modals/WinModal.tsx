@@ -1,7 +1,8 @@
 "use client";
 /* ------------------------------------------------------------------
  * WinModal — «عالیه!» celebration. Pure CSS animations (no canvas,
- * no backdrop blur) => zero jank. Everything bounded inside panel.
+ * no backdrop blur) => zero jank. Guide character INLINE in flow:
+ * never overlaps the buttons, never leaves the panel frame.
  * ------------------------------------------------------------------ */
 import { useMemo } from "react";
 import { Btn } from "@/components/game/ui/kit";
@@ -43,7 +44,7 @@ export function WinModal({
       aria-modal="true"
       aria-label="مرحله کامل شد"
     >
-      <div className="panel pop-in" style={{ width: "min(100%, 360px)", position: "relative", overflow: "hidden", paddingBottom: 18 }}>
+      <div className="panel pop-in" style={{ width: "min(100%, 360px)", position: "relative", overflow: "hidden", paddingBottom: 18, maxHeight: "94%", display: "flex", flexDirection: "column" }}>
         {/* confetti */}
         <div className="confetti" aria-hidden>
           {conf.map((c, i) => (
@@ -51,29 +52,44 @@ export function WinModal({
           ))}
         </div>
 
-        <div style={{ position: "relative", textAlign: "center", paddingTop: 18 }}>
+        <div style={{ position: "relative", textAlign: "center", paddingTop: 14, overflowY: "auto" }}>
           {/* stars */}
-          <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 6, minHeight: 56 }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 4, minHeight: 54 }}>
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
                 className={i < stars ? "star-pop" : "fade-in"}
-                style={{ animationDelay: `${0.15 + i * 0.22}s`, display: "inline-flex", transform: i === 1 ? "translateY(-8px)" : undefined }}
+                style={{ animationDelay: `${0.12 + i * 0.2}s`, display: "inline-flex", transform: i === 1 ? "translateY(-8px)" : undefined }}
               >
-                <StarGold size={i === 1 ? 58 : 46} className={i < stars ? "" : "star-ic off"} />
+                <StarGold size={i === 1 ? 56 : 44} className={i < stars ? "" : "star-ic off"} />
               </span>
             ))}
           </div>
 
-          <h2 className="title3d" data-t={head} style={{ fontSize: 42, margin: "2px 0 0", lineHeight: 1.2 }}>
+          <h2 className="title3d" data-t={head} style={{ fontSize: 40, margin: "2px 0 0", lineHeight: 1.2 }}>
             {head}
           </h2>
           <div style={{ color: "#8a6a3a", fontWeight: 700, marginTop: 2 }}>
             {isLast ? "کل فصل را کامل کردی!" : "مرحله کامل شد"}
           </div>
 
+          {/* grandpa — INLINE in flow: bounded height, never overlaps, never clips */}
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 4 }}>
+            <img
+              src="/assets/char/thumb.webp"
+              alt="عمو دانا به تو افتخار می‌کند"
+              className="float-slow"
+              style={{
+                height: 100, maxWidth: "52%",
+                objectFit: "contain",
+                filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))",
+                pointerEvents: "none",
+              }}
+            />
+          </div>
+
           {/* coin reward */}
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 4 }}>
             <span className="chip" style={{ fontSize: 16 }}>
               <Coin size={20} />
               ‎+{faNum(coins)}
@@ -81,30 +97,12 @@ export function WinModal({
           </div>
 
           {/* stats mini row */}
-          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 10, color: "#7a5a2e", fontWeight: 700, fontSize: 13 }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 8, color: "#7a5a2e", fontWeight: 700, fontSize: 13 }}>
             <span className="chip" style={{ fontSize: 12.5 }}>واژه‌ها: {faNum(words)}</span>
             {bonus > 0 && <span className="chip" style={{ fontSize: 12.5 }}>پنهان: {faNum(bonus)}</span>}
           </div>
 
-          {/* grandpa — bounded */}
-          
-          <img
-            src="/assets/char/thumb.webp"
-            alt="عمو دانا به تو افتخار می‌کند"
-            className="float-slow"
-            style={{
-              position: "absolute",
-              bottom: 64,
-              left: -6,
-              height: 118,
-              maxWidth: "44%",
-              objectFit: "contain",
-              filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))",
-              pointerEvents: "none",
-            }}
-          />
-
-          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8, alignItems: "center", paddingBottom: 2 }}>
             <Btn size="big" onClick={() => { Audio.sfxClick(); onContinue(); }} style={{ minWidth: 210 }}>
               ادامه
             </Btn>

@@ -58,3 +58,7 @@ android/app/build/
 tool-results/
 public/assets/bg/png/
 scripts/qa/
+
+scripts/shot_*.png
+scripts/research_*.json
+scripts/char_raw/

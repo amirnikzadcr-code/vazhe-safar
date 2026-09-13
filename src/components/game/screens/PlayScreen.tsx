@@ -109,7 +109,7 @@ export function PlayScreen({
       Save.completeLevel(ch, lv, stars, mistakesRef.current);
       coinsBump();
       Audio.sfxLevelComplete(stars);
-      const t = setTimeout(() => setWon({ stars, coins: total }), 420);
+      const t = setTimeout(() => setWon({ stars, coins: total }), 300);
       return () => clearTimeout(t);
     }
   }, [found, layout, won, ch, lv, coinsBump]);
@@ -183,7 +183,7 @@ export function PlayScreen({
   const starsDone = layout.placements.filter((p) => found.has(p.word)).length;
 
   return (
-    <Sheet bg={theme.bg} bgDim={0.32} blur={2}>
+    <Sheet bg={theme.bg} bgDim={0.2}>
       {/* top bar */}
       <div className="topbar">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -198,11 +198,11 @@ export function PlayScreen({
         </span>
       </div>
 
-      {/* board — grows into available space; measured cells; shakes in place on wrong word */}
+      {/* board — Amirza style: parchment tiles on the scene, no hard panel */}
       <div
         className={`board-box ${shaking ? "shake" : ""}`}
         onAnimationEnd={() => setShaking(false)}
-        style={{ flex: "1 1 auto", margin: "4px 14px 0", maxHeight: "40%", minHeight: 150 }}
+        style={{ flex: "1 1 auto", margin: "4px 14px 0", maxHeight: "42%", minHeight: 150 }}
       >
         <Board layout={layout} filled={cellFilled} />
       </div>
@@ -290,7 +290,7 @@ function Board({ layout, filled }: { layout: CrosswordLayout; filled: Set<string
       const w = el.clientWidth - 22;
       const h = el.clientHeight - 22;
       if (w <= 0 || h <= 0) return;
-      const c = Math.floor(Math.min(w / layout.cols, h / layout.rows, 46));
+      const c = Math.floor(Math.min(w / layout.cols, h / layout.rows, 54));
       setCell(Math.max(16, c));
     };
     calc();

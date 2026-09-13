@@ -87,9 +87,9 @@ export function HomeScreen({
           <span style={{ position: "absolute", top: "16%", left: "10%", animation: "floatY 3.4s ease-in-out .5s infinite", display: "flex" }}><Coin size={19} /></span>
         </div>
 
-        {/* play button */}
+        {/* play button — juicy: breathing glow + shine sweep */}
         <div style={{ display: "flex", justifyContent: "center", margin: "2px 0 10px", position: "relative", zIndex: 20 }}>
-          <Btn size="big" onClick={onPlay} style={{ minWidth: 240, fontSize: 22 }}>
+          <Btn size="big" onClick={onPlay} className="play-juicy play-shine" style={{ minWidth: 240, fontSize: 22 }}>
             <Play size={24} />
             شروع بازی
           </Btn>
@@ -98,20 +98,20 @@ export function HomeScreen({
         {/* bottom nav */}
         <nav className="navbar" aria-label="منوی اصلی">
           <button type="button" className="nav-item" onClick={() => { Audio.sfxClick(); onGift(); }}>
-            <span className="nav-orb"><Gift size={24} /></span>
+            <span className="nav-orb c-pink"><Gift size={24} /></span>
             {giftReady && <span className="dot" style={{ position: "absolute" }} />}
             جایزه
           </button>
           <button type="button" className="nav-item" onClick={() => { Audio.sfxClick(); onLibrary(); }}>
-            <span className="nav-orb"><BookOpen size={24} /></span>
+            <span className="nav-orb c-blue"><BookOpen size={24} /></span>
             کتابخانه
           </button>
           <button type="button" className="nav-item" onClick={() => { Audio.sfxClick(); onMissions(); }}>
-            <span className="nav-orb"><Trophy size={24} /></span>
+            <span className="nav-orb c-violet"><Trophy size={24} /></span>
             ماموریت‌ها
           </button>
           <button type="button" className="nav-item" onClick={() => { Audio.sfxClick(); onShop(); }}>
-            <span className="nav-orb"><ShoppingBag size={24} /></span>
+            <span className="nav-orb c-orange"><ShoppingBag size={24} /></span>
             فروشگاه
           </button>
         </nav>
