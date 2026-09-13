@@ -56,3 +56,5 @@ Thumbs.db
 android/app/src/main/assets/public/
 android/app/build/
 tool-results/
+public/assets/bg/png/
+scripts/qa/

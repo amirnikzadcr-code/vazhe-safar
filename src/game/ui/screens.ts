@@ -9,6 +9,7 @@ import { Save, SaveData } from "../core/save";
 import { CHAPTERS } from "../data/chapters";
 import { T } from "../i18n";
 import { ICONS, actionBtn, iconBtn, coinBadge, modal, toast, starRow, screenHeader, svgIcon } from "./components";
+import { createMascot } from "./mascot";
 import { chapterVignette } from "./vignette";
 
 export interface Nav {
@@ -42,6 +43,7 @@ function heroBg(url: string, cls = ""): HTMLDivElement {
 }
 
 const MENU_MUSIC: MusicConfig = {
+  track: "menu",
   root: 261.63, cents: [0, 204, 340, 498, 702, 906, 1040], bpm: 56,
   meter: 6, perc: "none", lead: "ney", octave: 0, drone: 0.75,
   motif: [[0, 1.5], [1, 0.5], [2, 1], [1, 0.5], [0, 1.5], [-1, 0.5], [3, 1], [2, 0.5], [1, 0.5], [0, 3]],
@@ -64,11 +66,14 @@ export function showSplash(container: HTMLElement, onDone: () => void): () => vo
 /* ================= MAIN MENU ================= */
 export function showMenu(container: HTMLElement, nav: Nav): () => void {
   const el = h("div", { class: "vz-screen vz-menu" });
-  el.append(heroBg("/assets/bg/menu.png"));
+  el.append(heroBg("/assets/bg/menu.webp"));
+  // ornamental Persian pattern wash over the hero (brown-on-brown)
+  el.append(h("div", { class: "vz-menu-pattern", "aria-hidden": "true" }));
 
   const title = h("div", { class: "vz-menu-title" });
   title.innerHTML = `<h1>${T.gameTitle}</h1><p>${T.gameTagline}</p>`;
 
+  const mascot = createMascot(96, "vz-mascot-menu");
   const col = h("div", { class: "vz-menu-col" });
   const target = continueTarget();
   const hasProgress = Save.totalWords() > 0;
@@ -85,12 +90,13 @@ export function showMenu(container: HTMLElement, nav: Nav): () => void {
     iconBtn(ICONS.gear, T.settings, () => nav.openSettings()),
   );
   col.append(playBtn, chaptersBtn, row);
-  el.append(title, col);
+  el.append(title, mascot.el, col);
   container.append(el);
 
   Audio.ensure();
   Audio.startMusic(MENU_MUSIC);
-  return () => el.remove();
+  const greet = setTimeout(() => mascot.say(T.mascotMenu, 3600), 1400);
+  return () => { clearTimeout(greet); el.remove(); };
 }
 
 /* ================= CHAPTER SELECT ================= */
@@ -112,8 +118,12 @@ export function showChapters(container: HTMLElement, nav: Nav): () => void {
 
   // poetic lead line — makes the page feel alive, not a bare grid
   const lead = h("p", { class: "vz-ch-lead" });
-  lead.innerHTML = `⭐ ${faNum(totalStars)} ${T.starsCount} · ${T.chooseChapter}`;
+  lead.innerHTML = `<span class="vz-ch-lead-star">${svgIcon(ICONS.starFill, 17)}</span> ${faNum(totalStars)} ${T.starsCount} · ${T.chooseChapter}`;
   list.append(lead);
+
+  const chMascot = createMascot(64, "vz-mascot-chapters");
+  list.append(chMascot.el);
+  setTimeout(() => { chMascot.say(T.mascotChapters, 3600); }, 1200);
 
   CHAPTERS.forEach((ch) => {
     const unlocked = Save.chapterUnlocked(ch.id);
@@ -128,7 +138,7 @@ export function showChapters(container: HTMLElement, nav: Nav): () => void {
       "aria-label": ch.title,
     });
     card.innerHTML = `
-      <img class="vz-ch-bg" src="${ch.bg}" alt="" draggable="false"/>
+      <img class="vz-ch-bg" src="${ch.bg}" alt="" draggable="false" loading="lazy" decoding="async"/>
       <div class="vz-ch-shade"></div>
       <div class="vz-ch-arch"></div>
       <div class="vz-ch-emblem">${GIRIH_STAR}<span>${faNum(ch.id)}</span></div>
@@ -139,10 +149,13 @@ export function showChapters(container: HTMLElement, nav: Nav): () => void {
       </div>
       <div class="vz-ch-meta">
         ${unlocked
-          ? `<span class="vz-ch-stars">⭐ ${faNum(stars)}/۳۰</span><span class="vz-ch-prog">${faNum(done)}/۱۰</span>`
+          ? `<span class="vz-ch-stars">${svgIcon(ICONS.starFill, 15)} ${faNum(stars)}/۳۰</span><span class="vz-ch-prog">${faNum(done)}/۱۰</span>`
           : `<span class="vz-ch-lock">${svgIcon(ICONS.lock, 22)}</span>`}
       </div>
-      <div class="vz-ch-bar"><i style="width:${(done / 10) * 100}%"></i></div>`;
+      <div class="vz-ch-steps" aria-label="${faNum(done)}/${faNum(10)}">
+        ${Array.from({ length: 10 }, (_, i) =>
+          `<i class="${i < done ? "done" : ""}"></i>`).join("")}
+      </div>`;
     card.prepend(chapterVignette(ch.id));
     card.addEventListener("click", () => {
       if (!unlocked) { toast(T.completeChapter, "warn"); return; }
@@ -181,7 +194,7 @@ export function showLevels(container: HTMLElement, nav: Nav, chId: number): () =
       <span class="vz-lv-bubble">
         ${unlocked ? faNum(lv) : svgIcon(ICONS.lock, 20)}
       </span>
-      ${rec ? `<span class="vz-lv-stars">${["", "⭐", "⭐⭐", "⭐⭐⭐"][rec.stars]}</span>` : ""}`;
+      ${rec ? `<span class="vz-lv-stars">${starRow(rec.stars, 3, 11).innerHTML}</span>` : ""}`;
     node.addEventListener("click", () => {
       if (!unlocked) { toast(T.levelLocked, "warn"); return; }
       nav.goGameplay(chId, lv);
@@ -279,10 +292,10 @@ export function showProgress(container: HTMLElement, nav: Nav): () => void {
 
   const stats = h("div", { class: "vz-stats" });
   const items: [string, string, string][] = [
-    ["⭐", T.totalStars, `${faNum(Save.totalStars())} / ${faNum(300)}`],
-    ["🧩", T.levelsDone, `${faNum(Save.totalWords())} / ${faNum(100)}`],
-    ["✦", T.totalBonus, faNum(Save.totalBonus())],
-    ["🪙", T.coins, faNum(Save.data.coins)],
+    [svgIcon(ICONS.starFill, 24), T.totalStars, `${faNum(Save.totalStars())} / ${faNum(300)}`],
+    [svgIcon(ICONS.play, 24), T.levelsDone, `${faNum(Save.totalWords())} / ${faNum(100)}`],
+    [svgIcon(ICONS.shuffle, 24), T.totalBonus, faNum(Save.totalBonus())],
+    [svgIcon(ICONS.coin, 24), T.coins, faNum(Save.data.coins)],
   ];
   for (const [ic, lb, val] of items) {
     const card = h("div", { class: "vz-stat-card" });
@@ -301,7 +314,7 @@ export function showProgress(container: HTMLElement, nav: Nav): () => void {
     row.innerHTML = `
       <span class="vz-prog-name">${ch.title}</span>
       <span class="vz-prog-bar"><i style="width:${stars / 30 * 100}%"></i></span>
-      <span class="vz-prog-val">⭐${faNum(stars)}/۳۰</span>`;
+      <span class="vz-prog-val">${svgIcon(ICONS.starFill, 14)}${faNum(stars)}/۳۰</span>`;
     row.addEventListener("click", () => {
       if (Save.chapterUnlocked(ch.id)) nav.goLevels(ch.id);
     });
@@ -334,14 +347,14 @@ export function showRewards(container: HTMLElement, nav: Nav): () => void {
       const claimed = Save.hasChest(ch.id);
       const card = h("div", { class: `vz-chest-card ${claimed ? "claimed" : ""} ${complete && !claimed ? "ready" : ""}` });
       card.innerHTML = `
-        <span class="vz-chest-ic">${claimed ? "✅" : complete ? "🎁" : "🔒"}</span>
+        <span class="vz-chest-ic">${svgIcon(claimed ? ICONS.check : complete ? ICONS.gift : ICONS.lock, 26)}</span>
         <span class="vz-chest-name">${ch.title}</span>
-        <span class="vz-chest-val">${complete ? (claimed ? "دریافت شد" : "۱۵۰ 🪙") : `${faNum(done)}/۱۰`}</span>`;
+        <span class="vz-chest-val">${complete ? (claimed ? "دریافت شد" : `۱۵۰ ${svgIcon(ICONS.coin, 14)}`) : `${faNum(done)}/۱۰`}</span>`;
       if (complete && !claimed) {
         card.addEventListener("click", () => {
           Save.claimChest(ch.id);
           Audio.sfxChapterUnlock();
-          toast(`+${faNum(150)} 🪙`);
+          toast(`+${faNum(150)} ${svgIcon(ICONS.coin, 15)}`);
           coins.refresh();
           rerender();
         });
@@ -364,14 +377,14 @@ function buildGiftCard(
   const today = new Date().toISOString().slice(0, 10);
   const taken = Save.data.dailyGiftDay === today;
   giftCard.innerHTML = `
-    <span class="vz-gift-ic ${taken ? "dim" : "swing"}">🎁</span>
+    <span class="vz-gift-ic ${taken ? "dim" : "swing"}">${svgIcon(ICONS.gift, 34)}</span>
     <div class="vz-gift-info"><b>${T.dailyGift}</b><span>${taken ? "امروز دریافت شد" : "۵۰ سکه منتظر شماست"}</span></div>`;
   if (!taken) {
     const claim = actionBtn(T.claimReward, "vz-primary", () => {
       const got = Save.claimDailyGift();
       if (got) {
         Audio.sfxCoin();
-        toast(`+${faNum(got)} 🪙 — ${T.dailyGiftMsg}`);
+        toast(`+${faNum(got)} ${svgIcon(ICONS.coin, 15)} — ${T.dailyGiftMsg}`);
         coins.refresh();
         rerender();
       }
@@ -404,20 +417,20 @@ export function showGuide(container: HTMLElement, nav: Nav): () => void {
   body.append(h("h3", { class: "vz-sub-title", text: T.guideHowTitle }));
   body.append(buildGuideDemo());
   body.append(
-    step("👆", T.guide1T, T.guide1B),
-    step("🧩", T.guide2T, T.guide2B),
-    step("🌱", T.guide3T, T.guide3B),
-    step("✦", T.guide4T, T.guide4B),
-    step("💡", T.guide5T, T.guide5B),
+    step(svgIcon(ICONS.hand, 24), T.guide1T, T.guide1B),
+    step(svgIcon(ICONS.play, 24), T.guide2T, T.guide2B),
+    step(svgIcon(ICONS.star, 24), T.guide3T, T.guide3B),
+    step(svgIcon(ICONS.coin, 24), T.guide4T, T.guide4B),
+    step(svgIcon(ICONS.bulb, 24), T.guide5T, T.guide5B),
   );
 
   body.append(h("h3", { class: "vz-sub-title", text: T.guideScoreTitle }));
   const table = h("div", { class: "vz-guide-table" });
   const rows: [string, string][] = [
-    ["✅", T.guideS1],
-    ["✦", T.guideS2],
-    ["⭐", T.guideS3],
-    ["🎁", T.guideS4],
+    [svgIcon(ICONS.check, 20), T.guideS1],
+    [svgIcon(ICONS.coin, 20), T.guideS2],
+    [svgIcon(ICONS.starFill, 20), T.guideS3],
+    [svgIcon(ICONS.gift, 20), T.guideS4],
   ];
   for (const [ic, tx] of rows) {
     const r = h("div", { class: "vz-guide-row" });

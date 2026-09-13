@@ -14,6 +14,7 @@ import { ParticleFX } from "../fx/particles";
 import { makeProp } from "../fx/props";
 import { T } from "../i18n";
 import { createWheel, WheelHandle } from "./wheel";
+import { createMascot } from "./mascot";
 import { actionBtn, iconBtn, ICONS, coinBadge, modal, toast, starRow, svgIcon } from "./components";
 
 export interface GameplayResult { done: boolean }
@@ -68,20 +69,37 @@ export function showGameplay(
   const dots = h("div", { class: "vz-word-dots", "aria-label": T.dotsLabel });
   wordsRow.append(pill, dots);
 
-  /* bottom controls + wheel */
+  /* bottom: wheel first, then the tidy helper row BELOW it — no overlap
+     with the board, everything fits on screen (v1.3) */
   const bottom = h("div", { class: "vz-bottom" });
   const controls = h("div", { class: "vz-controls" });
-  const shuffleBtn = actionBtn(T.shuffle, "vz-mini-btn", () => {
+  const mkHelp = (icon: string, label: string, cost: number | null, onClick: () => void, cls = ""): HTMLButtonElement => {
+    const b = h("button", { class: `vz-help-btn ${cls}`, type: "button", "aria-label": label });
+    b.innerHTML = `
+      <span class="vz-help-ic">${svgIcon(icon, 26)}</span>
+      <span class="vz-help-lb">${label}</span>
+      ${cost != null ? `<span class="vz-help-cost">${svgIcon(ICONS.coin, 12)} ${faNum(cost)}</span>` : ""}`;
+    b.addEventListener("click", () => {
+      Audio.sfxClick();
+      buzz(12, Save.data.settings.haptics);
+      b.classList.remove("tap");
+      void b.offsetWidth;
+      b.classList.add("tap");
+      onClick();
+    });
+    return b;
+  };
+  const shuffleBtn = mkHelp(ICONS.shuffle, T.shuffle, null, () => {
     wheel.shuffle();
     Audio.sfxShuffle();
-  }, ICONS.shuffle);
-  const undoBtn = actionBtn(T.undo, "vz-mini-btn", () => {
+  });
+  const undoBtn = mkHelp(ICONS.undo, T.undo, null, () => {
     wheel.clearPath();
-  }, ICONS.undo);
-  const hintBtn = actionBtn(`${T.hint} · ${faNum(COSTS.hint)}`, "vz-mini-btn vz-hint-btn", () => useHint(), ICONS.bulb);
+  });
+  const hintBtn = mkHelp(ICONS.bulb, T.hint, COSTS.hint, () => useHint(), "vz-hint-btn");
   controls.append(shuffleBtn, undoBtn, hintBtn);
   const wheelHost = h("div", { class: "vz-wheel-host" });
-  bottom.append(controls, wheelHost);
+  bottom.append(wheelHost, controls);
 
   screen.append(scene, board, wordsRow, bottom);
   container.append(screen);
@@ -136,9 +154,9 @@ export function showGameplay(
     const grid = board.querySelector(".vz-grid") as HTMLElement | null;
     if (!grid) return;
     const availW = screen.clientWidth - 32 - 30; // side margins + panel padding
-    // vertical budget: screen − scene − fixed bottom block (controls+min wheel) + top overlap
+    // vertical budget: screen − scene − fixed bottom block (min wheel + helpers) + top overlap
     const sceneH = scene.offsetHeight;
-    const BOTTOM_RESERVE = 286; // controls (~44) + wheel min (190) + paddings
+    const BOTTOM_RESERVE = 296; // helpers (~64) + wheel min (200) + paddings
     const TOP_OVERLAP = 26;     // board overlaps scene via negative margin
     const availH = Math.max(72, screen.clientHeight - sceneH - BOTTOM_RESERVE + TOP_OVERLAP);
     const cell = Math.floor(Math.min(
@@ -230,6 +248,17 @@ export function showGameplay(
       foundWords.add(word);
       fillWord(word);
       Audio.sfxWordFound(foundWords.size);
+      // golden star-ring on the word's first cell (v1.3 celebration)
+      const p0 = layout!.placements.find((q) => q.word === word);
+      if (p0) {
+        const cellKey = p0.dir === "v" ? `${p0.r},${p0.c}` : `${p0.r},${p0.c}`;
+        const cellEl = cellEls.get(cellKey);
+        if (cellEl) {
+          const cr = cellEl.getBoundingClientRect();
+          const sr = scene.getBoundingClientRect();
+          fx.starRing(cr.left - sr.left + cr.width / 2, cr.top - sr.top + cr.height / 2);
+        }
+      }
       Save.addCoins(REWARDS.perWord);
       coins.refresh();
       buzz([15, 30, 15], Save.data.settings.haptics);
@@ -384,9 +413,16 @@ export function showGameplay(
     if (noMistakes) content.append(h("div", { class: "vz-perfect", text: bonusFound.size ? T.perfectLevel : T.noMistakes }));
     else if (stars === 2) content.append(h("div", { class: "vz-perfect soft", text: T.goodLevel }));
 
+    const mascot = createMascot(84);
+    mascot.setPose("cheer");
+    mascot.say(stars === 3 ? T.mascotPerfect : T.mascotGood, 3200);
+    content.append(mascot.el);
+
     const earned = REWARDS.perStar * stars;
     content.append(h("div", { class: "vz-reward-line" },
-      h("span", { text: `+${faNum(earned)} 🪙` })));
+      h("span", { class: "vz-reward-inline" },
+        h("span", { text: `+${faNum(earned)}` }),
+        h("span", { class: "vz-reward-coin", innerHTML: svgIcon(ICONS.coin, 18) }))));
     if (bonusFound.size) content.append(h("div", { class: "vz-reward-line sub", text: `${T.bonusWords}: ${faNum(bonusFound.size)}` }));
 
     const btns = h("div", { class: "vz-modal-btns" });
@@ -426,11 +462,11 @@ export function showGameplay(
     const h2 = h("div", { class: "vz-cine-ch", text: `${theme.title}` });
     const p = h("p", { class: "vz-cine-text", text: theme.finaleText });
     const chest = h("button", { class: "vz-chest", type: "button" });
-    chest.innerHTML = `<span class="vz-chest-emoji">🎁</span><span class="vz-chest-lb">${T.claimReward}</span>`;
+    chest.innerHTML = `<span class="vz-chest-emoji">${svgIcon(ICONS.gift, 34)}</span><span class="vz-chest-lb">${T.claimReward}</span>`;
     chest.addEventListener("click", () => {
       if (Save.claimChest(chId)) {
         Audio.sfxCoin();
-        chest.innerHTML = `<span class="vz-chest-emoji">🪙</span><span class="vz-chest-lb">+${faNum(150)}</span>`;
+        chest.innerHTML = `<span class="vz-chest-emoji">${svgIcon(ICONS.coin, 34)}</span><span class="vz-chest-lb">+${faNum(150)}</span>`;
         chest.classList.add("claimed");
         coins.refresh();
         fx.confetti(120);
@@ -458,7 +494,7 @@ export function showGameplay(
     }
   }
 
-  /* ---------- tutorial (interactive, spotlight + animated hand) ---------- */
+  /* ---------- tutorial (mascot narrator + hand tracing real letters) ---------- */
 
   // steps react to real progress: hand demo → board → world → hint.
   // Each step can be advanced by tap or automatically by finding words.
@@ -468,42 +504,67 @@ export function showGameplay(
     const tut = h("div", { class: "vz-tutorial" });
     const dim = h("div", { class: "vz-tut-dim dim-wheel" });
     const card = h("div", { class: "vz-tut-card" });
+    const row = h("div", { class: "vz-tut-row" });
+    const mascot = createMascot(74);
     const txt = h("p", { class: "vz-tut-txt" });
     const dotsNav = h("div", { class: "vz-tut-dots" });
     const nextB = actionBtn(T.next, "vz-primary", () => advance());
-    card.append(txt, dotsNav, nextB);
+    row.append(mascot.el, txt);
+    card.append(row, dotsNav, nextB);
     tut.append(dim, card);
     screen.append(tut);
 
-    // animated dragging hand over the wheel — mounted INSIDE the overlay
-    // (after the dim) so the spotlight never covers it
+    // glove hand — animated along the REAL letters of the first word (v1.3)
     const hand = h("div", { class: "vz-tut-hand show", "aria-hidden": "true" });
     hand.innerHTML =
-      '<svg viewBox="0 0 24 24" width="54" height="54" fill="rgba(255,244,214,0.96)" stroke="#8a5a24" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.55))"><path d="M9 11V4.8a1.8 1.8 0 0 1 3.6 0V10l4.3.9a2.2 2.2 0 0 1 1.7 2.4l-.5 3.6a4 4 0 0 1-4 3.4h-2.7a4 4 0 0 1-3-1.35L5 15.4a1.9 1.9 0 0 1 2.7-2.6L9 13.9V11z"/></svg>';
-    // drag path follows the wheel's letter ring (arc right → bottom → left)
-    const placeHand = (): void => {
-      const wr = wheelHost.getBoundingClientRect();
-      const sr = tut.getBoundingClientRect();
-      const R = Math.min(wr.width, wr.height) / 2 - 64;
-      hand.style.left = `${wr.left - sr.left + wr.width / 2 + R * 0.72}px`;
-      hand.style.top = `${wr.top - sr.top + wr.height / 2 - R * 0.5}px`;
-      hand.style.setProperty("--hx1", `${-R * 0.2}px`);
-      hand.style.setProperty("--hy1", `${R * 1.05}px`);
-      hand.style.setProperty("--hx2", `${-R * 1.42}px`);
-      hand.style.setProperty("--hy2", `${R * 0.35}px`);
-      hand.style.setProperty("--hx3", `${-R * 0.2}px`);
-      hand.style.setProperty("--hy3", `${-R * 1.0}px`);
-    };
+      `<svg viewBox="0 0 24 24" width="56" height="56" fill="rgba(255,244,214,0.97)" stroke="#8a5a24" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 5px 12px rgba(0,0,0,.6))">${ICONS.hand}</svg>`;
     tut.append(hand);
-    requestAnimationFrame(placeHand);
-    const onR = (): void => placeHand();
+    let handAnim: Animation | null = null;
+
+    const stopHandDemo = (): void => {
+      handAnim?.cancel();
+      handAnim = null;
+    };
+    const startHandDemo = (): void => {
+      stopHandDemo();
+      // trace the actual first letters of the first target word
+      const target = Array.from(level.words[0]).slice(0, 3);
+      const idxs: number[] = [];
+      const used = new Set<number>();
+      for (const ch of target) {
+        for (let i = 0; i < wheel.letterCount(); i++) {
+          if (wheel.letterChar(i) === ch && !used.has(i)) { used.add(i); idxs.push(i); break; }
+        }
+      }
+      const tr = tut.getBoundingClientRect();
+      const pts = idxs
+        .map((i) => wheel.letterCenter(i))
+        .filter((p): p is { x: number; y: number } => !!p)
+        .map((p) => ({ x: p.x - tr.left, y: p.y - tr.top }));
+      if (pts.length < 2) return;
+      const off = 28; // half hand size
+      // dwell at each letter so the gesture reads clearly
+      const frames: Keyframe[] = [];
+      pts.forEach((p, i) => {
+        frames.push({ transform: `translate(${p.x - off}px, ${p.y - off}px) scale(1.12)`, offset: (i * 2) / (pts.length * 2 - 1) });
+        if (i < pts.length - 1)
+          frames.push({ transform: `translate(${p.x - off}px, ${p.y - off}px) scale(1)`, offset: (i * 2 + 1) / (pts.length * 2 - 1) });
+      });
+      frames.push({ transform: `translate(${pts[0].x - off}px, ${pts[0].y - off}px) scale(1.12)` });
+      handAnim = hand.animate(frames, {
+        duration: 700 * pts.length + 500,
+        iterations: Infinity,
+        easing: "ease-in-out",
+      });
+    };
+    const onR = (): void => { if (step === 0) startHandDemo(); };
     window.addEventListener("resize", onR);
 
-    const steps: { text: string; dim: string; hand: boolean }[] = [
-      { text: T.tutHandStep, dim: "dim-wheel", hand: true },
-      { text: T.tutBoardStep, dim: "dim-board", hand: false },
-      { text: T.tutWorldStep, dim: "dim-scene", hand: false },
-      { text: T.tutHintStep, dim: "dim-wheel", hand: false },
+    const steps: { text: string; dim: string; hand: boolean; pose: "point" | "idle" }[] = [
+      { text: T.tutHandStep, dim: "dim-wheel", hand: true, pose: "point" },
+      { text: T.tutBoardStep, dim: "dim-board", hand: false, pose: "idle" },
+      { text: T.tutWorldStep, dim: "dim-scene", hand: false, pose: "idle" },
+      { text: T.tutHintStep, dim: "dim-helpers", hand: false, pose: "point" },
     ];
     let step = 0;
     const render = (): void => {
@@ -512,10 +573,13 @@ export function showGameplay(
       steps.forEach((_, i) => dotsNav.append(h("span", { class: `vz-tut-dot ${i === step ? "on" : ""}` })));
       dim.className = `vz-tut-dim ${steps[step].dim}`;
       hand.classList.toggle("show", steps[step].hand);
+      mascot.setPose(steps[step].pose);
+      if (steps[step].hand) startHandDemo(); else stopHandDemo();
       nextB.querySelector(".vz-btn-lb")!.textContent = step === steps.length - 1 ? T.playNow : T.next;
       Audio.sfxClick();
     };
     const finish = (): void => {
+      stopHandDemo();
       Save.markTutorialDone();
       tut.classList.add("hide");
       setTimeout(() => tut.remove(), 420);
@@ -528,6 +592,8 @@ export function showGameplay(
       else finish();
     }
     render();
+    // friendly greeting from the guide bird
+    setTimeout(() => { mascot.say(T.tutWelcome, 4200); }, 700);
     return {
       onWord: (): void => { if (step < steps.length) { step++; if (step < steps.length) render(); else finish(); } },
       hide: (): void => { if (step < steps.length) { step = steps.length; finish(); } },

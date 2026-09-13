@@ -32,6 +32,9 @@ export interface MusicConfig {
   drone: number;         // pad volume 0..1
   motif: Motif;          // phrase A (statement)
   motifB?: Motif;        // phrase B (answer, lower & softer)
+  /** pre-rendered studio track (/assets/music/<track>.ogg) — plays instead
+   *  of the live synth when available (v1.3 سنتز فیزیکی رندرشده) */
+  track?: string;
 }
 
 const ROOTS: Record<string, number> = {
@@ -100,6 +103,13 @@ class AudioEngine {
   private cfg: MusicConfig | null = null;
   private eventsA: NoteEv[] = [];
   private eventsB: NoteEv[] = [];
+
+  /* — v1.3 rendered-track playback (gapless loop + crossfade) — */
+  private trackCache = new Map<string, AudioBuffer>();
+  private trackSrc: AudioBufferSourceNode | null = null;
+  private trackGain: GainNode | null = null;
+  private currentTrack: string | null = null;
+  private loadingTrack: string | null = null;
 
   /* ---------------- lifecycle ---------------- */
 
@@ -200,6 +210,7 @@ class AudioEngine {
     if (!this.ensure() || !this.ctx) return;
     this.cfg = cfg;
     this.rebuildEvents(cfg);
+    if (cfg.track) { this.playTrack(cfg.track); return; }
     if (this.timer) return; // already running; config swapped below
     this.nextNoteTime = this.ctx.currentTime + 0.1;
     this.step = 0;
@@ -211,6 +222,8 @@ class AudioEngine {
     if (!this.ctx || !this.musicBus) { this.cfg = cfg; return; }
     this.cfg = cfg;
     this.rebuildEvents(cfg);
+    if (cfg.track) { this.playTrack(cfg.track); return; }
+    this.stopTrack();
     // restart the cycle so the new phrase begins promptly
     this.step = 0;
     this.nextNoteTime = Math.max(this.nextNoteTime, this.ctx.currentTime + 0.06);
@@ -225,6 +238,87 @@ class AudioEngine {
 
   stopMusic(): void {
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    this.stopTrack(true);
+  }
+
+  /* ——— rendered studio tracks ——— */
+
+  private async fetchTrack(name: string): Promise<AudioBuffer | null> {
+    const ctx = this.ctx;
+    if (!ctx) return null;
+    const cached = this.trackCache.get(name);
+    if (cached) return cached;
+    try {
+      const res = await fetch(`/assets/music/${name}.ogg`);
+      if (!res.ok) throw new Error(String(res.status));
+      const buf = await ctx.decodeAudioData(await res.arrayBuffer());
+      this.trackCache.set(name, buf);
+      return buf;
+    } catch (e) {
+      console.warn(`[audio] track ${name} unavailable → live synth`, e);
+      return null;
+    }
+  }
+
+  private playTrack(name: string): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.musicOn) return;
+    if (this.currentTrack === name && this.trackSrc) return; // already playing
+    this.currentTrack = name;
+    const buf = this.trackCache.get(name);
+    if (buf) { this.spawnSource(buf); return; }
+    if (this.loadingTrack === name) return;
+    this.loadingTrack = name;
+    void this.fetchTrack(name).then((b) => {
+      this.loadingTrack = null;
+      // stale? (user already moved elsewhere)
+      if (!b || this.currentTrack !== name || !this.ctx) return;
+      this.spawnSource(b);
+    });
+  }
+
+  private spawnSource(buf: AudioBuffer): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.musicBus) return;
+    // fade out whatever is playing (crossfade feel)
+    const old = this.trackSrc, oldGain = this.trackGain;
+    if (old && oldGain) {
+      try {
+        oldGain.gain.cancelScheduledValues(ctx.currentTime);
+        oldGain.gain.setValueAtTime(oldGain.gain.value, ctx.currentTime);
+        oldGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.9);
+        old.stop(ctx.currentTime + 1.0);
+      } catch { /* already stopped */ }
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    src.connect(g).connect(this.musicBus);
+    src.start(ctx.currentTime + 0.03);
+    g.gain.linearRampToValueAtTime(this.musicOn ? 1 : 0, ctx.currentTime + 1.1);
+    src.addEventListener("ended", () => {
+      try { g.disconnect(); } catch { /* noop */ }
+    });
+    this.trackSrc = src;
+    this.trackGain = g;
+  }
+
+  private stopTrack(immediate = false): void {
+    this.currentTrack = null;
+    this.loadingTrack = null;
+    const ctx = this.ctx;
+    const src = this.trackSrc, g = this.trackGain;
+    this.trackSrc = null;
+    this.trackGain = null;
+    if (!src || !g || !ctx) return;
+    try {
+      g.gain.cancelScheduledValues(ctx.currentTime);
+      g.gain.setValueAtTime(g.gain.value, ctx.currentTime);
+      g.gain.linearRampToValueAtTime(0, ctx.currentTime + (immediate ? 0.12 : 0.7));
+      src.stop(ctx.currentTime + (immediate ? 0.15 : 0.8));
+    } catch { /* already stopped */ }
   }
 
   private scheduler(): void {

@@ -6,7 +6,7 @@
 
 export type PShape =
   | "petal" | "dot" | "star" | "leaf" | "flake"
-  | "spark" | "confetti" | "streak" | "bubble" | "glow";
+  | "spark" | "confetti" | "streak" | "bubble" | "glow" | "ribbon";
 
 export interface Particle {
   x: number; y: number;
@@ -198,17 +198,41 @@ export class ParticleFX {
   }
 
   confetti(count = 90): void {
-    const colors = ["#ffd76e", "#ff8fa3", "#7adcb0", "#8ecdf7", "#e6a8f7", "#fff3c4"];
+    const colors = ["#ffd76e", "#ff8fa3", "#7adcb0", "#8ecdf7", "#e6a8f7", "#fff3c4", "#f2c14e"];
     const n = Math.round(count * this.intensity);
     for (let i = 0; i < n; i++) {
       const x = Math.random() * this.w;
+      // v1.3: rich mix — ribbons, classic strips and little stars
+      const shape: PShape = i % 3 === 0 ? "ribbon" : i % 5 === 0 ? "star" : "confetti";
       this.add({
         x, y: -12 - Math.random() * this.hgt * 0.25,
         vx: (Math.random() - .5) * 90, vy: 60 + Math.random() * 140,
-        size: 4 + Math.random() * 5, color: colors[i % colors.length], shape: "confetti",
-        life: 4.5 + Math.random() * 2, g: 90, drag: 0.12, tw: Math.random() * 6.28, vr: (Math.random() - .5) * 10,
+        size: shape === "ribbon" ? 9 + Math.random() * 7 : 4 + Math.random() * 5,
+        color: colors[i % colors.length], shape,
+        life: 4.5 + Math.random() * 2, g: shape === "ribbon" ? 55 : 90, drag: 0.12,
+        tw: Math.random() * 6.28, vr: (Math.random() - .5) * 10,
       });
     }
+  }
+
+  /** expanding ring of golden stars — word-found celebration (v1.3) */
+  starRing(x: number, y: number, color = "#ffe9a8"): void {
+    const n = Math.round(12 * this.intensity);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      this.add({
+        x, y,
+        vx: Math.cos(a) * 150, vy: Math.sin(a) * 150,
+        size: 2.4 + Math.random() * 1.6, color: i % 3 === 0 ? "#fff6d8" : color,
+        shape: "star", life: 0.8 + Math.random() * 0.35, g: 60, drag: 2.4,
+        tw: Math.random() * 6.28, vr: (Math.random() - .5) * 6,
+      });
+    }
+    // soft golden flash at the center
+    this.add({
+      x, y, vx: 0, vy: 0, size: 16, color: "rgba(255,233,168,0.85)",
+      shape: "glow", life: 0.5, g: 0, drag: 0, tw: 0,
+    });
   }
 
   /** multi-shot fireworks — chapter finale */
@@ -263,9 +287,13 @@ export class ParticleFX {
     const lifeT = p.life / p.maxLife;
     let a = p.alpha * Math.min(1, lifeT * 2.2);
     if (p.tw) a *= 0.55 + 0.45 * Math.sin(p.tw + performance.now() / 300);
-    ctx.globalAlpha = Math.max(0, Math.min(1, a));
+    a = Math.max(0, Math.min(1, a));
+    ctx.globalAlpha = a;
     ctx.fillStyle = p.color;
     const s = p.size;
+    // v1.3: luminous shapes render additively — glow actually glows
+    const luminous = p.shape === "glow" || p.shape === "spark" || p.shape === "star";
+    if (luminous) ctx.globalCompositeOperation = "lighter";
     switch (p.shape) {
       case "petal": {
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
@@ -316,6 +344,19 @@ export class ParticleFX {
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
         ctx.fillRect(-s / 2, -s / 4, s, s / 2); ctx.restore(); break;
       }
+      case "ribbon": {
+        // waving satin strip — folds over itself while falling
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        const wave = Math.sin(performance.now() / 160 + p.tw) * s * 0.35;
+        ctx.beginPath();
+        ctx.moveTo(-s / 2, wave);
+        ctx.quadraticCurveTo(0, -wave, s / 2, wave);
+        ctx.lineTo(s / 2, wave + s * 0.34);
+        ctx.quadraticCurveTo(0, -wave + s * 0.34, -s / 2, wave + s * 0.34);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore(); break;
+      }
       case "bubble": {
         ctx.globalAlpha *= 0.5;
         ctx.beginPath(); ctx.arc(p.x, p.y, s, 0, Math.PI * 2); ctx.fill(); break;
@@ -324,6 +365,7 @@ export class ParticleFX {
         ctx.beginPath(); ctx.arc(p.x, p.y, s, 0, Math.PI * 2); ctx.fill();
       }
     }
+    if (luminous) ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
   }
 }

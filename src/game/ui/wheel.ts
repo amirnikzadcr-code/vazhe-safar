@@ -18,6 +18,11 @@ export interface WheelHandle {
   clearPath(): void;
   resize(): void;
   pulseLetters(word: string, ms?: number): void;
+  /** viewport-space center of a letter button (for tutorial hand demo) */
+  letterCenter(i: number): { x: number; y: number } | null;
+  letterCount(): number;
+  /** the character drawn on letter i */
+  letterChar(i: number): string;
 }
 
 export function createWheel(seed: number, wheelLetters: string): WheelHandle {
@@ -60,7 +65,8 @@ export function createWheel(seed: number, wheelLetters: string): WheelHandle {
     if (!w || !hh) return;
     // radius fits inside BOTH dimensions with a safe margin so letters and
     // the decorative ring never clip on short screens
-    const R = Math.max(56, Math.min(w, hh) / 2 - 40);
+    // (v1.3: wider radius → more breathing room between letters)
+    const R = Math.max(60, Math.min(w, hh) / 2 - 34);
     // keep the decorative ring a perfect circle hugging the letters
     const d = 2 * (R + 34);
     ring.style.width = `${d}px`;
@@ -97,8 +103,8 @@ export function createWheel(seed: number, wheelLetters: string): WheelHandle {
   };
 
   const hitTest = (x: number, y: number): number => {
-    // tight, adaptive pick radius — adjacent letters on small wheels stay distinct
-    const pick = Math.max(26, Math.min(44, el.clientWidth * 0.088));
+    // generous adaptive pick radius (v1.3: bigger letters → bigger targets)
+    const pick = Math.max(31, Math.min(50, el.clientWidth * 0.098));
     let best = -1, bestD = pick * pick;
     for (let i = 0; i < nodes.length; i++) {
       const dx = x - nodes[i].x, dy = y - nodes[i].y;
@@ -207,6 +213,14 @@ export function createWheel(seed: number, wheelLetters: string): WheelHandle {
       drawPath();
     },
     resize() { position(); },
+    letterCenter(i: number) {
+      const nd = nodes[i];
+      if (!nd) return null;
+      const r = nd.btn.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    },
+    letterCount() { return nodes.length; },
+    letterChar(i: number) { return nodes[i]?.ch ?? ""; },
     pulseLetters(word, ms = 900) {
       const target = letters(word);
       const used = new Set<number>();
