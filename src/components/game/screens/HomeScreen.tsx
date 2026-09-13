@@ -4,7 +4,7 @@
  * gold 3D title, big green PLAY, bottom nav (gift/library/missions/shop)
  * ------------------------------------------------------------------ */
 import { Btn, IconBtn, CoinChip, Vines } from "@/components/game/ui/kit";
-import { Gear, Gift, BookOpen, Trophy, ShoppingBag, Play, Star } from "@/components/game/icons";
+import { Gear, GiftIcon, BookIcon, TrophyIcon, BagIcon, PlayGold, Star } from "@/components/game/icons";
 import { Coin } from "@/components/game/icons";
 import { Save } from "@/game/core/save";
 import { faNum } from "@/game/core/utils";
@@ -33,7 +33,7 @@ export function HomeScreen({
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
         {/* top bar: coins LEFT / gear RIGHT (matches reference; RTL flex) */}
         <div className="topbar">
-          <IconBtn label="تنظیمات" onClick={onSettings}><Gear size={22} /></IconBtn>
+          <IconBtn label="تنظیمات" onClick={onSettings}><span className="anim-gear"><Gear size={22} /></span></IconBtn>
           <CoinChip value={coins} plus onPlus={onShop} />
         </div>
 
@@ -87,10 +87,10 @@ export function HomeScreen({
           <span style={{ position: "absolute", top: "16%", left: "10%", animation: "floatY 3.4s ease-in-out .5s infinite", display: "flex" }}><Coin size={19} /></span>
         </div>
 
-        {/* play button — juicy: breathing glow + shine sweep */}
+        {/* play button — juicy breathing ring (no white glow) */}
         <div style={{ display: "flex", justifyContent: "center", margin: "2px 0 10px", position: "relative", zIndex: 20 }}>
-          <Btn size="big" onClick={onPlay} className="play-juicy play-shine" style={{ minWidth: 240, fontSize: 22 }}>
-            <Play size={24} />
+          <Btn size="big" onClick={onPlay} className="play-juicy" style={{ minWidth: 240, fontSize: 22 }}>
+            <PlayGold size={24} />
             شروع بازی
           </Btn>
         </div>
@@ -98,20 +98,22 @@ export function HomeScreen({
         {/* bottom nav */}
         <nav className="navbar" aria-label="منوی اصلی">
           <button type="button" className="nav-item" onClick={() => { Audio.sfxClick(); onGift(); }}>
-            <span className="nav-orb c-pink"><Gift size={24} /></span>
-            {giftReady && <span className="dot" style={{ position: "absolute" }} />}
+            <span className="nav-orb c-pink">
+              <GiftIcon size={26} />
+              {giftReady && <span className="dot" />}
+            </span>
             جایزه
           </button>
           <button type="button" className="nav-item" onClick={() => { Audio.sfxClick(); onLibrary(); }}>
-            <span className="nav-orb c-blue"><BookOpen size={24} /></span>
+            <span className="nav-orb c-blue"><BookIcon size={26} /></span>
             کتابخانه
           </button>
           <button type="button" className="nav-item" onClick={() => { Audio.sfxClick(); onMissions(); }}>
-            <span className="nav-orb c-violet"><Trophy size={24} /></span>
+            <span className="nav-orb c-violet"><TrophyIcon size={26} /></span>
             ماموریت‌ها
           </button>
           <button type="button" className="nav-item" onClick={() => { Audio.sfxClick(); onShop(); }}>
-            <span className="nav-orb c-orange"><ShoppingBag size={24} /></span>
+            <span className="nav-orb c-orange"><BagIcon size={26} /></span>
             فروشگاه
           </button>
         </nav>

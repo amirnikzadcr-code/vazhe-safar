@@ -4,6 +4,7 @@
  * vine decoration, star rows, toast. Everything RTL-aware.
  * ------------------------------------------------------------------ */
 import { CSSProperties, ReactNode, useEffect, useRef, useState } from "react";
+/* (useRef imported for the Sheet instant-background check) */
 import {
   Gear, X, ChevronRight, Star,
 } from "@/components/game/icons";
@@ -144,23 +145,40 @@ export function Sheet({
   blur?: number;
   style?: CSSProperties;
 }) {
-  /* fade the background in only when decoded → no half-painted flash */
+  /*
+   * STABLE BACKGROUND (no late pop-in):
+   *  1. a cheerful sky→meadow gradient underlay is ALWAYS painted,
+   *     so the screen never flashes white/gray while decoding
+   *  2. all images are preloaded during splash — if the <img> is
+   *     already complete we render it instantly with no fade at all
+   */
   const [bgReady, setBgReady] = useState(false);
-  useEffect(() => { setBgReady(false); }, [bg]);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  useEffect(() => {
+    setBgReady(false);
+    if (imgRef.current?.complete) setBgReady(true); /* cached → instant */
+  }, [bg]);
   return (
     <div className="vz-page fade-in" style={style}>
       {bg && (
         <>
+          {/* colorful stable underlay — matches every scene's palette */}
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#9fd9ff 0%,#6cc0f5 34%,#a8e08b 62%,#7ccb62 100%)" }} />
           <img
+            ref={imgRef}
             src={bg}
             alt=""
-            className={`vz-fill ${bgReady ? "fade-in" : ""}`}
-            style={{ filter: blur ? `blur(${blur}px)` : undefined, opacity: bgReady ? undefined : 0 }}
+            className="vz-fill"
+            style={{
+              filter: blur ? `blur(${blur}px)` : undefined,
+              opacity: bgReady ? 1 : 0,
+              transition: "opacity .16s ease",
+            }}
             fetchPriority="high"
             decoding="async"
             onLoad={() => setBgReady(true)}
           />
-          <div style={{ position: "absolute", inset: 0, background: `rgba(10,30,50,${bgDim})` }} />
+          <div style={{ position: "absolute", inset: 0, background: `rgba(10,30,50,${bgDim})`, opacity: bgReady ? 1 : 0, transition: "opacity .16s ease" }} />
         </>
       )}
       {!bg && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#8fd0ff 0%,#5cb2ef 45%,#3d9df0 100%)" }} />}
@@ -206,8 +224,10 @@ export function Vines() {
       {flower(60, 48, 0.75, `${keyPrefix}-f3`)}
     </g>
   );
+  /* STATIC (no float animation) — animating a full-screen SVG repaints
+   * the whole page every frame and is the source of map jitter */
   return (
-    <svg aria-hidden className="float-slow" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5 }}>
+    <svg aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5 }}>
       {corner("", "tl")}
       {corner("translate(100% 0) scale(-1 1)", "tr")}
       {corner("translate(0 100%) scale(1 -1)", "bl")}

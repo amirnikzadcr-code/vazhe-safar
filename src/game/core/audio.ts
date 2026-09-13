@@ -683,29 +683,45 @@ class AudioEngine {
 
   // — public SFX vocabulary —
 
-  sfxClick(): void { this.sfxOsc({ type: "sine", f0: 560, f1: 400, dur: 0.08, vol: 0.18 }); }
+  /** polished UI click: tactile tick + warm woody body + glossy top */
+  sfxClick(): void {
+    this.sfxNoise({ dur: 0.035, vol: 0.055, freq: 3200, q: 1.4 });                 // tactile transient
+    this.sfxOsc({ type: "triangle", f0: 660, f1: 470, dur: 0.065, vol: 0.15, filter: 3800 }); // body
+    this.sfxOsc({ type: "sine", f0: 196, f1: 150, dur: 0.09, vol: 0.11 });          // warm low body
+    this.sfxOsc({ type: "sine", f0: 2093, dur: 0.03, vol: 0.03, delay: 0.005 });    // gloss
+  }
 
   sfxLetter(idx: number): void {
-    // walk up the current chapter scale for a musical feel
+    // walk up the current chapter scale — harp-like pluck (soft, musical)
     const cfg = this.cfg;
+    let f: number;
     if (cfg && this.musicOn) {
       const deg = idx % cfg.cents.length;
-      const f = cfg.root * c2r(cfg.cents[deg] + 1200 * (cfg.octave + 1));
-      this.sfxOsc({ type: "triangle", f0: f, dur: 0.13, vol: 0.2, filter: 5200 });
+      f = cfg.root * c2r(cfg.cents[deg] + 1200 * (cfg.octave + 1));
     } else {
-      const base = 500 * Math.pow(1.059, Math.min(idx, 10));
-      this.sfxOsc({ type: "triangle", f0: base, dur: 0.13, vol: 0.22, filter: 5200 });
+      f = 500 * Math.pow(1.059, Math.min(idx, 10));
     }
-    this.sfxNoise({ dur: 0.05, vol: 0.045, freq: 3400 });
+    this.sfxOsc({ type: "triangle", f0: f, dur: 0.17, vol: 0.2, filter: 5200 });
+    this.sfxOsc({ type: "sine", f0: f * 2, dur: 0.1, vol: 0.07, delay: 0.012 });
+    this.sfxOsc({ type: "sine", f0: f * 3, dur: 0.06, vol: 0.028, delay: 0.024 });
+    this.sfxNoise({ dur: 0.04, vol: 0.028, freq: 4200, q: 2 });
   }
 
   sfxWordFound(step: number = 0): void {
     const roots = [523.25, 587.33, 659.25];
     const base = roots[step % 3];
-    [1, 1.26, 1.5].forEach((m, i) =>
-      this.note(base * m, 0.26, 0.55, i * 0.08));
-    this.sfxOsc({ type: "sine", f0: base * 4, dur: 0.3, vol: 0.08, delay: 0.24 });
-    this.sfxNoise({ dur: 0.32, vol: 0.04, freq: 5000, q: 3, delay: 0.06 });
+    // rising chime cascade — C5 → E5 → G5 → C6 sparkle tail
+    [1, 1.26, 1.5, 2].forEach((m, i) =>
+      this.note(base * m, 0.24, 0.5, i * 0.07));
+    this.sfxOsc({ type: "sine", f0: base * 4, dur: 0.35, vol: 0.07, delay: 0.3 });
+    this.sfxNoise({ dur: 0.42, vol: 0.035, freq: 5600, q: 3, delay: 0.05 });
+  }
+
+  /** soft wooden "tap-tap" — a word just landed on the board */
+  sfxSettle(): void {
+    this.sfxOsc({ type: "sine", f0: 392, dur: 0.12, vol: 0.12, filter: 2400 });
+    this.sfxOsc({ type: "sine", f0: 523.25, dur: 0.16, vol: 0.12, delay: 0.07, filter: 2600 });
+    this.sfxNoise({ dur: 0.06, vol: 0.028, freq: 1800, q: 1, delay: 0.07 });
   }
 
   sfxBonus(): void {

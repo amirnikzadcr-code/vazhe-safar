@@ -62,3 +62,4 @@ scripts/qa/
 scripts/shot_*.png
 scripts/research_*.json
 scripts/char_raw/
+scripts/t_*.png

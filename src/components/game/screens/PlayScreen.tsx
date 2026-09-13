@@ -4,15 +4,22 @@
  *   top: pause / مرحله chip / progress chip
  *   board: CREAM panel — every word is its OWN separate row of small
  *          parchment tiles (never overlaps: measured auto-fit)
- *   wheel: wooden ring with white letter tiles, tap or drag to spell
- *   bottom-left shuffle, bottom-right hint (with coin cost)
- * No crossword generator → level opens instantly, zero CPU spike.
- * Word found → staggered gold pop + sparkle burst (pure CSS, 60fps).
+ *   wheel: wooden ring with letter tiles, tap or drag to spell
+ *   bottom: shuffle LEFT, hint RIGHT (with coin cost)
+ *
+ * WORD TIMING (user request: "don't settle instantly — apply a
+ * beautiful effect for ~1s, THEN put it on the board"):
+ *   1. word completed → wheel CELEBRATION (golden burst, ring shock,
+ *      tile glow cascade, +۵ سکه float, chime) for 1.15 s
+ *   2. then the word lands on the board (staggered gold pop + sparkles
+ *      + soft settle sound)
+ *   3. last word → win modal shortly after. Queue-safe: pending words
+ *      are guarded, restart/unmount cancels the timers.
  * ------------------------------------------------------------------ */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Sheet, useToast, ToastHost } from "@/components/game/ui/kit";
-import { Pause, Shuffle, Lightbulb } from "@/components/game/icons";
 import { StarGold } from "@/components/game/icons";
+import { HintBulb, ShuffleArrows } from "@/components/game/icons";
 import { getLevel, isRealWord } from "@/game/data/levelsIndex";
 import { CHAPTERS } from "@/game/data/chapters";
 import { letters, faNum, canBuild, buzz } from "@/game/core/utils";
@@ -20,6 +27,9 @@ import { Audio } from "@/game/core/audio";
 import { Save, COSTS, REWARDS } from "@/game/core/save";
 import { WinModal } from "@/components/game/modals/WinModal";
 import { PauseModal } from "@/components/game/modals/Overlays";
+
+/* celebration duration BEFORE the word applies to the board (ms) */
+const CELEBRATE_MS = 1150;
 
 export function PlayScreen({
   ch, lv, coins, onExit, onNext, onSettings, onShop, coinsBump,
@@ -45,6 +55,7 @@ export function PlayScreen({
   const [found, setFound] = useState<Set<string>>(new Set());
   const [revealed, setRevealed] = useState<Set<string>>(new Set()); // "word#idx"
   const [justFound, setJustFound] = useState<{ word: string; k: number } | null>(null);
+  const [wheelFx, setWheelFx] = useState<{ word: string; k: number } | null>(null);
   const [shaking, setShaking] = useState(false);
   const [won, setWon] = useState<{ stars: number; coins: number } | null>(null);
   const [paused, setPaused] = useState(false);
@@ -53,11 +64,22 @@ export function PlayScreen({
   const [earned, setEarned] = useState({ words: 0, bonus: 0 });
   const mistakesRef = useRef(0);
   const foundRef = useRef<Set<string>>(new Set());
+  const pendingRef = useRef<Set<string>>(new Set());
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const fxKRef = useRef(0);
 
   /* keep ref in sync (effects only — never during render) */
   useEffect(() => { foundRef.current = found; }, [found]);
 
   const { toast, show } = useToast();
+
+  const clearPending = useCallback(() => {
+    for (const t of timersRef.current) clearTimeout(t);
+    timersRef.current = [];
+    pendingRef.current.clear();
+    setWheelFx(null);
+  }, []);
+  useEffect(() => () => clearPending(), [clearPending]);
 
   /* letters of a word currently visible (found = all, hint = some) */
   const letterShown = useCallback((word: string, idx: number, isFound: boolean) => {
@@ -65,24 +87,42 @@ export function PlayScreen({
     return revealed.has(`${word}#${idx}`);
   }, [revealed]);
 
-  const markFound = useCallback((word: string, byPlayer: boolean) => {
-    if (foundRef.current.has(word)) return;
+  /* stage 2: the word actually lands on the board */
+  const commitFound = useCallback((word: string) => {
+    pendingRef.current.delete(word);
     const next = new Set(foundRef.current);
     next.add(word);
-    foundRef.current = next; /* immediate — guards double calls same tick */
+    foundRef.current = next;
     setFound(next);
-    setJustFound({ word, k: (justFound?.k ?? 0) + 1 });
+    fxKRef.current += 1;
+    setJustFound({ word, k: fxKRef.current });
+    Audio.sfxSettle();
+  }, []);
+
+  /* stage 1: reward + wheel celebration, then apply to the board */
+  const celebrate = useCallback((word: string, byPlayer: boolean) => {
+    if (foundRef.current.has(word) || pendingRef.current.has(word)) return;
+    pendingRef.current.add(word);
     Save.countWord();
     Save.addCoins(REWARDS.perWord);
     setEarned((e) => ({ ...e, words: e.words + 1 }));
-    Audio.sfxWordFound(foundRef.current.size);
+    Audio.sfxWordFound(foundRef.current.size + pendingRef.current.size);
     buzz([18, 30, 18], Save.data.settings.haptics);
     coinsBump();
     if (byPlayer && !Save.data.tutorialDone) {
       Save.markTutorialDone();
       setTutorial(false);
     }
-  }, [coinsBump, justFound]);
+    fxKRef.current += 1;
+    const k = fxKRef.current;
+    setWheelFx({ word, k });
+    const t = setTimeout(() => {
+      /* only end the celebration if THIS word's fx is still showing */
+      setWheelFx((cur) => (cur && cur.k === k ? null : cur));
+      commitFound(word);
+    }, CELEBRATE_MS);
+    timersRef.current.push(t);
+  }, [coinsBump, commitFound]);
 
   /* words completed purely by hints → auto-found */
   useEffect(() => {
@@ -93,9 +133,9 @@ export function PlayScreen({
       for (let i = 0; i < ls.length; i++) {
         if (!revealed.has(`${w}#${i}`)) { all = false; break; }
       }
-      if (all) markFound(w, false);
+      if (all) celebrate(w, false);
     }
-  }, [revealed, found, wordRows, markFound]);
+  }, [revealed, found, wordRows, celebrate]);
 
   /* all words done → finish */
   useEffect(() => {
@@ -107,17 +147,24 @@ export function PlayScreen({
       Save.completeLevel(ch, lv, stars, mistakesRef.current);
       coinsBump();
       Audio.sfxLevelComplete(stars);
-      const t = setTimeout(() => setWon({ stars, coins: total }), 300);
+      const t = setTimeout(() => setWon({ stars, coins: total }), 340);
       return () => clearTimeout(t);
     }
   }, [found, wordRows, won, ch, lv, coinsBump]);
 
-  /* ------------ submit (from wheel release) ------------ */
-  const submit = useCallback((str: string) => {
-    if (!str || str.length < 2) return;
-    if (wordRows.includes(str) && !foundRef.current.has(str)) {
-      markFound(str, true);
-      return;
+  /* ------------ submit (from wheel release) ------------
+   * "new"   → target word just celebrated (wheel keeps its selection
+   *           through the fx, then clears)
+   * "known" → already-found word (never punished, wheel clears)
+   * false   → not a word / bonus handled / mistake (wheel clears) */
+  const submit = useCallback((str: string): "new" | "known" | false => {
+    if (!str || str.length < 2) return false;
+    if (wordRows.includes(str)) {
+      if (!foundRef.current.has(str) && !pendingRef.current.has(str)) {
+        celebrate(str, true);
+        return "new";
+      }
+      return "known";
     }
     const uniq = new Set(wordRows);
     if (!uniq.has(str) && isRealWord(str) && canBuild(str, level.wheel)) {
@@ -131,32 +178,35 @@ export function PlayScreen({
       } else {
         show("این واژهٔ پنهان را قبلاً یافتی!");
       }
-      return;
+      return false;
     }
     mistakesRef.current += 1;
     Audio.sfxWrong();
     buzz(40, Save.data.settings.haptics);
     setShaking(true);
-  }, [wordRows, level, ch, lv, coinsBump, show, markFound]);
+    return false;
+  }, [wordRows, level, ch, lv, coinsBump, show, celebrate]);
 
-  /* mid-drag auto-complete check — never counts a mistake */
+  /* mid-drag auto-complete — true ONLY when a NEW word was just
+   * celebrated (dragging through an already-found word continues
+   * the stroke so longer words like قوی are still reachable) */
   const checkAuto = useCallback((str: string): boolean => {
     if (str.length < 2) return false;
-    if (wordRows.includes(str) && !foundRef.current.has(str)) {
-      markFound(str, true);
+    if (wordRows.includes(str) && !foundRef.current.has(str) && !pendingRef.current.has(str)) {
+      celebrate(str, true);
       return true;
     }
     return false;
-  }, [wordRows, markFound]);
+  }, [wordRows, celebrate]);
 
   /* ------------ hint: reveal next letter of the first unfound word ------------ */
   const doHint = () => {
     if (won) return;
-    const nextWord = wordRows.find((w) => !foundRef.current.has(w));
+    const nextWord = wordRows.find((w) => !foundRef.current.has(w) && !pendingRef.current.has(w));
     if (!nextWord) return;
     const ls = letters(nextWord);
     for (let i = 0; i < ls.length; i++) {
-      if (!revealed.has(`${nextWord}#${i}`) && !(foundRef.current.has(nextWord))) {
+      if (!revealed.has(`${nextWord}#${i}`)) {
         if (!Save.spendCoins(COSTS.hint)) {
           Audio.sfxWrong();
           show("سکه کافی ندارید!");
@@ -185,7 +235,7 @@ export function PlayScreen({
       <div className="topbar">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button type="button" aria-label="توقف" className="ib3" onClick={() => { Audio.sfxClick(); setPaused(true); }}>
-            <Pause size={20} />
+            <PauseIc />
           </button>
           <span className="chip" style={{ fontSize: 14 }}>مرحله {faNum((ch - 1) * 10 + lv)}</span>
         </div>
@@ -214,28 +264,30 @@ export function PlayScreen({
         <Wheel
           letters={wheelLetters}
           shuffleKey={shuffleKey}
+          fx={wheelFx}
+          reward={REWARDS.perWord}
           onAuto={checkAuto}
           onRelease={submit}
         />
       </div>
 
-      {/* helper row — like the reference: shuffle bottom-LEFT, hint bottom-RIGHT */}
+      {/* helper row — shuffle bottom-LEFT, hint bottom-RIGHT */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 18px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))", position: "relative", zIndex: 20 }}>
         <button
           type="button"
           aria-label="راهنما"
-          className="ib3"
-          style={{ ["--ib" as string]: "#ffd76e", ["--ib-edge" as string]: "#b06e00", ["--ib-fg" as string]: "#6b4300" }}
+          className="ib3 helper"
+          style={{ ["--ib" as string]: "#ffedbe", ["--ib-edge" as string]: "#c98a0a", ["--ib-fg" as string]: "#8a5500" }}
           onClick={doHint}
         >
-          <Lightbulb size={22} />
+          <HintBulb size={26} />
           <span className="chip" style={{ position: "absolute", bottom: -10, fontSize: 11.5, padding: "1px 8px", gap: 4 }}>
             <span className="coin-ic" style={{ width: 13, height: 13 }} />
             {faNum(COSTS.hint)}
           </span>
         </button>
-        <button type="button" aria-label="بر زدن" className="ib3 green" onClick={doShuffle}>
-          <Shuffle size={20} />
+        <button type="button" aria-label="بر زدن" className="ib3 helper green" onClick={doShuffle}>
+          <ShuffleArrows size={24} />
         </button>
       </div>
 
@@ -257,7 +309,16 @@ export function PlayScreen({
       {paused && (
         <PauseModal
           onResume={() => setPaused(false)}
-          onRestart={() => { setPaused(false); setFound(new Set()); setRevealed(new Set()); mistakesRef.current = 0; setEarned({ words: 0, bonus: 0 }); setShuffleKey((k) => k + 1); }}
+          onRestart={() => {
+            clearPending();
+            setPaused(false);
+            setFound(new Set());
+            setRevealed(new Set());
+            setJustFound(null);
+            mistakesRef.current = 0;
+            setEarned({ words: 0, bonus: 0 });
+            setShuffleKey((k) => k + 1);
+          }}
           onExit={onExit}
           onSettings={onSettings}
         />
@@ -277,6 +338,16 @@ export function PlayScreen({
 
       <ToastHost toast={toast} />
     </Sheet>
+  );
+}
+
+/* small inline pause glyph (keeps icon import list tidy) */
+function PauseIc() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+      <rect x="6" y="4.5" width="4.2" height="15" rx="1.8" fill="currentColor" />
+      <rect x="13.8" y="4.5" width="4.2" height="15" rx="1.8" fill="currentColor" />
+    </svg>
   );
 }
 
@@ -349,18 +420,23 @@ function WordBoard({
   );
 }
 
-/* ================= Wheel — owns its own selection state ================= */
+/* ================= Wheel — owns its own selection state.
+   While `fx` is set (word celebrated) the selection polyline stays
+   visible, tiles glow in a cascade and new drags are blocked. ================= */
 function Wheel({
-  letters: ls, shuffleKey, onAuto, onRelease,
+  letters: ls, shuffleKey, fx, reward, onAuto, onRelease,
 }: {
   letters: string[];
   shuffleKey: number;
+  fx: { word: string; k: number } | null;
+  reward: number;
   onAuto: (str: string) => boolean;
-  onRelease: (str: string) => void;
+  onRelease: (str: string) => "new" | "known" | false;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<number[]>([]);
   const [tip, setTip] = useState<{ x: number; y: number } | null>(null);
+  const [celebK, setCelebK] = useState(0);
   const selRef = useRef<number[]>([]);
   const dragRef = useRef(false);
 
@@ -381,6 +457,13 @@ function Wheel({
     setSel(next);
   };
 
+  /* fx set → celebrate; fx cleared (word landed) → release selection */
+  useEffect(() => {
+    if (fx) setCelebK(fx.k);
+    else if (celebK) { applySel([]); setCelebK(0); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fx]);
+
   const tileAt = (clientX: number, clientY: number): number | null => {
     const el = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
     const t = el?.closest("[data-tile]") as HTMLElement | null;
@@ -396,6 +479,7 @@ function Wheel({
   };
 
   const down = (e: React.PointerEvent) => {
+    if (celebK) return; /* celebrating → inputs locked for the moment */
     const i = tileAt(e.clientX, e.clientY);
     if (i === null || Number.isNaN(i)) return;
     dragRef.current = true;
@@ -415,10 +499,10 @@ function Wheel({
       const next = [...cur, i];
       Audio.sfxLetter(next.length);
       applySel(next);
-      /* auto-submit on exact unfound word (no mistake penalty) */
+      /* auto-submit on exact unfound word (no mistake penalty) —
+       * selection stays visible through the celebration */
       if (onAuto(next.map((k) => ls[k]).join(""))) {
         dragRef.current = false;
-        applySel([]);
         setTip(null);
       }
     }
@@ -428,7 +512,10 @@ function Wheel({
     if (!dragRef.current) return;
     dragRef.current = false;
     const cur = selRef.current;
-    if (cur.length >= 2) onRelease(cur.map((k) => ls[k]).join(""));
+    if (cur.length >= 2) {
+      const r = onRelease(cur.map((k) => ls[k]).join(""));
+      if (r === "new") { setTip(null); return; } /* keep line during fx */
+    }
     applySel([]);
     setTip(null);
   };
@@ -444,7 +531,7 @@ function Wheel({
   return (
     <div
       ref={wrapRef}
-      className="wheel-wrap"
+      className={`wheel-wrap ${celebK ? "fx" : ""}`}
       onPointerDown={down}
       onPointerMove={move}
       onPointerUp={up}
@@ -486,6 +573,31 @@ function Wheel({
           </span>
         ))}
       </div>
+
+      {/* ---- CELEBRATION FX (pure CSS, bounded, 60fps) ---- */}
+      {celebK > 0 && (
+        <div key={celebK} className="wheel-burst" aria-hidden>
+          <span className="wb-ring" />
+          <span className="wb-flash" />
+          {Array.from({ length: 10 }, (_, s) => (
+            <i
+              key={s}
+              style={{
+                ["--dx" as string]: `${Math.cos((s / 10) * Math.PI * 2) * 120}px`,
+                ["--dy" as string]: `${Math.sin((s / 10) * Math.PI * 2) * 120}px`,
+                ["--dd" as string]: `${s * 24}ms`,
+                ["--dc" as string]: s % 2 ? "#ffd94e" : "#ffefb0",
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {celebK > 0 && (
+        <span key={`coin${celebK}`} className="fx-coin" aria-hidden>
+          <span className="coin-ic" style={{ width: 18, height: 18 }} />
+          +{faNum(reward)}
+        </span>
+      )}
     </div>
   );
 }
