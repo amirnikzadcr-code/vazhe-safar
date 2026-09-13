@@ -1,6 +1,7 @@
 /* ------------------------------------------------------------------
  *  واژه‌سفر — ui/wheel.ts
  *  Circular letter wheel with drag-to-connect input (pointer events),
+ *  segment-interpolated hit-testing (fast swipes never skip letters),
  *  path drawing, backtrack, shuffle and haptic/sfx feedback.
  * ------------------------------------------------------------------ */
 import { h, letters, rng, shuffle, buzz } from "../core/utils";
@@ -36,6 +37,9 @@ export function createWheel(seed: number, wheelLetters: string): WheelHandle {
   let active = false;
   let shuffleCount = 0;
   const baseSeed = seed;
+  // last sampled pointer position — the drag is sampled in small steps along
+  // the segment between samples so fast swipes can never skip a letter
+  let lastSample: { x: number; y: number } | null = null;
 
   const layout = (): void => {
     const rand = rng(baseSeed * 977 + shuffleCount * 131);
@@ -54,10 +58,11 @@ export function createWheel(seed: number, wheelLetters: string): WheelHandle {
     const w = el.clientWidth;
     const hh = el.clientHeight;
     if (!w || !hh) return;
-    // radius fits inside BOTH dimensions so letters never clip on short screens
-    const R = Math.min(w, hh) / 2 - 34;
+    // radius fits inside BOTH dimensions with a safe margin so letters and
+    // the decorative ring never clip on short screens
+    const R = Math.max(56, Math.min(w, hh) / 2 - 40);
     // keep the decorative ring a perfect circle hugging the letters
-    const d = 2 * (R + 33);
+    const d = 2 * (R + 34);
     ring.style.width = `${d}px`;
     ring.style.height = `${d}px`;
     const n = nodes.length;
@@ -92,8 +97,9 @@ export function createWheel(seed: number, wheelLetters: string): WheelHandle {
   };
 
   const hitTest = (x: number, y: number): number => {
-    const R = el.clientWidth * 0.105;
-    let best = -1, bestD = R * R * 2.4;
+    // tight, adaptive pick radius — adjacent letters on small wheels stay distinct
+    const pick = Math.max(26, Math.min(44, el.clientWidth * 0.088));
+    let best = -1, bestD = pick * pick;
     for (let i = 0; i < nodes.length; i++) {
       const dx = x - nodes[i].x, dy = y - nodes[i].y;
       const d = dx * dx + dy * dy;
@@ -107,12 +113,35 @@ export function createWheel(seed: number, wheelLetters: string): WheelHandle {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
 
+  /** process a hit at (x,y): push / backtrack / ignore */
+  const stepAt = (i: number): void => {
+    if (i === -1) return;
+    const last = path[path.length - 1];
+    if (i === last) return;
+    const prev = path[path.length - 2];
+    if (i === prev) {
+      // backtrack
+      path.pop();
+      refreshSel();
+      Audio.sfxLetter(path.length);
+      return;
+    }
+    if (!path.includes(i)) {
+      path.push(i);
+      refreshSel();
+      Audio.sfxLetter(path.length);
+      buzz(8, Save.data.settings.haptics);
+      handle.onSelect?.(path.length);
+    }
+  };
+
   el.addEventListener("pointerdown", (e) => {
     if (!chars.length) return;
     const { x, y } = localPos(e);
     const i = hitTest(x, y);
     if (i === -1) return;
     active = true;
+    lastSample = { x, y };
     el.setPointerCapture(e.pointerId);
     path = [i];
     refreshSel();
@@ -125,33 +154,23 @@ export function createWheel(seed: number, wheelLetters: string): WheelHandle {
   el.addEventListener("pointermove", (e) => {
     if (!active) return;
     const { x, y } = localPos(e);
-    const i = hitTest(x, y);
-    if (i !== -1) {
-      const last = path[path.length - 1];
-      if (i !== last) {
-        const prev = path[path.length - 2];
-        if (i === prev) {
-          // backtrack
-          path.pop();
-          refreshSel();
-          drawPath(x, y);
-          Audio.sfxLetter(path.length);
-        } else if (!path.includes(i)) {
-          path.push(i);
-          refreshSel();
-          drawPath(x, y);
-          Audio.sfxLetter(path.length);
-          buzz(8, Save.data.settings.haptics);
-          handle.onSelect?.(path.length);
-        }
-      } else drawPath(x, y);
-    } else drawPath(x, y);
+    const from = lastSample ?? { x, y };
+    lastSample = { x, y };
+    // sample along the segment so quick flicks register every passed letter
+    const dist = Math.hypot(x - from.x, y - from.y);
+    const steps = Math.max(1, Math.ceil(dist / 12));
+    for (let s = 1; s <= steps; s++) {
+      const px = from.x + ((x - from.x) * s) / steps;
+      const py = from.y + ((y - from.y) * s) / steps;
+      stepAt(hitTest(px, py));
+    }
+    drawPath(x, y);
   });
 
   const finish = (e: PointerEvent): void => {
     if (!active) return;
     active = false;
-    const { x, y } = localPos(e);
+    lastSample = null;
     drawPath();
     if (path.length >= 2) {
       const word = path.map((i) => nodes[i].ch).join("");
@@ -165,6 +184,7 @@ export function createWheel(seed: number, wheelLetters: string): WheelHandle {
   el.addEventListener("pointerup", finish);
   el.addEventListener("pointercancel", () => {
     active = false;
+    lastSample = null;
     path = [];
     refreshSel();
     drawPath();

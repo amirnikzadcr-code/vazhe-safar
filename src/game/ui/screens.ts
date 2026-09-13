@@ -8,7 +8,7 @@ import { Audio, MusicConfig } from "../core/audio";
 import { Save, SaveData } from "../core/save";
 import { CHAPTERS } from "../data/chapters";
 import { T } from "../i18n";
-import { ICONS, actionBtn, iconBtn, coinBadge, modal, toast, starRow, screenHeader } from "./components";
+import { ICONS, actionBtn, iconBtn, coinBadge, modal, toast, starRow, screenHeader, svgIcon } from "./components";
 
 export interface Nav {
   goMenu(): void;
@@ -17,7 +17,19 @@ export interface Nav {
   goGameplay(ch: number, lv: number): void;
   goProgress(): void;
   goRewards(): void;
+  goGuide(): void;
   openSettings(): void;
+}
+
+/** first not-yet-completed level across unlocked chapters (smart continue) */
+export function continueTarget(): { ch: number; lv: number } {
+  for (let ch = 1; ch <= 10; ch++) {
+    if (!Save.chapterUnlocked(ch)) break;
+    for (let lv = 1; lv <= 10; lv++) {
+      if (!Save.data.levels[`${ch}:${lv}`]) return { ch, lv };
+    }
+  }
+  return { ch: 1, lv: 1 };
 }
 
 /** scene-like hero bg used by several screens */
@@ -29,8 +41,8 @@ function heroBg(url: string, cls = ""): HTMLDivElement {
 }
 
 const MENU_MUSIC: MusicConfig = {
-  root: 293.66, cents: [0, 204, 408, 498, 702, 906, 1108], bpm: 64,
-  perc: false, density: 0.32, octaveBase: 0, drone: 0.75,
+  root: 261.63, cents: [0, 204, 340, 498, 702, 906, 1040], bpm: 62,
+  meter: 6, perc: "none", lead: "ney", density: 0.3, octave: 0, drone: 0.7,
 };
 
 /* ================= SPLASH ================= */
@@ -55,19 +67,18 @@ export function showMenu(container: HTMLElement, nav: Nav): () => void {
   title.innerHTML = `<h1>${T.gameTitle}</h1><p>${T.gameTagline}</p>`;
 
   const col = h("div", { class: "vz-menu-col" });
-  const last = Save.data.last;
-  const playLabel = last ? T.continueGame : T.play;
+  const target = continueTarget();
+  const hasProgress = Save.totalWords() > 0;
+  const playLabel = hasProgress ? T.continueGame : T.play;
   const playBtn = actionBtn(playLabel, "vz-primary vz-big-btn", () => {
-    if (last) {
-      const ch = Save.chapterUnlocked(last.ch + 1) && last.lv === 10 ? last.ch + 1 : last.ch;
-      nav.goGameplay(ch, last.lv === 10 ? 1 : last.lv);
-    } else nav.goGameplay(1, 1);
+    nav.goGameplay(target.ch, target.lv);
   }, ICONS.play);
   const chaptersBtn = actionBtn(T.chapters, "vz-secondary vz-big-btn", () => nav.goChapters(), ICONS.flag);
   const row = h("div", { class: "vz-menu-row" });
   row.append(
     iconBtn(ICONS.chart, T.progress, () => nav.goProgress()),
     iconBtn(ICONS.gift, T.rewards, () => nav.goRewards()),
+    iconBtn(ICONS.book, T.guide, () => nav.goGuide()),
     iconBtn(ICONS.gear, T.settings, () => nav.openSettings()),
   );
   col.append(playBtn, chaptersBtn, row);
@@ -110,7 +121,7 @@ export function showChapters(container: HTMLElement, nav: Nav): () => void {
       <div class="vz-ch-meta">
         ${unlocked
           ? `<span class="vz-ch-stars">⭐ ${faNum(stars)}/۳۰</span><span class="vz-ch-prog">${faNum(done)}/۱۰</span>`
-          : `<span class="vz-ch-lock">${ICONS.lock}</span>`}
+          : `<span class="vz-ch-lock">${svgIcon(ICONS.lock, 22)}</span>`}
       </div>
       <div class="vz-ch-bar"><i style="width:${(done / 10) * 100}%"></i></div>`;
     card.addEventListener("click", () => {
@@ -148,7 +159,7 @@ export function showLevels(container: HTMLElement, nav: Nav, chId: number): () =
     });
     node.innerHTML = `
       <span class="vz-lv-bubble">
-        ${unlocked ? faNum(lv) : ICONS.lock}
+        ${unlocked ? faNum(lv) : svgIcon(ICONS.lock, 20)}
       </span>
       ${rec ? `<span class="vz-lv-stars">${["", "⭐", "⭐⭐", "⭐⭐⭐"][rec.stars]}</span>` : ""}`;
     node.addEventListener("click", () => {
@@ -289,8 +300,46 @@ export function showRewards(container: HTMLElement, nav: Nav): () => void {
   el.append(screenHeader(T.rewards, () => nav.goMenu(), coins));
 
   const wrap = h("div", { class: "vz-rewards-body" });
+  el.append(wrap);
 
-  // daily gift
+  // re-render in place — NEVER stack a second screen over the old one
+  const rerender = (): void => {
+    wrap.innerHTML = "";
+    buildGiftCard(wrap, coins, rerender);
+    wrap.append(h("h3", { class: "vz-sub-title", text: T.chapterChest }));
+    const chestGrid = h("div", { class: "vz-chest-grid" });
+    CHAPTERS.forEach((ch) => {
+      const done = Save.levelsDoneInChapter(ch.id);
+      const complete = done >= 10;
+      const claimed = Save.hasChest(ch.id);
+      const card = h("div", { class: `vz-chest-card ${claimed ? "claimed" : ""} ${complete && !claimed ? "ready" : ""}` });
+      card.innerHTML = `
+        <span class="vz-chest-ic">${claimed ? "✅" : complete ? "🎁" : "🔒"}</span>
+        <span class="vz-chest-name">${ch.title}</span>
+        <span class="vz-chest-val">${complete ? (claimed ? "دریافت شد" : "۱۵۰ 🪙") : `${faNum(done)}/۱۰`}</span>`;
+      if (complete && !claimed) {
+        card.addEventListener("click", () => {
+          Save.claimChest(ch.id);
+          Audio.sfxChapterUnlock();
+          toast(`+${faNum(150)} 🪙`);
+          coins.refresh();
+          rerender();
+        });
+      }
+      chestGrid.append(card);
+    });
+    wrap.append(chestGrid);
+  };
+  rerender();
+  container.append(el);
+  return () => el.remove();
+}
+
+function buildGiftCard(
+  wrap: HTMLElement,
+  coins: HTMLDivElement & { refresh(): void },
+  rerender: () => void,
+): void {
   const giftCard = h("div", { class: "vz-gift-card" });
   const today = new Date().toISOString().slice(0, 10);
   const taken = Save.data.dailyGiftDay === today;
@@ -304,38 +353,65 @@ export function showRewards(container: HTMLElement, nav: Nav): () => void {
         Audio.sfxCoin();
         toast(`+${faNum(got)} 🪙 — ${T.dailyGiftMsg}`);
         coins.refresh();
-        wrap.remove(); showRewards(container, nav);
+        rerender();
       }
     });
     giftCard.append(claim);
   }
   wrap.append(giftCard);
+}
 
-  // chapter chests
-  const chestsTitle = h("h3", { class: "vz-sub-title", text: T.chapterChest });
-  wrap.append(chestsTitle);
-  const chestGrid = h("div", { class: "vz-chest-grid" });
-  CHAPTERS.forEach((ch) => {
-    const complete = Save.levelsDoneInChapter(ch.id) >= 10;
-    const claimed = Save.hasChest(ch.id);
-    const card = h("div", { class: `vz-chest-card ${claimed ? "claimed" : ""} ${complete && !claimed ? "ready" : ""}` });
+/* ================= GUIDE (راهنما) ================= */
+export function showGuide(container: HTMLElement, nav: Nav): () => void {
+  const el = h("div", { class: "vz-screen vz-guide" });
+  const coins = coinBadge();
+  el.append(screenHeader(T.guide, () => nav.goMenu(), coins));
+
+  const body = h("div", { class: "vz-guide-body" });
+
+  const step = (
+    ic: string,
+    title: string,
+    text: string,
+  ): HTMLElement => {
+    const card = h("div", { class: "vz-guide-card" });
     card.innerHTML = `
-      <span class="vz-chest-ic">${claimed ? "✅" : complete ? "🎁" : "🔒"}</span>
-      <span class="vz-chest-name">${ch.title}</span>
-      <span class="vz-chest-val">${complete ? (claimed ? "دریافت شد" : "۱۵۰ 🪙") : `${faNum(Save.levelsDoneInChapter(ch.id))}/۱۰`}</span>`;
-    if (complete && !claimed) {
-      card.addEventListener("click", () => {
-        Save.claimChest(ch.id);
-        Audio.sfxChapterUnlock();
-        toast(`+${faNum(150)} 🪙`);
-        coins.refresh();
-        showRewards(container, nav);
-      });
-    }
-    chestGrid.append(card);
-  });
-  wrap.append(chestGrid);
-  el.append(wrap);
+      <span class="vz-guide-ic">${ic}</span>
+      <div class="vz-guide-txt"><b>${title}</b><p>${text}</p></div>`;
+    return card;
+  };
+
+  body.append(h("h3", { class: "vz-sub-title", text: T.guideHowTitle }));
+  body.append(
+    step("👆", T.guide1T, T.guide1B),
+    step("🧩", T.guide2T, T.guide2B),
+    step("🌱", T.guide3T, T.guide3B),
+    step("✦", T.guide4T, T.guide4B),
+    step("💡", T.guide5T, T.guide5B),
+  );
+
+  body.append(h("h3", { class: "vz-sub-title", text: T.guideScoreTitle }));
+  const table = h("div", { class: "vz-guide-table" });
+  const rows: [string, string][] = [
+    ["✅", T.guideS1],
+    ["✦", T.guideS2],
+    ["⭐", T.guideS3],
+    ["🎁", T.guideS4],
+  ];
+  for (const [ic, tx] of rows) {
+    const r = h("div", { class: "vz-guide-row" });
+    r.innerHTML = `<span class="vz-guide-ric">${ic}</span><span>${tx}</span>`;
+    table.append(r);
+  }
+  body.append(table);
+
+  body.append(h("h3", { class: "vz-sub-title", text: T.guideTipsTitle }));
+  const tips = h("ul", { class: "vz-guide-tips" });
+  for (const tip of [T.guideTip1, T.guideTip2, T.guideTip3]) tips.append(h("li", { text: tip }));
+  body.append(tips);
+
+  body.append(h("p", { class: "vz-guide-credits", text: T.aboutText }));
+  el.append(body);
   container.append(el);
   return () => el.remove();
 }

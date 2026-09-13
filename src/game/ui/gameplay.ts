@@ -8,13 +8,13 @@ import { Audio } from "../core/audio";
 import { Save, COSTS, REWARDS } from "../core/save";
 import { Audio_cue } from "../fx/particles";
 import { CHAPTERS, ChapterTheme } from "../data/chapters";
-import { getLevel, COMMON_BONUS } from "../data/levelsIndex";
+import { getLevel, isRealWord } from "../data/levelsIndex";
 import { makeCrossword, CrosswordLayout } from "../crossword";
 import { ParticleFX } from "../fx/particles";
 import { makeProp } from "../fx/props";
 import { T } from "../i18n";
 import { createWheel, WheelHandle } from "./wheel";
-import { actionBtn, iconBtn, ICONS, coinBadge, modal, toast, starRow } from "./components";
+import { actionBtn, iconBtn, ICONS, coinBadge, modal, toast, starRow, svgIcon } from "./components";
 
 export interface GameplayResult { done: boolean }
 
@@ -25,6 +25,7 @@ export function showGameplay(
   onExit: () => void,
   onNext: (ch: number, lv: number) => void,
   onOpenSettings: () => void,
+  onOpenGuide?: () => void,
 ): () => void {
   const theme = CHAPTERS[chId - 1];
   const level = getLevel(chId, lvId);
@@ -84,7 +85,7 @@ export function showGameplay(
   wheelHost.append(wheel.el);
 
   const fx = new ParticleFX(canvas);
-  Audio_cue.firework = () => { /* firework sfx handled inside fireworks() via Audio below */ Audio.sfxCoin(); };
+  Audio_cue.firework = () => { Audio.sfxBoom(); };
 
   let foundWords = new Set<string>();
   let mistakes = 0;
@@ -128,8 +129,12 @@ export function showGameplay(
   const sizeBoard = (): void => {
     const grid = board.querySelector(".vz-grid") as HTMLElement | null;
     if (!grid) return;
-    const availW = screen.clientWidth - 24;
-    const availH = Math.max(90, board.clientHeight - 8);
+    const availW = screen.clientWidth - 32 - 30; // side margins + panel padding
+    // vertical budget: screen − scene − fixed bottom block (controls+min wheel) + top overlap
+    const sceneH = scene.offsetHeight;
+    const BOTTOM_RESERVE = 286; // controls (~44) + wheel min (190) + paddings
+    const TOP_OVERLAP = 26;     // board overlaps scene via negative margin
+    const availH = Math.max(72, screen.clientHeight - sceneH - BOTTOM_RESERVE + TOP_OVERLAP);
     const cell = Math.floor(Math.min(
       (availW - (layout!.cols - 1) * 5) / layout!.cols,
       (availH - (layout!.rows - 1) * 5) / layout!.rows,
@@ -187,11 +192,8 @@ export function showGameplay(
 
   /* ---------- word validation ---------- */
 
-  const allBonusSet = (): Set<string> => {
-    const s = new Set<string>(level.bonus);
-    for (const w of COMMON_BONUS) s.add(w);
-    return s;
-  };
+  const allBonusCheck = (word: string): boolean =>
+    (isRealWord(word) || level.bonus.includes(word)) && canBuild(word, level.wheel);
 
   const submitWord = (word: string): void => {
     if (finished) return;
@@ -213,7 +215,7 @@ export function showGameplay(
       }
       return;
     }
-    if (allBonusSet().has(word) && canBuild(word, level.wheel)) {
+    if (allBonusCheck(word)) {
       bonusFound.add(word);
       Save.addBonusWord(chId, lvId, word);
       Save.addCoins(REWARDS.perBonus);
@@ -299,11 +301,15 @@ export function showGameplay(
       m.close();
       onOpenSettings();
     }, ICONS.gear);
+    const guideB = actionBtn(T.guide, "vz-secondary", () => {
+      m.close();
+      if (onOpenGuide) onOpenGuide();
+    }, ICONS.book);
     const exit = actionBtn(T.exit, "vz-secondary", () => {
       m.close();
       onExit();
     }, ICONS.home);
-    btns.append(resume, restart, settingsB, exit);
+    btns.append(resume, restart, guideB, settingsB, exit);
     content.append(btns);
     const m = modal(content, { closable: true, onClose: () => fx.setPaused(false) });
     screen.append(m.el);
@@ -327,7 +333,7 @@ export function showGameplay(
     if (finished) return;
     finished = true;
     const noMistakes = mistakes === 0;
-    const stars = noMistakes && bonusFound.size > 0 ? 3 : noMistakes || bonusFound.size > 0 ? 2 : 1;
+    const stars = noMistakes ? 3 : mistakes <= 2 ? 2 : 1;
     Save.completeLevel(chId, lvId, stars, mistakes);
     Save.addCoins(REWARDS.perStar * stars);
     coins.refresh();
@@ -342,12 +348,13 @@ export function showGameplay(
     const starsEl = h("div", { class: "vz-complete-stars" });
     for (let i = 0; i < 3; i++) {
       const s = h("span", { class: `vz-big-star ${i < stars ? "on" : ""}` });
-      s.innerHTML = ICONS.starFill;
+      s.innerHTML = svgIcon(ICONS.starFill, 54);
       s.style.animationDelay = `${i * 280}ms`;
       starsEl.append(s);
     }
     content.append(starsEl);
-    if (noMistakes) content.append(h("div", { class: "vz-perfect", text: noMistakes && bonusFound.size ? T.perfectLevel : T.noMistakes }));
+    if (noMistakes) content.append(h("div", { class: "vz-perfect", text: bonusFound.size ? T.perfectLevel : T.noMistakes }));
+    else if (stars === 2) content.append(h("div", { class: "vz-perfect soft", text: T.goodLevel }));
 
     const earned = REWARDS.perStar * stars;
     content.append(h("div", { class: "vz-reward-line" },

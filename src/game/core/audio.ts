@@ -1,20 +1,30 @@
 /* ------------------------------------------------------------------
  *  واژه‌سفر — core/audio.ts
- *  Procedural audio engine (Web Audio API):
- *   • Generative chapter music inspired by Persian dastgah intervals
- *     (microtonal via cents) — 100% original, no sampled melodies.
- *   • SFX synth one-shots for UI + gameplay feedback.
- *  No audio files needed → tiny footprint, offline-friendly, original.
+ *  Procedural audio engine (Web Audio API) — traditional-Iranian style:
+ *   • Dastgāh-inspired microtonal scales (koron ≈ −60..−80 cents)
+ *   • Phrase-based melodic generator (santur / ney / kamancheh voices)
+ *     with ornaments: grace notes, tremolo repeats, call & response
+ *   • Persian percussion: tombak (tom/bak/tak) and daf (frame + jingle),
+ *     in 4/4 and 6/8 feel
+ *   • Convolution reverb from a synthesized impulse
+ *   • SFX synth one-shots for UI + gameplay feedback
+ *  100% original — no samples, no copyrighted melodies, zero audio files.
  * ------------------------------------------------------------------ */
 
+export type Meter = 4 | 6;                 // 4/4 or 6/8 feel
+export type LeadVoice = "santur" | "ney" | "kamancheh";
+export type PercVoice = "tombak" | "daf" | "none";
+
 export interface MusicConfig {
-  root: number;        // root frequency (Hz), e.g. D4 ≈ 293.66
-  cents: number[];     // scale degrees in cents from root (incl. 0)
+  root: number;          // root frequency (Hz), e.g. D4 ≈ 293.66
+  cents: number[];       // scale degrees in cents from root (incl. 0)
   bpm: number;
-  perc: boolean;       // percussion layer on/off
-  density: number;     // 0..1 — melody note density
-  octaveBase: number;  // melody octave shift (-1 | 0 | 1)
-  drone: number;       // drone volume 0..1
+  meter: Meter;
+  perc: PercVoice;
+  lead: LeadVoice;
+  density: number;       // 0..1 — melody note density
+  octave: number;        // melody octave shift (-1 | 0 | 1)
+  drone: number;         // drone volume 0..1
 }
 
 const ROOTS: Record<string, number> = {
@@ -22,7 +32,7 @@ const ROOTS: Record<string, number> = {
   C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.0, A4: 440.0,
 };
 
-/** Approximated Persian dastgāh scales in cents (koron ≈ -60..-80c) */
+/** Approximated Persian dastgāh scales in cents (koron ≈ −60..−80c) */
 export const SCALES = {
   mahur:     [0, 204, 408, 498, 702, 906, 1108],          // major-like, bright
   shur:      [0, 160, 316, 498, 702, 892, 1030],          // the "mother" mode
@@ -40,11 +50,44 @@ export type ScaleName = keyof typeof SCALES;
 /** cents → frequency ratio */
 const c2r = (c: number) => Math.pow(2, c / 1200);
 
+/** phrase contour archetypes (scale-degree walk recipes) */
+type Contour = "upArc" | "downArc" | "pendulum" | "neighbor" | "descent";
+const CONTOURS: Contour[] = ["upArc", "downArc", "pendulum", "neighbor", "descent"];
+
+function buildPhrase(len: number, contour: Contour, top: number): number[] {
+  const p: number[] = [];
+  switch (contour) {
+    case "upArc":
+      for (let i = 0; i < len; i++) p.push(Math.round((i / (len - 1 || 1)) * top));
+      break;
+    case "downArc":
+      for (let i = 0; i < len; i++) p.push(Math.round((1 - i / (len - 1 || 1)) * top));
+      break;
+    case "pendulum":
+      for (let i = 0; i < len; i++) {
+        const t = i / (len - 1 || 1);
+        p.push(Math.round(Math.abs(Math.sin(t * Math.PI * 1.5)) * top));
+      }
+      break;
+    case "neighbor":
+      for (let i = 0; i < len; i++) p.push(i % 2 === 0 ? 0 : Math.min(2, top));
+      break;
+    case "descent":
+      for (let i = 0; i < len; i++) {
+        const step = Math.floor((top * i) / len);
+        p.push(Math.max(0, top - step));
+      }
+      break;
+  }
+  return p.map((d) => Math.max(0, Math.min(top, d)));
+}
+
 class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private musicBus: GainNode | null = null;
   private sfxBus: GainNode | null = null;
+  private wet: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
 
   private musicOn = true;
@@ -54,10 +97,14 @@ class AudioEngine {
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private nextNoteTime = 0;
-  private step = 0;               // 16th-step counter within 2-bar loop (32 steps)
+  private step = 0;               // step counter within the phrase cycle
   private cfg: MusicConfig | null = null;
-  private motif: number[] = [0, 2, 1, 4];
-  private lastScaleIdx = 0;
+
+  // phrase state
+  private phrase: number[] = [0, 2, 1, 4];
+  private phrasePos = 0;
+  private barCount = 0;
+  private leadOctave = 0;
 
   /* ---------------- lifecycle ---------------- */
 
@@ -83,6 +130,14 @@ class AudioEngine {
       this.musicBus.gain.value = this.musicOn ? this.musicVol : 0;
       this.musicBus.connect(this.master);
 
+      // simple synthesized convolution reverb
+      this.wet = this.ctx.createGain();
+      this.wet.gain.value = 0.22;
+      const conv = this.ctx.createConvolver();
+      conv.buffer = this.makeImpulse(2.1, 2.6);
+      this.wet.connect(conv).connect(this.master);
+      this.musicBus.connect(this.wet);
+
       this.sfxBus = this.ctx.createGain();
       this.sfxBus.gain.value = this.sfxOn ? this.sfxVol : 0;
       this.sfxBus.connect(this.master);
@@ -97,6 +152,20 @@ class AudioEngine {
       this.ctx = null;
     }
     return this.ctx;
+  }
+
+  private makeImpulse(seconds: number, decay: number): AudioBuffer | null {
+    if (!this.ctx) return null;
+    const rate = this.ctx.sampleRate;
+    const len = Math.floor(rate * seconds);
+    const buf = this.ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+      }
+    }
+    return buf;
   }
 
   setMusicOn(on: boolean): void {
@@ -128,14 +197,26 @@ class AudioEngine {
     if (this.timer) return; // already running; config swapped below
     this.nextNoteTime = this.ctx.currentTime + 0.1;
     this.step = 0;
-    this.motif = [0, 2, 1, 4];
-    this.timer = setInterval(() => this.scheduler(), 90);
+    this.barCount = 0;
+    this.phrase = buildPhrase(6, "upArc", cfg.cents.length - 1);
+    this.phrasePos = 0;
+    this.timer = setInterval(() => this.scheduler(), 80);
   }
 
-  /** swap to another chapter's config without restarting the clock */
+  /** swap to another chapter's config with a gentle dip (crossfade feel) */
   setMusicConfig(cfg: MusicConfig): void {
+    if (!this.ctx || !this.musicBus) { this.cfg = cfg; return; }
     this.cfg = cfg;
-    this.motif = [0, 2, 1, 4];
+    this.barCount = 0;
+    this.phrase = buildPhrase(6, CONTOURS[Math.floor(Math.random() * CONTOURS.length)], cfg.cents.length - 1);
+    this.phrasePos = 0;
+    const g = this.musicBus.gain, now = this.ctx.currentTime;
+    if (this.musicOn) {
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(g.value, now);
+      g.linearRampToValueAtTime(this.musicVol * 0.35, now + 0.25);
+      g.linearRampToValueAtTime(this.musicVol, now + 1.1);
+    }
   }
 
   stopMusic(): void {
@@ -148,95 +229,210 @@ class AudioEngine {
       if (ctx) this.nextNoteTime = Math.max(this.nextNoteTime, ctx.currentTime + 0.05);
       return;
     }
-    const stepDur = 60 / cfg.bpm / 4; // 16th note
+    const eighth = 60 / cfg.bpm / (cfg.meter === 6 ? 3 : 2); // eighth-note dur
     while (this.nextNoteTime < ctx.currentTime + 0.35) {
-      this.playStep(this.step, this.nextNoteTime, cfg, stepDur);
-      this.step = (this.step + 1) % 64; // 4-bar phrase
-      this.nextNoteTime += stepDur;
+      this.playStep(this.step, this.nextNoteTime, cfg, eighth);
+      const barLen = cfg.meter === 6 ? 6 : 8; // eighth notes per bar
+      this.step = (this.step + 1) % (barLen * 8); // 8-bar cycle
+      if (this.step === 0) this.barCount++;
+      this.nextNoteTime += eighth;
     }
   }
 
-  private playStep(step: number, t: number, cfg: MusicConfig, stepDur: number): void {
+  private playStep(step: number, t: number, cfg: MusicConfig, eighth: number): void {
     const scale = cfg.cents;
-    const inBar = step % 16;
-    const bar = Math.floor(step / 16);
+    const barLen = cfg.meter === 6 ? 6 : 8;
+    const inBar = step % barLen;
+    const bar = Math.floor(step / barLen);
+    const isDown = inBar === 0;
 
-    // — drone (re-pierce every 4 bars start) —
-    if (step === 0 && cfg.drone > 0) this.drone(t, cfg, stepDur * 64);
+    // — drone —
+    if (step === 0 && cfg.drone > 0) this.drone(t, cfg, eighth * barLen * 8);
 
-    // — percussion (daf-like) —
-    if (cfg.perc) {
-      if (inBar === 0 || inBar === 6 || inBar === 10) this.percThump(t, inBar === 0 ? 1 : 0.7);
-      if (inBar % 4 === 2) this.percSnap(t, 0.25);
-      if (bar % 2 === 1 && inBar % 2 === 1) this.percSnap(t, 0.12);
+    // — percussion —
+    if (cfg.perc !== "none") this.percussion(inBar, bar, cfg.meter, cfg.perc, t, isDown);
+
+    // — melody phrases (call & response: bars 0-3 lead, 4-5 answer lower, 6-3 rest-ish)
+    const answering = cfg.meter === 6 ? bar % 4 === 3 : bar % 4 === 3;
+    const restBar = bar % 8 === 6;
+    if (restBar) return;
+
+    // phrase refresh every 4 bars
+    if (inBar === 0 && bar % 4 === 0) {
+      const contour = CONTOURS[Math.floor(Math.random() * CONTOURS.length)];
+      const len = 5 + Math.floor(Math.random() * 3);
+      this.phrase = buildPhrase(len, contour, scale.length - 1);
+      this.phrasePos = 0;
     }
 
-    // — melody (santur-like plucks) —
-    // every 16th step: decide with density; contour = motif walk over scale
-    const isEighth = inBar % 2 === 0;
-    const strong = inBar === 0 || inBar === 8;
-    const restP = strong ? 0.12 : isEighth ? cfg.density * 0.45 : (1 - cfg.density) * 0.92;
-    if (Math.random() < restP) return;
+    // note probability by beat strength
+    const strong = inBar === 0 || inBar === Math.floor(barLen / 2);
+    const mid = inBar % 2 === 0;
+    const restP = strong ? 0.08 : mid ? cfg.density * 0.35 : (1 - cfg.density) * 0.9;
+    if (Math.random() < restP) { this.phrasePos = (this.phrasePos + 1) % this.phrase.length; return; }
 
-    // motif variation: every 2 bars mutate one degree
-    if (inBar === 0 && bar % 2 === 0) {
-      const i = Math.floor(Math.random() * this.motif.length);
-      const delta = Math.random() < 0.5 ? -1 : 1;
-      this.motif[i] = Math.max(0, Math.min(scale.length - 1, this.motif[i] + delta));
+    let degree = this.phrase[this.phrasePos % this.phrase.length];
+    this.phrasePos = (this.phrasePos + 1) % this.phrase.length;
+    // occasional ornament: neighbor grace
+    if (Math.random() < 0.16) {
+      const gDeg = Math.min(scale.length - 1, degree + 1);
+      this.leadNote(t, cfg, scale, gDeg, 0.12, eighth * 0.5);
     }
-    const pos = step % this.motif.length;
-    let degree = this.motif[pos];
-    if (Math.random() < 0.18) degree = (degree + (Math.random() < 0.5 ? 1 : -1) + scale.length) % scale.length;
-    this.lastScaleIdx = degree;
+    // tremolo repeat (santur mezrāb feel)
+    const trem = cfg.lead === "santur" && Math.random() < 0.14 && strong;
+    const octaveShift = cfg.octave + (answering ? -1 : 0) + (Math.random() < 0.1 ? 1 : 0);
+    const vol = (strong ? 0.34 : mid ? 0.24 : 0.16) * (answering ? 0.75 : 1);
+    const dur = eighth * (Math.random() < 0.2 ? 3 : 1.7);
+    if (trem) {
+      for (let r = 0; r < 3; r++)
+        this.leadNote(t + r * eighth * 0.34, cfg, scale, degree, vol * 0.7, eighth * 0.6, octaveShift);
+    } else {
+      this.leadNote(t, cfg, scale, degree, vol, dur, octaveShift);
+    }
+  }
 
-    const octave = cfg.octaveBase + (Math.random() < 0.12 ? 1 : 0);
-    const cents = scale[degree] + 1200 * octave;
+  private leadNote(t: number, cfg: MusicConfig, scale: number[], degree: number, vol: number, dur: number, octaveShift = 0): void {
+    const cents = scale[degree % scale.length] + 1200 * (cfg.octave + octaveShift);
     const freq = cfg.root * c2r(cents);
-    const gain = strong ? 0.5 : isEighth ? 0.36 : 0.22;
-    this.pluck(t, freq, gain, stepDur * (Math.random() < 0.15 ? 4 : 2.2));
-
-    // gentle harmonic shimmer on strong beats
-    if (strong && Math.random() < 0.4) this.pluck(t + stepDur / 2, freq * 2, 0.1, stepDur * 2);
+    switch (cfg.lead) {
+      case "ney": this.ney(t, freq, vol, dur); break;
+      case "kamancheh": this.kamancheh(t, freq, vol, dur); break;
+      default: this.santur(t, freq, vol, dur);
+    }
   }
 
   /* -------- instrument voices -------- */
 
-  private pluck(t: number, freq: number, vol: number, dur: number): void {
+  /** santur: bright hammered dulcimer — dual detuned courses + strike noise */
+  private santur(t: number, freq: number, vol: number, dur: number): void {
     const ctx = this.ctx!; const bus = this.musicBus!;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-
-    const o1 = ctx.createOscillator();
-    o1.type = "triangle"; o1.frequency.value = freq;
-    const o2 = ctx.createOscillator();
-    o2.type = "sine"; o2.frequency.value = freq * 2.004; // shimmering octave, slight beat
-    const g2 = ctx.createGain(); g2.gain.value = 0.35;
+    g.gain.linearRampToValueAtTime(vol, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.4);
 
     const lp = ctx.createBiquadFilter();
-    lp.type = "lowpass"; lp.frequency.value = Math.min(freq * 6, 6500); lp.Q.value = 0.7;
+    lp.type = "lowpass"; lp.frequency.value = Math.min(freq * 7, 7200); lp.Q.value = 0.6;
 
-    o1.connect(g); o2.connect(g2).connect(g);
+    // two slightly detuned strings per course (authentic chorus shimmer)
+    for (const det of [-3, 2.4]) {
+      const o = ctx.createOscillator();
+      o.type = "triangle";
+      o.frequency.value = freq * c2r(det);
+      const og = ctx.createGain(); og.gain.value = 0.5;
+      o.connect(og).connect(g);
+      o.start(t); o.stop(t + dur + 0.5);
+    }
+    // octave shimmer string
+    const o2 = ctx.createOscillator();
+    o2.type = "sine"; o2.frequency.value = freq * 2;
+    const g2 = ctx.createGain(); g2.gain.value = 0.22;
+    o2.connect(g2).connect(g);
+    o2.start(t); o2.stop(t + dur * 0.7 + 0.3);
+
+    // hammer strike transient
+    if (this.noiseBuf) {
+      const src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass"; bp.frequency.value = 3400; bp.Q.value = 1.4;
+      const ng = ctx.createGain();
+      ng.gain.setValueAtTime(vol * 0.5, t);
+      ng.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
+      src.connect(bp).connect(ng).connect(bus);
+      src.start(t); src.stop(t + 0.06);
+    }
     g.connect(lp).connect(bus);
-    o1.start(t); o2.start(t);
-    o1.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
   }
 
+  /** ney: breathy end-blown flute — sine + breath noise + delayed vibrato */
+  private ney(t: number, freq: number, vol: number, dur: number): void {
+    const ctx = this.ctx!; const bus = this.musicBus!;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol * 0.9, t + 0.07);
+    g.gain.setValueAtTime(vol * 0.9, t + Math.max(0.08, dur * 0.6));
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur + 0.12);
+
+    const o = ctx.createOscillator();
+    o.type = "sine"; o.frequency.value = freq;
+    const o2 = ctx.createOscillator();
+    o2.type = "sine"; o2.frequency.value = freq * 2;
+    const g2 = ctx.createGain(); g2.gain.value = 0.08;
+
+    // delayed vibrato (player's lip settles into the note)
+    const vib = ctx.createOscillator();
+    vib.frequency.value = 5.2;
+    const vibG = ctx.createGain();
+    vibG.gain.setValueAtTime(0, t);
+    vibG.gain.linearRampToValueAtTime(freq * 0.011, t + Math.min(0.35, dur * 0.5));
+    vib.connect(vibG).connect(o.frequency);
+
+    // breath
+    let breath: AudioNode | null = null;
+    if (this.noiseBuf) {
+      const src = ctx.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass"; bp.frequency.value = freq * 1.7; bp.Q.value = 1.1;
+      const bg = ctx.createGain();
+      bg.gain.setValueAtTime(0, t);
+      bg.gain.linearRampToValueAtTime(vol * 0.16, t + 0.09);
+      bg.gain.setTargetAtTime(0, t + dur * 0.75, 0.08);
+      src.connect(bp).connect(bg).connect(bus);
+      src.start(t); src.stop(t + dur + 0.2);
+      breath = bg;
+    }
+
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = Math.min(freq * 4.5, 5200);
+    o.connect(g); o2.connect(g2).connect(g);
+    g.connect(lp).connect(bus);
+    o.start(t); o2.start(t); vib.start(t);
+    o.stop(t + dur + 0.2); o2.stop(t + dur + 0.2); vib.stop(t + dur + 0.2);
+    void breath;
+  }
+
+  /** kamancheh: bowed spike fiddle — filtered saw + expressive vibrato */
+  private kamancheh(t: number, freq: number, vol: number, dur: number): void {
+    const ctx = this.ctx!; const bus = this.musicBus!;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol * 0.75, t + 0.09);
+    g.gain.setValueAtTime(vol * 0.75, t + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur + 0.1);
+
+    const o = ctx.createOscillator();
+    o.type = "sawtooth"; o.frequency.value = freq;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.setValueAtTime(Math.min(freq * 3, 2600), t);
+    lp.frequency.linearRampToValueAtTime(Math.min(freq * 5.5, 4200), t + 0.18);
+    lp.Q.value = 2.2;
+
+    const vib = ctx.createOscillator();
+    vib.frequency.value = 6.1;
+    const vibG = ctx.createGain();
+    vibG.gain.setValueAtTime(0, t);
+    vibG.gain.linearRampToValueAtTime(freq * 0.017, t + 0.25);
+    vib.connect(vibG).connect(o.frequency);
+
+    o.connect(lp).connect(g).connect(bus);
+    o.start(t); vib.start(t);
+    o.stop(t + dur + 0.15); vib.stop(t + dur + 0.15);
+  }
+
+  /** tonic drone (root + fifth) */
   private drone(t: number, cfg: MusicConfig, dur: number): void {
     const ctx = this.ctx!; const bus = this.musicBus!;
     const fifth = cfg.cents[Math.min(4, cfg.cents.length - 1)];
-    for (const [mult, vol] of [[1, cfg.drone], [c2r(fifth), cfg.drone * 0.55]] as const) {
+    for (const [mult, vol] of [[1, cfg.drone], [c2r(fifth), cfg.drone * 0.5]] as const) {
       const o = ctx.createOscillator();
       o.type = "sine"; o.frequency.value = cfg.root * mult * 0.5;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(vol * 0.16, t + 1.2);
-      g.gain.setValueAtTime(vol * 0.16, t + dur - 1.5);
+      g.gain.linearRampToValueAtTime(vol * 0.14, t + 1.4);
+      g.gain.setValueAtTime(vol * 0.14, t + dur - 1.8);
       g.gain.linearRampToValueAtTime(0, t + dur);
-      // slow breathing
-      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.13 + Math.random() * 0.05;
-      const lfoG = ctx.createGain(); lfoG.gain.value = vol * 0.05;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.12 + Math.random() * 0.05;
+      const lfoG = ctx.createGain(); lfoG.gain.value = vol * 0.045;
       lfo.connect(lfoG).connect(g.gain);
       o.connect(g).connect(bus);
       o.start(t); lfo.start(t);
@@ -244,31 +440,91 @@ class AudioEngine {
     }
   }
 
-  private percThump(t: number, vol: number): void {
+  /** Persian percussion patterns */
+  private percussion(inBar: number, bar: number, meter: Meter, voice: PercVoice, t: number, isDown: boolean): void {
+    const fill = bar % 4 === 3;
+    if (meter === 6) {
+      // Persian 6/8 (like a light rang): TOM - - BAK - TAK | variations
+      if (inBar === 0) this.tombakTom(t, isDown ? 0.5 : 0.42);
+      if (inBar === 3) this.tombakBak(t, 0.4);
+      if (inBar === 5) this.tombakTak(t, 0.3);
+      if (fill && inBar === 4) this.tombakTak(t, 0.24);
+      if (fill && inBar === 2) this.tombakTak(t, 0.2);
+    } else {
+      // 4/4: TOM . tak . BAK . tak . with fills
+      if (inBar === 0) this.tombakTom(t, 0.5);
+      if (inBar === 4) this.tombakBak(t, 0.42);
+      if (inBar === 2 || inBar === 6) this.tombakTak(t, 0.26);
+      if (fill && inBar === 7) this.tombakTak(t, 0.3);
+      if (fill && inBar === 5) this.tombakTak(t, 0.2);
+    }
+    // daf jingle shimmers on top
+    if (voice === "daf" && isDown) this.dafJingle(t, 0.16);
+    if (voice === "daf" && (meter === 6 ? inBar === 3 : inBar === 4)) this.dafJingle(t + 0.02, 0.1);
+  }
+
+  private tombakTom(t: number, vol: number): void {
     const ctx = this.ctx!; const bus = this.musicBus!;
     const o = ctx.createOscillator();
     o.type = "sine";
-    o.frequency.setValueAtTime(150, t);
-    o.frequency.exponentialRampToValueAtTime(58, t + 0.12);
+    o.frequency.setValueAtTime(185, t);
+    o.frequency.exponentialRampToValueAtTime(92, t + 0.11);
     const g = ctx.createGain();
-    g.gain.setValueAtTime(vol * 0.5, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    g.gain.setValueAtTime(vol * 0.55, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
     o.connect(g).connect(bus);
-    o.start(t); o.stop(t + 0.2);
+    o.start(t); o.stop(t + 0.22);
   }
 
-  private percSnap(t: number, vol: number): void {
+  private tombakBak(t: number, vol: number): void {
+    const ctx = this.ctx!; const bus = this.musicBus!;
+    const o = ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.setValueAtTime(250, t);
+    o.frequency.exponentialRampToValueAtTime(140, t + 0.07);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol * 0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+    o.connect(g).connect(bus);
+    o.start(t); o.stop(t + 0.14);
+    if (this.noiseBuf) {
+      const src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1900; bp.Q.value = 1.2;
+      const ng = ctx.createGain();
+      ng.gain.setValueAtTime(vol * 0.22, t);
+      ng.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      src.connect(bp).connect(ng).connect(bus);
+      src.start(t); src.stop(t + 0.07);
+    }
+  }
+
+  private tombakTak(t: number, vol: number): void {
     const ctx = this.ctx!; const bus = this.musicBus!;
     if (!this.noiseBuf) return;
     const src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
-    src.playbackRate.value = 0.9 + Math.random() * 0.3;
+    src.playbackRate.value = 0.95 + Math.random() * 0.2;
     const bp = ctx.createBiquadFilter();
-    bp.type = "bandpass"; bp.frequency.value = 2400 + Math.random() * 900; bp.Q.value = 1.1;
+    bp.type = "bandpass"; bp.frequency.value = 2600 + Math.random() * 700; bp.Q.value = 1.2;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(vol * 0.34, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    g.gain.setValueAtTime(vol * 0.4, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.055);
     src.connect(bp).connect(g).connect(bus);
-    src.start(t); src.stop(t + 0.1);
+    src.start(t); src.stop(t + 0.08);
+  }
+
+  private dafJingle(t: number, vol: number): void {
+    const ctx = this.ctx!; const bus = this.musicBus!;
+    if (!this.noiseBuf) return;
+    const src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = 5600;
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass"; bp.frequency.value = 7400; bp.Q.value = 0.8;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    src.connect(hp).connect(bp).connect(g).connect(bus);
+    src.start(t); src.stop(t + 0.2);
   }
 
   /* ---------------- SFX ---------------- */
@@ -314,7 +570,7 @@ class AudioEngine {
     src.start(t); src.stop(t + opts.dur + 0.05);
   }
 
-  /** musical note SFX helper (uses last music scale if available) */
+  /** musical note SFX helper */
   private note(freq: number, vol = 0.35, dur = 0.4, delay = 0): void {
     this.sfxOsc({ type: "triangle", f0: freq, dur, vol, delay, filter: 5200 });
     this.sfxOsc({ type: "sine", f0: freq * 2, dur: dur * 0.7, vol: vol * 0.4, delay });
@@ -325,8 +581,16 @@ class AudioEngine {
   sfxClick(): void { this.sfxOsc({ type: "sine", f0: 620, f1: 420, dur: 0.07, vol: 0.22 }); }
 
   sfxLetter(idx: number): void {
-    const base = 520 * Math.pow(1.059, Math.min(idx, 10));
-    this.sfxOsc({ type: "triangle", f0: base, dur: 0.12, vol: 0.26, filter: 6000 });
+    // walk up the current chapter scale for a musical feel
+    const cfg = this.cfg;
+    if (cfg && this.musicOn) {
+      const deg = idx % cfg.cents.length;
+      const f = cfg.root * c2r(cfg.cents[deg] + 1200 * (cfg.octave + 1));
+      this.sfxOsc({ type: "triangle", f0: f, dur: 0.12, vol: 0.24, filter: 6000 });
+    } else {
+      const base = 520 * Math.pow(1.059, Math.min(idx, 10));
+      this.sfxOsc({ type: "triangle", f0: base, dur: 0.12, vol: 0.26, filter: 6000 });
+    }
     this.sfxNoise({ dur: 0.05, vol: 0.06, freq: 3600 });
   }
 
@@ -384,6 +648,13 @@ class AudioEngine {
   }
 
   sfxStar(): void { this.note(1318.5, 0.3, 0.6); }
+
+  /** low boom for fireworks/finale */
+  sfxBoom(): void {
+    this.sfxOsc({ type: "sine", f0: 220, f1: 46, dur: 0.5, vol: 0.4 });
+    this.sfxNoise({ dur: 0.7, vol: 0.12, freq: 900, q: 0.6, type: "lowpass" });
+    this.sfxNoise({ dur: 0.9, vol: 0.06, freq: 6000, q: 2, delay: 0.05 });
+  }
 }
 
 export const Audio = new AudioEngine();

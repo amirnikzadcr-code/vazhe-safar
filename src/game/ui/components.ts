@@ -8,6 +8,12 @@ import { Save } from "../core/save";
 import { faNum, buzz } from "../core/utils";
 import { T } from "../i18n";
 
+/** wrap raw path markup in a proper <svg> — raw <path> outside an svg
+ *  context is NEVER rendered by browsers (this bug hid all lock/star icons) */
+export function svgIcon(inner: string, size = 22, stroke = 2.2): string {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+}
+
 /** wire a button with click sfx + haptics. `icon` = raw svg inner markup */
 export function actionBtn(
   label: string,
@@ -45,6 +51,8 @@ export function iconBtn(icon: string, label: string, onClick: () => void, cls = 
 export const ICONS = {
   back: '<path d="M9 6l6 6-6 6"/>',
   pause: '<line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h7M9 11h5"/>',
+  help: '<circle cx="12" cy="12" r="9.2"/><path d="M9.2 9.2a2.9 2.9 0 0 1 5.6 1c0 1.8-2.4 2.2-2.8 3.8"/><circle cx="12" cy="17.4" r="0.4" fill="currentColor"/>',
   gear: '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h0a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h0a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v0a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/>',
   chart: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
   gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/>',
@@ -78,7 +86,7 @@ export function coinBadge(): HTMLDivElement & { refresh(): void } {
 export function starRow(n: number, total = 3, size = 16): HTMLDivElement {
   const d = h("div", { class: "vz-star-row" });
   for (let i = 0; i < total; i++) {
-    d.innerHTML += `<span class="vz-star ${i < n ? "on" : ""}" style="width:${size}px;height:${size}px">${ICONS.starFill}</span>`;
+    d.innerHTML += `<span class="vz-star ${i < n ? "on" : ""}" style="width:${size}px;height:${size}px">${svgIcon(ICONS.starFill, size)}</span>`;
   }
   return d;
 }

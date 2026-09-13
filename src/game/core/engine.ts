@@ -9,14 +9,14 @@ import { Save } from "./save";
 import { T } from "../i18n";
 import {
   showSplash, showMenu, showChapters, showLevels,
-  showProgress, showRewards, buildSettingsModal, Nav,
+  showProgress, showRewards, showGuide, buildSettingsModal, Nav,
 } from "../ui/screens";
 import { showGameplay } from "../ui/gameplay";
 
 type ScreenName =
   | { kind: "splash" } | { kind: "menu" } | { kind: "chapters" }
   | { kind: "levels"; ch: number } | { kind: "gameplay"; ch: number; lv: number }
-  | { kind: "progress" } | { kind: "rewards" };
+  | { kind: "progress" } | { kind: "rewards" } | { kind: "guide" };
 
 class Game {
   private root: HTMLElement | null = null;
@@ -57,6 +57,7 @@ class Game {
       goGameplay: (ch, lv) => this.go({ kind: "gameplay", ch, lv }),
       goProgress: () => this.go({ kind: "progress" }),
       goRewards: () => this.go({ kind: "rewards" }),
+      goGuide: () => this.go({ kind: "guide" }),
       openSettings: () => this.openSettings(),
     };
 
@@ -87,6 +88,7 @@ class Game {
             this.go({ kind: "gameplay", ch, lv });
           },
           () => this.openSettings(),
+          () => this.go({ kind: "guide" }),
         );
         break;
       case "progress":
@@ -94,6 +96,9 @@ class Game {
         break;
       case "rewards":
         cleanup = showRewards(root, nav);
+        break;
+      case "guide":
+        cleanup = showGuide(root, nav);
         break;
     }
     this.current = { name, cleanup: cleanup ?? (() => {}) };

@@ -1,0 +1,87 @@
+name: Build & Release APK
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: Build signed APK and publish GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate level data (100 levels)
+        run: |
+          npm i -g bun@1 >/dev/null 2>&1
+          bun scripts/validate_words.ts
+
+      - name: Build static web bundle
+        run: npm run build:static
+
+      - name: Sync web bundle into Android project
+        run: npx cap sync android
+
+      - name: Build signed release APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp android/app/build/outputs/apk/release/app-release.apk \
+             "VazheSafar-v${VERSION}.apk"
+          ls -la VazheSafar-*.apk
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VazheSafar-APK
+          path: VazheSafar-*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: VazheSafar-*.apk
+          generate_release_notes: true
+          body: |
+            ## واژه‌سفر v${{ github.ref_name }}
+
+            نسخهٔ اندروید بازی پازل کلمات «واژه‌سفر» — سفر واژه‌به‌واژه در سرزمین قصه‌ها.
+
+            ### نصب
+            1. فایل `VazheSafar-*.apk` را دانلود کنید.
+            2. اجازهٔ «نصب از منابع ناشناس» را برای مرورگر/فایل‌منیجر بدهید.
+            3. فایل را نصب کنید — بازی کاملاً آفلاین اجرا می‌شود.
+
+            ### تغییرات این نسخه
+            - رفع کامل باگ‌های واژه‌ها و چیدمان (جدول، چرخ حروف، ستاره‌ها و قفل‌ها)
+            - واژه‌نامهٔ بازسازی‌شده با بیش از ۸۰۰ واژهٔ واقعی فارسی
+            - موسیقی سنتی ایرانی زنده‌ساخته‌شده (سنتور، نی، کمانچه، دف و تنبک) برای هر ۱۰ فصل
+            - تم قهوه‌ای/طلایی جدید با گرافیک و انیمیشن غنی‌تر
+            - صفحهٔ «راهنما»ی کامل + آموزش تعاملی
+        fail_on_unmatched_files: true

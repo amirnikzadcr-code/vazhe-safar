@@ -51,3 +51,8 @@ Thumbs.db
 *.tsbuildinfo
 # sandbox infra
 .zscripts/
+
+# capacitor — web assets are (re)copied into android by `npx cap sync` in CI
+android/app/src/main/assets/public/
+android/app/build/
+tool-results/

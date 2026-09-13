@@ -1,6 +1,6 @@
 /* ------------------------------------------------------------------
  *  واژه‌سفر — data/levels/index.ts
- *  Loads the 10 chapter level files (100 levels total).
+ *  Loads the 10 chapter level files (100 levels total) + dictionary.
  *  Level data lives in separate JSON files so it can be edited freely.
  * ------------------------------------------------------------------ */
 import ch01 from "./levels/ch01.json";
@@ -13,24 +13,23 @@ import ch07 from "./levels/ch07.json";
 import ch08 from "./levels/ch08.json";
 import ch09 from "./levels/ch09.json";
 import ch10 from "./levels/ch10.json";
+import { DICT } from "./dictionary";
 
 export interface LevelData {
   id: number;         // 1..100 (global)
-  wheel: string;      // distinct-ish letter pool of the wheel
+  wheel: string;      // letter pool of the wheel (anchor word letters)
   words: string[];    // main target words (crossword)
-  bonus: string[];    // curated hidden bonus words
+  bonus: string[];    // precomputed hidden bonus words (from dictionary)
 }
 
 export const LEVELS: LevelData[][] = [
   ch01, ch02, ch03, ch04, ch05, ch06, ch07, ch08, ch09, ch10,
 ] as LevelData[][];
 
-/** global fallback dictionary for bonus words (common short Persian words) */
-export const COMMON_BONUS: string[] = [
-  "با", "ما", "تو", "او", "تا", "به", "که", "نه", "رو", "دو",
-  "پا", "ته", "نو", "ده", "سر", "شب", "دم", "زه", "در", "بر",
-  "دل", "گل", "بار", "راه", "خانه", "کار", "مار", "نار", "جان", "رود",
-];
+/** runtime bonus-word check: any real dictionary word buildable from the wheel */
+export function isRealWord(word: string): boolean {
+  return DICT.has(word);
+}
 
 export function getLevel(ch: number, lv: number): LevelData {
   const list = LEVELS[ch - 1];
