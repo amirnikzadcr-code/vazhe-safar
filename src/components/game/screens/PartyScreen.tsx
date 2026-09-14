@@ -18,8 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "@/components/game/ui/kit";
 import { AVATARS, AvatarFace } from "@/components/game/avatars";
-import { LEVELS, isRealWord } from "@/game/data/levelsIndex";
-import { DICT_WORDS } from "@/game/data/dictionary";
+import { LEVELS, isRealWord, ALL_DICT_WORDS } from "@/game/data/levelsIndex";
 import { letters, faNum, canBuild, buzz } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
@@ -192,7 +191,7 @@ function Setup({ onStart, onExit }: { onStart: (ps: PConf[], rounds: number) => 
   };
 
   return (
-    <Sheet bg="/assets/bg/map2.webp" bgDim={0.3} blur={2}>
+    <Sheet bg="/assets/bg/map2b.webp" bgDim={0.3}>
       <Garland />
       <div className="ps-top">
         <button type="button" className="ps-x" aria-label="بازگشت" onClick={onExit}>✕</button>
@@ -201,6 +200,21 @@ function Setup({ onStart, onExit }: { onStart: (ps: PConf[], rounds: number) => 
       </div>
 
       <div className="scrolly">
+        {/* v4 — the enlarged dictionary is a selling point: show its size
+            (user: «دایره لغات بازی دورهمی افزایش بده ۱۰۰۰ تا لغت بزار») */}
+        <div
+          className="ps-pool-badge"
+          style={{
+            margin: "4px auto 10px", width: "fit-content", maxWidth: "92%",
+            background: "linear-gradient(180deg,rgba(255,236,170,.95),rgba(255,214,90,.95))",
+            border: "2px solid #fff", outline: "1.5px solid #c98a1d", borderRadius: 999,
+            color: "#6b4a1e", fontWeight: 800, fontSize: 12.5, padding: "5px 14px",
+            boxShadow: "0 3px 0 #b47708", textAlign: "center",
+          }}
+          aria-live="polite"
+        >
+          بیش از {faNum(ALL_DICT_WORDS.length)} واژهٔ فارسی در چرخِ دورهمی!
+        </div>
         {/* عمو دانا teaches the game (user: «عمو دانا بیاد بازی رو یاد بده») */}
         <Coach line={tip} />
         <button
@@ -324,7 +338,9 @@ function TurnGame({
   const wordCount = useMemo(() => {
     const pool = wheel.ls.join("");
     const set = new Set<string>();
-    for (const w of DICT_WORDS) {
+    /* v4: scans the FULL dictionary (۳۳۰۰+ واژه) — the pool the user
+       asked to enlarge for دورهمی */
+    for (const w of ALL_DICT_WORDS) {
       if (Array.from(w).length >= 3 && canBuild(w, pool)) set.add(w);
     }
     for (const w of levelWords) if (Array.from(w).length >= 3) set.add(w);
@@ -627,7 +643,7 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
     );
   }
   return (
-    <Sheet bg="/assets/bg/sunset2.webp" bgDim={0.22} blur={2}>
+    <Sheet bg="/assets/bg/sunset2b.webp" bgDim={0.22}>
       <TurnGame
         key={`${round}:${turnIdx}`}
         p={cur}

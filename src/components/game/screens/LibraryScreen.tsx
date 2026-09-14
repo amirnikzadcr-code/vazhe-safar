@@ -28,7 +28,7 @@ export function LibraryScreen({
   onShop: () => void;
 }) {
   return (
-    <Sheet bg="/assets/bg/home2.webp" bgDim={0.3} blur={2}>
+    <Sheet bg="/assets/bg/home2b.webp" bgDim={0.3}>
       <TopBar onBack={onBack} onShop={onShop} title="کتابخانه" />
 
       <div className="scrolly" style={{ paddingBottom: 24 }}>
@@ -60,7 +60,7 @@ export function LibraryScreen({
                   {faNum(done)}/{faNum(10)}
                 </span>
                 <span className="pbar" style={{ width: "86%", height: 8 }}>
-                  <i style={{ width: `${done * 10}%` }} />
+                  <i style={{ ["--p" as string]: done / 10 }} />
                 </span>
               </button>
             );

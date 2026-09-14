@@ -10,13 +10,13 @@
  * cost nothing. NO idle animations anywhere except ONE tiny pulse on
  * the current node. Images lazy-decode as you approach them.
  * ------------------------------------------------------------------ */
-import { useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
+import { useLayoutEffect, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { MapTopBar } from "@/components/game/ui/kit";
 import { LockChunky, StarGold } from "@/components/game/icons";
 import { Save } from "@/game/core/save";
 import { faNum } from "@/game/core/utils";
 import { CHAPTERS } from "@/game/data/chapters";
-import { isDecoded } from "@/game/core/preload";
+import { isDecoded, preloadImage } from "@/game/core/preload";
 import { Audio } from "@/game/core/audio";
 
 /* v2.4 — realm image with decode-gated fade-in: paints instantly from
@@ -188,6 +188,22 @@ export function MapScreen({
 
   /* the player's CURRENT level across the WHOLE journey */
   const cur = currentLevel();
+
+  /* v4 PERF — while the player looks at the map, quietly decode THIS
+   * chapter's play backdrop + its music track. Tapping a level then
+   * starts the music and paints the backdrop with ZERO decode work on
+   * the main thread (fetching+decoding both at the tap moment was a
+   * guaranteed stall on phones — read as «هنگ کردن موقع ورود به مرحله»). */
+  useEffect(() => {
+    const bg = `/assets/bg/ch${String(ch).padStart(2, "0")}.webp`;
+    const track = `ch${String(ch).padStart(2, "0")}`;
+    const idle = (fn: () => void) => {
+      if (typeof requestIdleCallback === "function") requestIdleCallback(fn, { timeout: 1500 });
+      else setTimeout(fn, 350);
+    };
+    idle(() => { void preloadImage(bg); });
+    idle(() => { Audio.preloadTrack(track); });
+  }, [ch]);
 
   /* center the current level instantly (layout effect → before paint) */
   useLayoutEffect(() => {

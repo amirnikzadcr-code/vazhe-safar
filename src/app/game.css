@@ -13,9 +13,18 @@
 @font-face { font-family: "Vazirmatn"; src: url("/assets/fonts/Vazirmatn-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
 @font-face { font-family: "Vazirmatn"; src: url("/assets/fonts/Vazirmatn-ExtraBold.woff2") format("woff2"); font-weight: 800; font-display: swap; }
 
-/* ---------- app shell ---------- */
+/* ---------- app shell ----------
+ * v4 MOBILE-LOCK (user: «زمینه‌ها پرش داره» on phones): the shell is
+ * FIXED to the viewport instead of sizing with 100dvh. dvh re-evaluates
+ * on every mobile-browser URL-bar show/hide → a full-page relayout that
+ * reads as the whole game «jumping». A fixed inset-0 shell never
+ * reflows, so screens stay rock-steady. The APK WebView has no URL bar
+ * and behaves identically. */
+html, body { overscroll-behavior: none; height: 100%; }
 .vz-body {
-  min-height: 100dvh;
+  position: fixed;
+  inset: 0;
+  height: 100%;
   background:
     radial-gradient(120% 90% at 50% 0%, #2b7fbf 0%, #175d96 45%, #0d4471 100%);
   display: flex;
@@ -23,13 +32,14 @@
   justify-content: center;
   font-family: "Vazirmatn", "Tahoma", sans-serif;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 .vz-phone {
   position: relative;
   width: 100%;
   max-width: 430px;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
   background: #7ec8f2;
   direction: rtl;
@@ -42,7 +52,7 @@
   .vz-phone {
     border-radius: 34px;
     box-shadow: 0 30px 80px rgba(0,0,0,.5), 0 0 0 10px #10283f, 0 0 0 12px #23405e;
-    height: min(100dvh, 900px);
+    height: min(100%, 900px);
   }
 }
 .vz-page { position: absolute; inset: 0; display: flex; flex-direction: column; }
@@ -82,8 +92,13 @@
   box-shadow: inset 0 1.5px 2.5px rgba(0,0,0,.55);
 }
 .plate-xpbar > i {
-  display: block; height: 100%; border-radius: 999px;
+  display: block; height: 100%; width: 100%; border-radius: 999px;
   background: linear-gradient(180deg,#ffe08a,#f0a92c);
+  /* v4 PERF: fill = compositor scaleX (transform-origin right = RTL fill).
+   * The old animated `width` re-laid-out the whole HUD every frame. */
+  transform: scaleX(var(--p, 1));
+  transform-origin: 100% 50%;
+  transition: transform .4s cubic-bezier(.2,.8,.3,1);
 }
 .plate-xpnum { font-size: 9.5px; font-weight: 700; color: #9c7434; margin-top: 2px; line-height: 1; }
 
@@ -909,8 +924,12 @@
 .scrolly::-webkit-scrollbar { width: 6px; }
 .scrolly::-webkit-scrollbar-thumb { background: #e0b25e; border-radius: 6px; }
 .pbar { height: 12px; border-radius: 999px; background: #ead9b0; box-shadow: inset 0 2px 3px rgba(120,80,20,.3); overflow: hidden; }
-.pbar > i { display: block; height: 100%; border-radius: 999px;
-  background: linear-gradient(180deg,#7ce97f,#2ea648); transition: width .5s ease; }
+.pbar > i { display: block; height: 100%; width: 100%; border-radius: 999px;
+  background: linear-gradient(180deg,#7ce97f,#2ea648);
+  /* v4 PERF: compositor scaleX fill (see plate-xpbar note) */
+  transform: scaleX(var(--p, 1));
+  transform-origin: 100% 50%;
+  transition: transform .45s cubic-bezier(.2,.8,.3,1); }
 .pbar.gold > i { background: linear-gradient(180deg, #ffe08a, #f79c0d); }
 .pbar.blue > i { background: linear-gradient(180deg, #7cc9ff, #2a83d8); }
 .shelf-board {
@@ -1124,9 +1143,11 @@
   box-shadow: inset 0 1.5px 3px rgba(0,0,0,.55);
 }
 .prof-xpbar > i {
-  display: block; height: 100%; border-radius: 999px;
+  display: block; height: 100%; width: 100%; border-radius: 999px;
   background: linear-gradient(180deg,#ffe08a,#f0a92c);
-  transition: width .3s ease;
+  transform: scaleX(var(--p, 1));
+  transform-origin: 100% 50%;
+  transition: transform .3s cubic-bezier(.2,.8,.3,1);
 }
 .prof-xpnum { font-size: 11.5px; font-weight: 800; color: #9c7434; margin-top: 4px; }
 .prof-stats {
@@ -1709,6 +1730,16 @@ body { background: #5cb2ef; }
 .lowfx .wheel-burst i:nth-child(n + 6),
 .lowfx .wsparkles i:nth-child(n + 3) { display: none !important; }
 .lowfx .will-anim { animation: none !important; }
+/* v4 — shed PAINT-heavy statics too: drop-shadow text filters and big
+ * ribbon shadows re-rasterize on every text/DOM change; on weak GPUs
+ * that is the difference between smooth and «لگ داره». */
+.lowfx .title3d { filter: none !important; text-shadow: 0 2px 0 rgba(0,0,0,.25) !important; }
+.lowfx .wb-ribbon { box-shadow: none !important; }
+.lowfx .pbar > i,
+.lowfx .prof-xpbar > i,
+.lowfx .plate-xpbar > i { transition: none !important; }
+.lowfx .page-enter.fwd,
+.lowfx .page-enter.back { animation: none !important; }
 
 /* ═══════════════════════════════════════════════════════════════════
    v3 SHOP — premium night-gold market (exclusive identity).

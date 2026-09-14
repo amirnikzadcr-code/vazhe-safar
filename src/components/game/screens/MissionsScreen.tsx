@@ -36,7 +36,7 @@ export function MissionsScreen({ onBack, onChallenge, onGift }: { onBack: () => 
   const giftTaken = Save.data.dailyGiftDay === Save.today();
 
   return (
-    <Sheet bg="/assets/bg/map2.webp" bgDim={0.32} blur={2}>
+    <Sheet bg="/assets/bg/map2b.webp" bgDim={0.32}>
       <TopBar onBack={onBack} title="ماموریت‌ها" />
 
       <div className="scrolly">
@@ -92,7 +92,7 @@ export function MissionsScreen({ onBack, onChallenge, onGift }: { onBack: () => 
                   <div style={{ fontWeight: 800, color: "#5d3a12", fontSize: 15 }}>{m.title}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                     <span className="pbar blue" style={{ flex: 1 }}>
-                      <i style={{ width: `${pct}%` }} />
+                      <i style={{ ["--p" as string]: pct / 100 }} />
                     </span>
                     <span style={{ fontSize: 12, fontWeight: 800, color: "#8a6a3a", flex: "none" }}>
                       {faNum(Math.min(m.have, m.need))}/{faNum(m.need)}

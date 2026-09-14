@@ -17,7 +17,7 @@ export function WelcomeScreen({
   return (
     <div className="vz-page fade-in">
       
-      <img src="/assets/bg/home2.webp" alt="" className="vz-fill" style={{ filter: "blur(3px) brightness(.92)" }} />
+      <img src="/assets/bg/home2b.webp" alt="" className="vz-fill" />
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(20,50,90,.35), rgba(20,50,90,.55))" }} />
       <Vines />
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center", padding: 22, gap: 6 }}>
@@ -103,7 +103,10 @@ export function Splash({ onDone }: { onDone: () => void }) {
         style={{ marginTop: 14, width: 170, height: 12, borderRadius: 999, background: "rgba(255,255,255,.4)", overflow: "hidden", border: "2px solid rgba(255,255,255,.7)", animationDelay: ".3s", padding: 2 }}
         aria-hidden
       >
-        <div style={{ width: `${Math.round(Math.max(8, prog * 100))}%`, height: "100%", borderRadius: 999, background: "linear-gradient(180deg,#ffe08a,#f79c0d)", transition: "width .25s ease" }} />
+        {/* v4 PERF: fill = compositor scaleX — the old animated `width`
+            re-laid-out the bar every frame; on weak phones that read as
+            «لودینگ هنگی و لگیه». transform animates on the GPU thread. */}
+        <div style={{ width: "100%", height: "100%", borderRadius: 999, background: "linear-gradient(180deg,#ffe08a,#f79c0d)", transform: `scaleX(${Math.max(0.08, prog)})`, transformOrigin: "100% 50%", transition: "transform .25s ease" }} />
       </div>
       <span style={{ position: "absolute", bottom: 24, color: "rgba(255,255,255,.9)", fontWeight: 700, fontSize: 13, textShadow: "0 2px 4px rgba(0,0,0,.3)" }}>
         برای شروع آماده می‌شویم…

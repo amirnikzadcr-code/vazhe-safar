@@ -109,12 +109,21 @@ class AudioEngine {
   private eventsA: NoteEv[] = [];
   private eventsB: NoteEv[] = [];
 
-  /* — v1.3 rendered-track playback (gapless loop + crossfade) — */
+  /* — v1.3 rendered-track playback (gapless loop + crossfade) —
+   * v4 PERF (user: mobile «جا ب جایی بین صفحات لگ داره» + «گوشی داغ میکنه»):
+   * 1) the context is pinned to 48 kHz — the rendered OGGs are encoded at
+   *    48 kHz too, so decodeAudioData does NO resampling (a main-thread
+   *    44.1→48 kHz resample of a 26 s stereo file is a visible stall on
+   *    phones, exactly at the screen-change moment).
+   * 2) trackCache is an LRU capped at 3 buffers. Every decoded stereo
+   *    track is ~10 MB of AudioBuffer; the old unbounded Map kept up to
+   *    22 tracks (~200 MB) alive → GC pauses, memory pressure, heat. */
   private trackCache = new Map<string, AudioBuffer>();
   private trackSrc: AudioBufferSourceNode | null = null;
   private trackGain: GainNode | null = null;
   private currentTrack: string | null = null;
   private loadingTrack: string | null = null;
+  private static readonly TRACK_CACHE_MAX = 3;
 
   /* ---------------- lifecycle ---------------- */
 
@@ -128,7 +137,14 @@ class AudioEngine {
       const AC: typeof AudioContext =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new AC();
+      /* v4 PERF: pin 48 kHz — matches the encoded tracks (no decode
+       * resample) and keeps every device's graph identical. Older
+       * webviews without the options object fall back gracefully. */
+      try {
+        this.ctx = new AC({ sampleRate: 48000 });
+      } catch {
+        this.ctx = new AC();
+      }
       this.master = this.ctx.createGain();
       this.master.gain.value = 1;
       // gentle limiter-ish compressor to avoid clipping in fanfares
@@ -254,12 +270,28 @@ class AudioEngine {
     const ctx = this.ctx;
     if (!ctx) return null;
     const cached = this.trackCache.get(name);
-    if (cached) return cached;
+    if (cached) {
+      /* LRU refresh: re-insert so the newest track is the last entry */
+      this.trackCache.delete(name);
+      this.trackCache.set(name, cached);
+      return cached;
+    }
     try {
       const res = await fetch(`/assets/music/${name}.ogg`);
       if (!res.ok) throw new Error(String(res.status));
       const buf = await ctx.decodeAudioData(await res.arrayBuffer());
       this.trackCache.set(name, buf);
+      /* v4 PERF: evict the OLDEST track that is neither playing nor
+       * loading — the old unbounded cache grew ~10 MB per chapter visited
+       * and eventually throttled weak phones (GC churn + heat). */
+      while (this.trackCache.size > AudioEngine.TRACK_CACHE_MAX) {
+        let victim: string | null = null;
+        for (const k of this.trackCache.keys()) {
+          if (k !== this.currentTrack && k !== this.loadingTrack) { victim = k; break; }
+        }
+        if (victim == null) break; /* everything protected — allow overflow */
+        this.trackCache.delete(victim);
+      }
       return buf;
     } catch (e) {
       console.warn(`[audio] track ${name} unavailable → live synth`, e);

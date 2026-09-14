@@ -150,7 +150,7 @@ export function PlayerHud({
           <span className="plate-info">
             <span className="plate-name">{prof.name || "مسافر"}</span>
             <span className="plate-xp">
-              <span className="plate-xpbar"><i style={{ width: `${Math.round((cur / need) * 100)}%` }} /></span>
+              <span className="plate-xpbar"><i style={{ ["--p" as string]: cur / need }} /></span>
               <span className="plate-xpnum">سطح {faNum(lvl)} · {faNum(cur)}/{faNum(need)}</span>
             </span>
           </span>

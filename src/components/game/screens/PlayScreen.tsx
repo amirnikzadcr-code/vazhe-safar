@@ -33,6 +33,7 @@ import { Save, COSTS, REWARDS } from "@/game/core/save";
 import { WinModal } from "@/components/game/modals/WinModal";
 import { CHAPTERS } from "@/game/data/chapters";
 import { PauseModal } from "@/components/game/modals/Overlays";
+import { armGameplayProbe } from "@/game/core/perf";
 
 /* celebration duration BEFORE the word applies to the board (ms).
  * v2.1: was 1150 — the player read it as “the word applies too late”.
@@ -144,6 +145,11 @@ export function PlayScreen({
   }, [progressKey]);
 
   const { toast, show } = useToast();
+
+  /* v4 PERF — probe DURING real gameplay on the first screens; weak
+   * phones get the lowfx tier shed automatically (the boot probe ran
+   * on an idle splash and missed them). */
+  useEffect(() => { armGameplayProbe(); }, []);
 
   /* -------- tutorial: fades out on the FIRST drag (user request:
    * "باید وقتی یبار میکشی محو بشه") — no more stuck overlay ------- */

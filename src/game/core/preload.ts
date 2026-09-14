@@ -45,10 +45,15 @@ export const CRITICAL_IMAGES: string[] = [
   "/assets/obj/chest.webp",
 ];
 
-/** chapter realms m03..m20 + per-chapter play backdrops + poses — loaded AFTER boot */
+/** chapter realms m03..m20 + character poses — loaded AFTER boot.
+ * v4 PERF (user: «گوشی داغ میکنه»): the 20 per-chapter PLAY backdrops
+ * were removed from this set — decoding 41 large bitmaps back-to-back
+ * right after boot burned CPU+GPU on phones for the first minute.
+ * Each chapter's backdrop is now decoded lazily while its MAP is open
+ * (MapScreen idle-prefetch), which is also when its music track decodes.
+ * Realms load one at a time with idle gaps — invisible, gentle, cool. */
 export const DEFERRED_IMAGES: string[] = [
   ...Array.from({ length: 18 }, (_, i) => `/assets/map/m${String(i + 3).padStart(2, "0")}.webp`),
-  ...Array.from({ length: 20 }, (_, i) => `/assets/bg/ch${String(i + 1).padStart(2, "0")}.webp`),
   "/assets/char/hello.webp",
   "/assets/char/point.webp",
   "/assets/char/cheer.webp",
@@ -91,8 +96,10 @@ export function preloadImage(src: string): Promise<void> {
 }
 
 /** Preload a list with progress callback (0..1). Never rejects.
- *  Loads in small parallel waves so weak phones never stall. */
-function preloadList(list: string[], wave: number, onProgress?: (p: number) => void): Promise<void> {
+ *  Loads in small parallel waves so weak phones never stall.
+ *  `gapMs` — optional pause after each finished image (v4 heat guard:
+ *  lets the CPU/GPU cool between big decodes in background loading). */
+function preloadList(list: string[], wave: number, onProgress?: (p: number) => void, gapMs = 0): Promise<void> {
   let done = 0;
   const total = list.length;
   return new Promise((resolve) => {
@@ -105,6 +112,7 @@ function preloadList(list: string[], wave: number, onProgress?: (p: number) => v
         done++;
         onProgress?.(done / total);
         if (done >= total) resolve();
+        else if (gapMs > 0) setTimeout(pump, gapMs);
         else pump();
       });
     };
@@ -117,13 +125,15 @@ export function preloadAssets(onProgress?: (p: number) => void): Promise<void> {
   return preloadList(CRITICAL_IMAGES, 6, onProgress);
 }
 
-/** post-boot background loading — gentle 2-wide waves on idle, so it
- *  never steals frames from gameplay. Fire-and-forget. */
+/** post-boot background loading — ONE image at a time, with a breather
+ * between images (v4: the old 2-wide non-stop wave kept the CPU+GPU
+ * busy decoding big bitmaps for a full minute after boot → phones got
+ * warm and the first minutes of play stuttered). Fire-and-forget. */
 let deferredStarted = false;
 export function startDeferredPreload(): void {
   if (deferredStarted) return;
   deferredStarted = true;
-  const run = () => { void preloadList(DEFERRED_IMAGES, 2); };
+  const run = () => { void preloadList(DEFERRED_IMAGES, 1, undefined, 350); };
   if (typeof requestIdleCallback === "function") requestIdleCallback(() => run(), { timeout: 2500 });
   else setTimeout(run, 1200);
 }

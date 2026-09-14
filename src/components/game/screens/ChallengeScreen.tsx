@@ -48,7 +48,7 @@ export function ChallengeScreen({
   const streak = Save.data.challenge.streak;
 
   return (
-    <Sheet bg="/assets/bg/sunset2.webp" bgDim={0.38} blur={1}>
+    <Sheet bg="/assets/bg/sunset2b.webp" bgDim={0.38}>
       <TopBar onBack={onBack} onShop={onShop} title="چالش روزانه" />
 
       <div className="scrolly" style={{ display: "flex", flexDirection: "column" }}>

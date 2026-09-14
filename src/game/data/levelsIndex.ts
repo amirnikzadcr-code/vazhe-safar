@@ -24,6 +24,7 @@ import ch18 from "./levels/ch18.json";
 import ch19 from "./levels/ch19.json";
 import ch20 from "./levels/ch20.json";
 import { DICT } from "./dictionary";
+import { EXTRA_WORDS } from "./dictionary_extra";
 
 export interface LevelData {
   id: number;         // 1..200 (global)
@@ -37,9 +38,15 @@ export const LEVELS: LevelData[][] = [
   ch11, ch12, ch13, ch14, ch15, ch16, ch17, ch18, ch19, ch20,
 ] as LevelData[][];
 
+/* v4 — FULL validity set: the generated dictionary + 1004 curated
+ * everyday words (user: «دایره لغات بازی دورهمی افزایش بده ۱۰۰۰ تا لغت
+ * بزار»). Used by دورهمی and bonus-word checking everywhere. */
+export const ALL_DICT_WORDS: string[] = [...DICT, ...EXTRA_WORDS];
+export const FULL_DICT: Set<string> = new Set(ALL_DICT_WORDS);
+
 /** runtime bonus-word check: any real dictionary word buildable from the wheel */
 export function isRealWord(word: string): boolean {
-  return DICT.has(word);
+  return FULL_DICT.has(word);
 }
 
 export function getLevel(ch: number, lv: number): LevelData {

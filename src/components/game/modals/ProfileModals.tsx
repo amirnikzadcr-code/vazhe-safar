@@ -125,7 +125,7 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
           <span className="prof-head-info">
             <b className="prof-head-name">{name.trim() || "مسافر"}</b>
             <span className="prof-head-xp">
-              <span className="prof-xpbar"><i style={{ width: `${Math.round((cur / need) * 100)}%` }} /></span>
+              <span className="prof-xpbar"><i style={{ ["--p" as string]: cur / need }} /></span>
               <span className="prof-xpnum">{faNum(cur)} / {faNum(need)} تا سطح {faNum(lvl + 1)}</span>
             </span>
           </span>
