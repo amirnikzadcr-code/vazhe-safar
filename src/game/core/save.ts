@@ -37,6 +37,9 @@ export interface SaveData {
     name: string;        // "" → the name-ask modal shows on next boot
     avatar: string;      // id from avatars.tsx (cat/fox/panda/…)
   };
+  /* --- v3 monetization (Myket / Bazaar readiness) --- */
+  adsRemoved: boolean;   // «حذف تبلیغات» purchased (or granted)
+  lastRewardedAd: number; // epoch ms of the last rewarded-ad payout (cooldown)
 }
 
 const KEY = "vazhe_safar_save_v1";
@@ -60,10 +63,27 @@ function fresh(): SaveData {
     lastSeen: 0,
     welcomeShownDay: "",
     profile: { name: "", avatar: "cat" },
+    adsRemoved: false,
+    lastRewardedAd: 0,
   };
 }
 
 let cache: SaveData | null = null;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** fired SYNCHRONOUSLY on every save mutation (see Save.persist) —
+ * React bindings (useSave/useCoins) listen to this to refresh live UI */
+export const SAVE_EVENT = "vz:save-change";
+
+/* v3 PERF — never lose progress with the debounced writer: the pending
+ * write is forced to disk when the app is hidden or closed. Registered
+ * once at module load; safe in every environment. */
+if (typeof window !== "undefined") {
+  const flushNow = () => Save.flush();
+  window.addEventListener("visibilitychange", () => { if (document.hidden) flushNow(); });
+  window.addEventListener("pagehide", flushNow);
+  window.addEventListener("beforeunload", flushNow);
+}
 
 export const Save = {
   load(): SaveData {
@@ -95,7 +115,26 @@ export const Save = {
   },
 
   persist(): void {
+    /* v3 PERF — DEBOUNCED (user: «حتی وقتی کلمه حدس زده میشه لگ میزنه»):
+     * this used to JSON.stringify the WHOLE save + hit disk on the main
+     * thread on EVERY mutation (each found word = countWord + addCoins +
+     * bonus checks → 2-3 synchronous writes mid-celebration). On weak
+     * phones that's a guaranteed jank spike exactly when a word lands.
+     * Now mutations coalesce: at most one write per 900ms, plus a hard
+     * flush when the app goes to background / closes (visibilitychange,
+     * pagehide, beforeunload) so nothing can be lost.
+     * Subscribers ARE notified synchronously (window event) so live UI
+     * like the coin pill updates instantly while the disk write waits. */
     if (!cache) return;
+    try { window.dispatchEvent(new Event(SAVE_EVENT)); } catch { /* SSR */ }
+    if (persistTimer != null) return;
+    persistTimer = setTimeout(() => { persistTimer = null; Save.flush(); }, 900);
+  },
+
+  /** write NOW (used by the debounce flush + app lifecycle hooks) */
+  flush(): void {
+    if (!cache) return;
+    if (persistTimer != null) { clearTimeout(persistTimer); persistTimer = null; }
     try {
       localStorage.setItem(KEY, JSON.stringify(cache));
     } catch (e) {

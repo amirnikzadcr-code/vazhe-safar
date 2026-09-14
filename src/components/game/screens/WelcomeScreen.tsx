@@ -87,7 +87,7 @@ export function Splash({ onDone }: { onDone: () => void }) {
     const cap = setTimeout(finish, 6000);
     /* v2.4 — decode the menu theme during the splash so the home screen
      * starts its music instantly (fetchTrack caches the AudioBuffer) */
-    Audio.preloadTrack("menu");
+    Audio.preloadTrack("menu2");
     return () => clearTimeout(cap);
   }, []);
   return (

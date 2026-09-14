@@ -10,7 +10,7 @@
  *   • HUD is the real profile (name/avatar/level) — tap opens editor
  * PERF: zero idle animations; whole scene = ONE preloaded image.
  * ------------------------------------------------------------------ */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PlayerHud } from "@/components/game/ui/kit";
 import { ImgIcon } from "@/components/game/icons";
 import { Save } from "@/game/core/save";
@@ -20,9 +20,8 @@ import { Audio } from "@/game/core/audio";
 import { CHAPTERS } from "@/game/data/chapters";
 
 export function HomeScreen({
-  coins, onPlay, onParty, onLibrary, onMissions, onShop, onSettings, onProfile,
+  onPlay, onParty, onLibrary, onMissions, onShop, onSettings, onProfile,
 }: {
-  coins: number;
   onPlay: () => void;
   onParty: () => void;
   onLibrary: () => void;
@@ -47,7 +46,7 @@ export function HomeScreen({
       <StableHomeBg />
 
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-        <PlayerHud coins={coins} gear="bronze" onGear={onSettings} onPlus={onShop} onProfile={onProfile} />
+        <PlayerHud gear="bronze" onGear={onSettings} onPlus={onShop} onProfile={onProfile} />
 
         {/* logo — painted banner + crisp golden text */}
         <div className="logo-wrap">
@@ -126,8 +125,8 @@ export function HomeScreen({
  * v2.2: preloaded during splash → the sync isDecoded() check makes the
  * very first paint already show the full image (no sky-blue flash). */
 function StableHomeBg() {
+  /* decode gate without effects: sync seed + onLoad (lint-clean) */
   const [ready, setReady] = useState(() => isDecoded("/assets/bg/home3.webp"));
-  useEffect(() => { if (isDecoded("/assets/bg/home3.webp")) setReady(true); }, []);
   return (
     <>
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#9fd9ff 0%,#6cc0f5 40%,#a8e08b 70%,#7ccb62 100%)" }} />
@@ -136,6 +135,7 @@ function StableHomeBg() {
         alt=""
         className="vz-fill"
         style={{ opacity: ready ? 1 : 0, transition: ready ? "none" : "opacity .18s ease" }}
+        onLoad={() => setReady(true)}
         fetchPriority="high"
         decoding="async"
       />

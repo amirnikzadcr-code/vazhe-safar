@@ -1691,3 +1691,157 @@ body { background: #5cb2ef; }
 
 /* latin (English) player names inside RTL text — keep their own direction */
 .ps-hand-name bdi, .ps-active bdi, .ps-pod-name bdi, .ps-rest-row bdi, .ps-rank-chip bdi { unicode-bidi: isolate; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v3 PERF — AUTOMATIC LOW-POWER TIER (html.lowfx, set by the FPS guard
+   in src/game/core/perf.ts on weak devices). Only NON-essential
+   decoration is shed; gameplay FX stay (they are one-shot, composited,
+   transform/opacity). This is the last line of defense that keeps the
+   game 60 fps-smooth and cool on low-end phones.
+   ═══════════════════════════════════════════════════════════════════ */
+.lowfx .float-slow,
+.lowfx .map-node.cur::after,
+.lowfx .shop-hero::after,
+.lowfx .shop-bundle .breathe { animation: none !important; }
+.lowfx .confetti i:nth-child(n + 13),
+.lowfx .ps-confetti i:nth-child(n + 13),
+.lowfx .wb-dust i:nth-child(n + 4),
+.lowfx .wheel-burst i:nth-child(n + 6),
+.lowfx .wsparkles i:nth-child(n + 3) { display: none !important; }
+.lowfx .will-anim { animation: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v3 SHOP — premium night-gold market (exclusive identity).
+   PERF: no backdrop-blur, no filters; entrance = one-shot composited
+   fade-up; medal pulse = transform/opacity only.
+   ═══════════════════════════════════════════════════════════════════ */
+.shop2-hero {
+  display: flex; align-items: center; gap: 12px;
+  margin: 6px 14px 10px; padding: 12px 14px;
+  border-radius: 20px; border: 2.5px solid #ffe08a;
+  background: linear-gradient(165deg, #3a2450 0%, #241640 55%, #1a1030 100%);
+  box-shadow: 0 5px 0 rgba(20,8,40,.8), 0 12px 22px rgba(10,4,30,.5),
+    inset 0 1px 0 rgba(255,224,138,.35);
+  position: relative; overflow: hidden;
+}
+.shop2-hero::after {
+  content: ""; position: absolute; top: -60%; bottom: -60%; width: 44px; right: -30%;
+  background: linear-gradient(100deg, transparent, rgba(255,224,138,.16), transparent);
+  transform: rotate(14deg);
+}
+.shop2-hero-medal {
+  flex: none; width: 62px; height: 62px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 36% 30%, #ffe9a8, #f4b942 55%, #c98a1d 100%);
+  border: 3px solid #fff3cf;
+  box-shadow: 0 4px 0 #9a6a10, 0 8px 14px rgba(0,0,0,.4);
+}
+.shop2-hero-title {
+  color: #ffe9a8; font-weight: 900; font-size: 18px;
+  text-shadow: 0 2px 0 rgba(60,20,0,.55);
+}
+.shop2-hero-sub { color: #d8c8f0; font-weight: 700; font-size: 11.5px; margin-top: 2px; }
+.shop2-balance { font-size: 13.5px; gap: 5px; padding: 4px 11px; flex: none; }
+
+.shop2-tabs {
+  display: flex; gap: 6px; margin: 0 14px 10px; padding: 4px;
+  background: rgba(22,12,40,.72); border-radius: 999px;
+  border: 2px solid rgba(255,224,138,.35);
+}
+.shop2-tab {
+  flex: 1; border: none; cursor: pointer; border-radius: 999px;
+  padding: 8px 4px; font-weight: 800; font-size: 13px; color: #cbbfe8;
+  background: transparent; transition: transform .12s ease;
+}
+.shop2-tab:active { transform: scale(.95); }
+.shop2-tab.on {
+  color: #4a2e00;
+  background: linear-gradient(180deg, #ffe9a8, #f4b942);
+  box-shadow: 0 3px 0 #b8811c, inset 0 1px 0 #fff8e0;
+}
+
+.shop2-body { display: flex; flex-direction: column; gap: 12px; padding: 2px 14px 0; }
+.shop2-card {
+  display: flex; align-items: center; gap: 11px;
+  border-radius: 18px; padding: 13px 13px;
+  background: linear-gradient(180deg, #fffdf6, #f3e6c4);
+  border: 2.5px solid #fff; outline: 2px solid #d9b87a;
+  box-shadow: 0 5px 0 #cfa14f, 0 10px 16px rgba(0,0,0,.3);
+  animation: shop2In .34s ease both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+@keyframes shop2In {
+  from { opacity: 0; transform: translateY(14px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+.shop2-medal {
+  flex: none; width: 54px; height: 54px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 36% 30%, #fff3cf, #f4b942 60%, #c98a1d 100%);
+  border: 3px solid #ffe9a8;
+  box-shadow: 0 3px 0 #9a6a10, 0 6px 10px rgba(0,0,0,.28);
+}
+.shop2-medal-ad { background: radial-gradient(circle at 36% 30%, #fdf6e8, #eadfbe 60%, #c9b78d 100%); }
+.shop2-medal-play { background: radial-gradient(circle at 36% 30%, #e3f4ff, #9fd2f5 60%, #5da8d8 100%); }
+.shop2-card-title {
+  font-weight: 900; color: #5d3a12; font-size: 15.5px;
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+}
+.shop2-card-sub { font-weight: 700; color: #8a6a3a; font-size: 12px; margin-top: 3px; }
+.shop2-coins { color: #a0690a; }
+.shop2-bonus {
+  background: linear-gradient(180deg, #8cf291, #2ea648); color: #fff;
+  border-radius: 999px; font-size: 10.5px; padding: 2px 8px;
+  box-shadow: 0 2px 0 #1d7c33;
+}
+.shop2-ribbon {
+  background: linear-gradient(180deg, #ff9d6e, #f25c2a); color: #fff;
+  border-radius: 999px; font-size: 10.5px; padding: 2.5px 9px;
+  box-shadow: 0 2px 0 #c33f10;
+}
+.shop2-owned {
+  background: linear-gradient(180deg, #8cf291, #2ea648); color: #fff;
+  border-radius: 999px; padding: 7px 14px; font-weight: 900; font-size: 13px;
+  box-shadow: 0 3px 0 #1d7c33;
+}
+.shop2-free { background: linear-gradient(180deg, #f2fbff, #d9edf8); outline-color: #9cc8e0; }
+.shop2-quiet {
+  text-align: center; color: #ffe9a8; font-weight: 800; font-size: 13.5px;
+  padding: 18px 10px; text-shadow: 0 2px 4px rgba(0,0,0,.5);
+}
+.shop2-note {
+  text-align: center; color: #cbb9ee; font-weight: 700; font-size: 11.5px;
+  margin: 4px 8px 0; line-height: 1.9;
+}
+.shop2-note b { color: #ffe9a8; }
+
+/* simulated rewarded video (web preview — native uses real AdMob) */
+.sim-ad {
+  position: absolute; inset: 0; z-index: 90;
+  background: rgba(8,6,18,.88);
+  display: flex; align-items: center; justify-content: center; padding: 22px;
+  animation: fadeIn .2s ease both;
+}
+.sim-ad-frame {
+  width: min(100%, 320px); border-radius: 20px; overflow: hidden;
+  background: linear-gradient(170deg, #241640, #120b22);
+  border: 2.5px solid rgba(255,224,138,.5);
+  padding: 16px; text-align: center; color: #fff;
+  display: flex; flex-direction: column; gap: 12px; align-items: center;
+  animation: popIn .3s cubic-bezier(.2,1.5,.4,1) both;
+}
+.sim-ad-head { font-weight: 900; color: #ffe9a8; font-size: 14px; }
+.sim-ad-art {
+  width: 100%; height: 150px; border-radius: 14px;
+  background:
+    radial-gradient(120px 90px at 50% 32%, rgba(124,201,255,.25), transparent 70%),
+    linear-gradient(160deg, #2c1c4e, #191233);
+  border: 1.5px solid rgba(255,255,255,.14);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #cbb9ee;
+}
+.sim-ad-count { font-size: 30px; font-weight: 900; color: #ffe9a8; }
+.sim-ad-close {
+  background: none; border: none; color: #b9a8d8; font-weight: 700;
+  font-size: 12px; cursor: pointer; text-decoration: underline;
+}

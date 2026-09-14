@@ -30,14 +30,14 @@ function missionsOf(d: SaveData): Mission[] {
   ];
 }
 
-export function MissionsScreen({ coins, onBack, onChallenge, onGift }: { coins: number; onBack: () => void; onChallenge: () => void; onGift: () => void }) {
+export function MissionsScreen({ onBack, onChallenge, onGift }: { onBack: () => void; onChallenge: () => void; onGift: () => void }) {
   const { data } = useSave();
   const missions = missionsOf(data) as Mission[];
   const giftTaken = Save.data.dailyGiftDay === Save.today();
 
   return (
     <Sheet bg="/assets/bg/map2.webp" bgDim={0.32} blur={2}>
-      <TopBar coins={coins} onBack={onBack} title="ماموریت‌ها" />
+      <TopBar onBack={onBack} title="ماموریت‌ها" />
 
       <div className="scrolly">
         <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 20 }}>

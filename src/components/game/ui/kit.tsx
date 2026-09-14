@@ -14,6 +14,7 @@ import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
 import { isDecoded } from "@/game/core/preload";
 import { buzz } from "@/game/core/utils";
+import { useCoins, useSave } from "@/components/game/useSave";
 
 /* ---------- chunky 3D button ---------- */
 export function Btn({
@@ -73,12 +74,17 @@ export function IconBtn({
   );
 }
 
-/* ---------- coin chip ---------- */
-export function CoinChip({ value, plus, onPlus }: { value: number; plus?: boolean; onPlus?: () => void }) {
+/* ---------- coin chip ----------
+ * v3 PERF: `value` is OPTIONAL — when omitted the chip subscribes to the
+ * coin balance itself, so a balance change re-renders this tiny chip and
+ * never the screen around it (kills the word-guess lag). */
+export function CoinChip({ value, plus, onPlus }: { value?: number; plus?: boolean; onPlus?: () => void }) {
+  const live = useCoins();
+  const shown = value ?? live;
   return (
     <div className="chip">
       <span className="coin-ic" aria-hidden />
-      <span>{faNum(value)}</span>
+      <span>{faNum(shown)}</span>
       {plus && (
         <button
           type="button"
@@ -93,12 +99,15 @@ export function CoinChip({ value, plus, onPlus }: { value: number; plus?: boolea
   );
 }
 
-/* ---------- coin pill — dark wood + gold rim (reference HUD) ---------- */
-export function CoinPill({ value, onPlus }: { value: number; onPlus?: () => void }) {
+/* ---------- coin pill — dark wood + gold rim (reference HUD) ----------
+ * v3 PERF: same live-subscription contract as CoinChip. */
+export function CoinPill({ value, onPlus }: { value?: number; onPlus?: () => void }) {
+  const live = useCoins();
+  const shown = value ?? live;
   return (
     <div className="coinpill">
       <img src="/assets/img/coins.webp" alt="" draggable={false} />
-      <b>{faNum(value)}</b>
+      <b>{faNum(shown)}</b>
       {onPlus && (
         <button type="button" aria-label="افزودن سکه" className="plus" onClick={() => { Audio.sfxClick(); onPlus?.(); }}>+</button>
       )}
@@ -112,14 +121,17 @@ export function CoinPill({ value, onPlus }: { value: number; onPlus?: () => void
    the level badge docked on its corner; name + XP bar fill the rest.
    Tap opens the profile editor. ---------- */
 export function PlayerHud({
-  coins, gear, onGear, onPlus, onProfile,
+  gear, onGear, onPlus, onProfile,
 }: {
-  coins: number;
   gear?: "bronze" | "blue";
   onGear?: () => void;
   onPlus?: () => void;
   onProfile?: () => void;
 }) {
+  /* v3: subscribes to save events — the plate (name/avatar/level/XP)
+   * must refresh the moment the profile is edited or XP moves, WITHOUT
+   * re-rendering the screen behind it (the plate is ~30 nodes: cheap). */
+  useSave();
   const prof = Save.data.profile;
   const { lvl, cur, need } = Save.levelInfo();
   return (
@@ -145,7 +157,7 @@ export function PlayerHud({
         </span>
       </button>
       <div className="hud-right">
-        <CoinPill value={coins} onPlus={onPlus} />
+        <CoinPill onPlus={onPlus} />
         {onGear && (
           <button type="button" aria-label="تنظیمات" className={`gearbtn ${gear === "blue" ? "blue" : ""}`} onClick={() => { Audio.sfxClick(); onGear(); }}>
             <img src="/assets/img/gear.webp" alt="" draggable={false} style={gear === "blue" ? { filter: "hue-rotate(165deg) saturate(1.5)" } : undefined} />
@@ -156,9 +168,10 @@ export function PlayerHud({
   );
 }
 
-/* ---------- map top bar — back + wooden banner + coins (reference) ---------- */
-export function MapTopBar({ coins, title, onBack, onPlus }: {
-  coins: number; title: string; onBack: () => void; onPlus?: () => void;
+/* ---------- map top bar — back + wooden banner + coins (reference) ----------
+ * v3 PERF: no coins prop — the pill is live by itself. */
+export function MapTopBar({ title, onBack, onPlus }: {
+  title: string; onBack: () => void; onPlus?: () => void;
 }) {
   return (
     <div className="map-top">
@@ -166,16 +179,16 @@ export function MapTopBar({ coins, title, onBack, onPlus }: {
         <ChevronRight size={24} />
       </button>
       <div className="sheet-title" style={{ fontSize: 16, padding: "7px 22px" }}>{title}</div>
-      <CoinPill value={coins} onPlus={onPlus} />
+      <CoinPill onPlus={onPlus} />
     </div>
   );
 }
 
-/* ---------- top bar: optional back, center title chip, coins, gear ---------- */
+/* ---------- top bar: optional back, center title chip, coins, gear ----------
+ * v3 PERF: no coins prop — the chip is live by itself. */
 export function TopBar({
-  coins, onSettings, onBack, title, right, onShop,
+  onSettings, onBack, title, right, onShop,
 }: {
-  coins: number;
   onSettings?: () => void;
   onBack?: () => void;
   title?: string;
@@ -190,7 +203,7 @@ export function TopBar({
             <ChevronRight size={22} />
           </IconBtn>
         )}
-        <CoinChip value={coins} plus onPlus={onShop} />
+        <CoinChip plus onPlus={onShop} />
       </div>
       {title ? <div className="sheet-title" style={{ fontSize: 15, padding: "6px 18px" }}>{title}</div> : <span />}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -224,8 +237,9 @@ export function Stars({ n, total = 3, size = 24 }: { n: number; total?: number; 
  * to any screen paints the image at full opacity instantly (zero blue
  * flash between pages). Shared by Sheet + HomeScreen. ---------- */
 export function StableBg({ src, dim = 0, blur = 0 }: { src: string; dim?: number; blur?: number }) {
+  /* decode gate: the SYNC isDecoded() seed + the img ref-check + onLoad
+   * cover every path — no setState-in-effect needed (lint-clean). */
   const [ready, setReady] = useState(() => isDecoded(src));
-  useEffect(() => { if (isDecoded(src)) setReady(true); }, [src]);
   return (
     <>
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#9fd9ff 0%,#6cc0f5 34%,#a8e08b 62%,#7ccb62 100%)" }} />
@@ -279,7 +293,12 @@ export function Sheet({
 }
 
 /* ---------- corner vine decoration — lush leaves + pink flowers,
-   matching the leafy frame of the reference mockup ---------- */
+   matching the leafy frame of the reference mockup.
+   v3 FIX: the old single-SVG `transform="translate(100% 0)…"` attributes
+   were INVALID (SVG transform lists don't accept % units) → the browser
+   threw and the corners never mirrored. Now each corner is its own
+   absolutely-positioned SVG flipped with CSS transforms (valid + cheap,
+   still zero animation). ---------- */
 export function Vines() {
   const leaf = (x: number, y: number, r: number, rot: number, fill: string, key: string) => (
     <ellipse key={key} cx={x} cy={y} rx={13 * r} ry={6 * r} fill={fill} transform={`rotate(${rot} ${x} ${y})`} />
@@ -292,12 +311,16 @@ export function Vines() {
       <circle cx="0" cy="0" r="1.7" fill="#ffd94e" />
     </g>
   );
-  const corner = (flip: string, keyPrefix: string) => (
-    <g transform={flip}>
-      {/* main vines */}
+  const cornerSvg = (keyPrefix: string, css: CSSProperties) => (
+    <svg
+      aria-hidden
+      width="76"
+      height="76"
+      viewBox="0 0 76 76"
+      style={{ position: "absolute", width: "26vmin", height: "26vmin", maxWidth: 110, maxHeight: 110, pointerEvents: "none", ...css }}
+    >
       <path d="M2 74 C2 34 20 14 62 9 M2 74 C8 44 26 32 52 30 M14 20 C24 13 34 13 44 18 M2 74 C12 62 28 58 44 62"
         fill="none" stroke="#2f8f4e" strokeWidth="8" strokeLinecap="round" />
-      {/* leaves along the vines */}
       {leaf(62, 9, 1.1, -32, "#3fae5c", `${keyPrefix}-l1`)}
       {leaf(50, 15, 0.9, -10, "#2f8f4e", `${keyPrefix}-l2`)}
       {leaf(52, 30, 1, 24, "#43b962", `${keyPrefix}-l3`)}
@@ -306,21 +329,18 @@ export function Vines() {
       {leaf(44, 62, 0.95, -8, "#2f8f4e", `${keyPrefix}-l6`)}
       {leaf(30, 56, 0.8, -40, "#43b962", `${keyPrefix}-l7`)}
       {leaf(18, 22, 0.9, -75, "#57cc74", `${keyPrefix}-l8`)}
-      {/* tiny pink blossoms */}
       {flower(56, 20, 1, `${keyPrefix}-f1`)}
       {flower(30, 40, 0.85, `${keyPrefix}-f2`)}
       {flower(60, 48, 0.75, `${keyPrefix}-f3`)}
-    </g>
-  );
-  /* STATIC (no float animation) — animating a full-screen SVG repaints
-   * the whole page every frame and is the source of map jitter */
-  return (
-    <svg aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5 }}>
-      {corner("", "tl")}
-      {corner("translate(100% 0) scale(-1 1)", "tr")}
-      {corner("translate(0 100%) scale(1 -1)", "bl")}
-      {corner("translate(100% 100%) scale(-1 -1)", "br")}
     </svg>
+  );
+  return (
+    <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5, overflow: "hidden" }}>
+      {cornerSvg("tl", { top: 0, left: 0 })}
+      {cornerSvg("tr", { top: 0, right: 0, transform: "scaleX(-1)" })}
+      {cornerSvg("bl", { bottom: 0, left: 0, transform: "scaleY(-1)" })}
+      {cornerSvg("br", { bottom: 0, right: 0, transform: "scale(-1)" })}
+    </div>
   );
 }
 

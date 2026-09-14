@@ -24,9 +24,8 @@ const wdIndex = (short: string) => {
 };
 
 export function ChallengeScreen({
-  coins, onBack, onStart, onShop,
+  onBack, onStart, onShop,
 }: {
-  coins: number;
   onBack: () => void;
   onStart: () => void;
   onShop: () => void;
@@ -50,7 +49,7 @@ export function ChallengeScreen({
 
   return (
     <Sheet bg="/assets/bg/sunset2.webp" bgDim={0.38} blur={1}>
-      <TopBar coins={coins} onBack={onBack} onShop={onShop} title="چالش روزانه" />
+      <TopBar onBack={onBack} onShop={onShop} title="چالش روزانه" />
 
       <div className="scrolly" style={{ display: "flex", flexDirection: "column" }}>
         <div className="panel" style={{ margin: "2px auto 14px", width: "min(100%, 340px)", borderRadius: 24 }}>

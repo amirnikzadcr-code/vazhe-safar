@@ -13,7 +13,6 @@
  *    and resumed (Audio.pauseAll / resumeAll)
  * ------------------------------------------------------------------ */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSave } from "@/components/game/useSave";
 import { Save } from "@/game/core/save";
 import { Audio } from "@/game/core/audio";
 import { CHAPTERS, MENU_MUSIC, PARTY_MUSIC } from "@/game/data/chapters";
@@ -32,6 +31,7 @@ import { NameAskModal, ProfileModal } from "@/components/game/modals/ProfileModa
 import { PartyScreen } from "@/components/game/screens/PartyScreen";
 import { ImgPool } from "@/components/game/ImgPool";
 import { startDeferredPreload } from "@/game/core/preload";
+import { startFpsGuard } from "@/game/core/perf";
 
 type View =
   | { k: "splash" }
@@ -57,7 +57,13 @@ const viewKey = (v: View) =>
   v.k === "play" ? `play:${v.ch}:${v.lv}` : v.k === "map" ? `map:${v.ch}` : v.k === "done" ? `done:${v.ch}` : v.k;
 
 export function GameApp() {
-  const { data, bump } = useSave();
+  /* v3 PERF: GameApp NO LONGER subscribes to Save — every coin bump used
+   * to re-render this whole router (and with it the entire active screen:
+   * wheel, board, HUD → the “word-guess lag”). Screens that show live
+   * save data subscribe with their own narrow hooks (useCoins/useSave).
+   * Save.data is still read directly here — it is fresh at every render,
+   * and route changes (the only thing this component reacts to) always
+   * re-render it. */
   const [view, setViewState] = useState<View>({ k: "splash" });
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
   const [modal, setModal] = useState<ModalKind>(null);
@@ -109,6 +115,9 @@ export function GameApp() {
      * audio context on the first user gesture (mobile autoplay policy) */
     const resume = () => { Audio.ensure(); };
     window.addEventListener("pointerdown", resume, { once: true });
+    /* v3 — automatic low-power tier on weak phones (kills residual
+     * decorative animations so the game NEVER lags) */
+    startFpsGuard();
     return () => window.removeEventListener("pointerdown", resume);
   }, []);
 
@@ -193,7 +202,7 @@ export function GameApp() {
     return () => window.removeEventListener("popstate", onPop);
   }, [backAction]);
 
-  const coins = data.coins;
+  const coins = Save.data.coins;
 
   /* ----- navigation helpers ----- */
   const boot = () => {
@@ -236,7 +245,6 @@ export function GameApp() {
   const afterWin = (ch: number, lv: number, from: "map" | "challenge") => {
     if (from === "challenge" && !Save.challengeDoneToday()) {
       const got = Save.completeChallenge();
-      bump();
       if (got) show(`چالش روزانه کامل شد! +${"۵۰"} سکه`);
     }
     if (lv >= 10) {
@@ -264,9 +272,8 @@ export function GameApp() {
       case "home":
         return (
           <HomeScreen
-            coins={coins}
             onPlay={() => {
-              const last = data.last;
+              const last = Save.data.last;
               setView({ k: "map", ch: last?.ch ?? 1 });
             }}
             onParty={() => setView({ k: "party" })}
@@ -281,7 +288,6 @@ export function GameApp() {
         return (
           <MapScreen
             ch={v.ch}
-            coins={coins}
             onBack={goHome}
             onShop={() => setView({ k: "shop" })}
             onPlay={(lv) => goPlay(v.ch, lv, "map")}
@@ -293,8 +299,6 @@ export function GameApp() {
             key={`${v.ch}:${v.lv}:${playKey}`}
             ch={v.ch}
             lv={v.lv}
-            coins={coins}
-            coinsBump={bump}
             resume={v.resume === true}
             onExit={() => setView({ k: "map", ch: v.ch })}
             onNext={() => afterWin(v.ch, v.lv, v.from)}
@@ -306,20 +310,18 @@ export function GameApp() {
       case "library":
         return (
           <LibraryScreen
-            coins={coins}
             onBack={goHome}
             onShop={() => setView({ k: "shop" })}
             onOpen={(ch) => setView({ k: "map", ch })}
           />
         );
       case "missions":
-        return <MissionsScreen coins={coins} onBack={goHome} onChallenge={() => setView({ k: "challenge" })} onGift={() => setModal("gift")} />;
+        return <MissionsScreen onBack={goHome} onChallenge={() => setView({ k: "challenge" })} onGift={() => setModal("gift")} />;
       case "shop":
-        return <ShopScreen coins={coins} onBack={leaveShop} />;
+        return <ShopScreen onBack={leaveShop} />;
       case "challenge":
         return (
           <ChallengeScreen
-            coins={coins}
             onBack={goHome}
             onShop={() => setView({ k: "shop" })}
             onStart={startChallenge}
@@ -331,7 +333,6 @@ export function GameApp() {
         return (
           <DoneScreen
             ch={v.ch}
-            coins={coins}
             onLibrary={() => setView({ k: "library" })}
             onNext={() => {
               if (v.ch < CHAPTERS.length) setView({ k: "map", ch: v.ch + 1 });
@@ -361,7 +362,7 @@ export function GameApp() {
       {/* global modals */}
       {modal === "nameAsk" && <NameAskModal onDone={() => setModal(null)} />}
       {modal === "profile" && <ProfileModal onClose={() => setModal(null)} />}
-      {modal === "gift" && <GiftModal onClose={() => { setModal(null); bump(); }} />}
+      {modal === "gift" && <GiftModal onClose={() => setModal(null)} />}
       {modal === "settings" && (
         <SettingsModal
           onClose={() => setModal(null)}

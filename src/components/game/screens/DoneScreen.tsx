@@ -7,16 +7,18 @@ import { Save } from "@/game/core/save";
 import { faNum } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { CHAPTERS } from "@/game/data/chapters";
-import { bumpSave } from "@/components/game/useSave";
+import { useSave } from "@/components/game/useSave";
 
 export function DoneScreen({
-  ch, coins, onNext, onLibrary,
+  ch, onNext, onLibrary,
 }: {
   ch: number;
-  coins: number;
   onNext: () => void;
   onLibrary: () => void;
 }) {
+  /* full save subscription: claiming the chest must flip this panel to
+     «گرفتی ✓» instantly; the coin chip refreshes with the same tick */
+  const coins = useSave().data.coins;
   const theme = CHAPTERS[ch - 1];
   const canChest = !Save.hasChest(ch);
   const hasNext = ch < CHAPTERS.length;
@@ -52,7 +54,7 @@ export function DoneScreen({
               color="gold"
               size="big"
               onClick={() => {
-                if (Save.claimChest(ch)) { Audio.sfxBoom(); Audio.sfxCoin(); bumpSave(); }
+                if (Save.claimChest(ch)) { Audio.sfxBoom(); Audio.sfxCoin(); } /* useSave() subscription refreshes this panel */
               }}
             >
               صندوقچه: {faNum(150)} سکه بگیر!

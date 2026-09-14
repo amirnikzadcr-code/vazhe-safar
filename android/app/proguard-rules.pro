@@ -19,3 +19,11 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# ── واژه‌سفر v3: keep the Capacitor WebView JS-bridge intact under R8 ──
+-keep class com.getcapacitor.** { *; }
+-keep class **.R$* { *; }
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-dontwarn android.webkit.**

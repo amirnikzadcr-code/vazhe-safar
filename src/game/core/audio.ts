@@ -9,8 +9,14 @@
  *     soft appoggiatura ornaments, legato overlaps
  *   • warm pad layer (root + fifth + octave) instead of dry sine drone
  *   • sparse, gentle tombak/daf — breath bars stay silent
- *   • spacious convolution reverb
  *   • SFX synth one-shots for UI + gameplay feedback
+ *  v3 PERF (user: «گوشی داغ میکنه»): the always-on ConvolverNode (2.7s
+ *  stereo IR) ran FFT convolution on EVERY audio callback, forever —
+ *  on weak phones that alone burned a constant CPU slice, heated the
+ *  device and starved the render thread → systemic lag. The rendered
+ *  OGG tracks already carry studio reverb, and SFX are deliberately
+ *  dry-and-juicy — so the convolver is GONE. The audio graph is now
+ *  just buses → master → compressor → destination (near-zero CPU).
  *  100% original — no samples, no copyrighted melodies, zero audio files.
  * ------------------------------------------------------------------ */
 
@@ -89,7 +95,6 @@ class AudioEngine {
   private master: GainNode | null = null;
   private musicBus: GainNode | null = null;
   private sfxBus: GainNode | null = null;
-  private wet: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
 
   private musicOn = true;
@@ -135,13 +140,8 @@ class AudioEngine {
       this.musicBus.gain.value = this.musicOn ? this.musicVol : 0;
       this.musicBus.connect(this.master);
 
-      // simple synthesized convolution reverb — spacious, warm hall
-      this.wet = this.ctx.createGain();
-      this.wet.gain.value = 0.3;
-      const conv = this.ctx.createConvolver();
-      conv.buffer = this.makeImpulse(2.7, 2.2);
-      this.wet.connect(conv).connect(this.master);
-      this.musicBus.connect(this.wet);
+      // v3 PERF: NO convolver — rendered tracks are pre-reverbed and a
+      // live convolution chain costs constant CPU + device heat.
 
       this.sfxBus = this.ctx.createGain();
       this.sfxBus.gain.value = this.sfxOn ? this.sfxVol : 0;
@@ -159,19 +159,7 @@ class AudioEngine {
     return this.ctx;
   }
 
-  private makeImpulse(seconds: number, decay: number): AudioBuffer | null {
-    if (!this.ctx) return null;
-    const rate = this.ctx.sampleRate;
-    const len = Math.floor(rate * seconds);
-    const buf = this.ctx.createBuffer(2, len, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const d = buf.getChannelData(ch);
-      for (let i = 0; i < len; i++) {
-        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
-      }
-    }
-    return buf;
-  }
+  /* (makeImpulse removed with the convolver — v3 PERF) */
 
   setMusicOn(on: boolean): void {
     this.musicOn = on;

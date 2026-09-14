@@ -294,9 +294,11 @@ for (const ch of CHAPTERS) {
 
 /* ---------------- per-SECTION themes (user: «موسیقی بساز برای هربخش») ---------------- */
 
-/** صفحهٔ اصلی + منوها — warm, welcoming mahur (renders to menu.ogg) */
+/** صفحهٔ اصلی + منوها — v3 NEW menu theme «دلنواز و ریتمیک»: a warm
+ *  D-Shur 6/8 santur+ney loop (renders to menu2.ogg via
+ *  scripts/render_menu_v2.py — user: «موزیک صفحه اصلی رو مخ بود») */
 export const MENU_MUSIC: MusicConfig & { scale: ScaleName } = {
-  track: "menu", scale: "mahur", root: 261.63, cents: [...SCALES.mahur], bpm: 84, meter: 4,
+  track: "menu2", scale: "shur", root: 293.66, cents: [...SCALES.shur], bpm: 100, meter: 6,
   perc: "daf", lead: "santur", octave: 1, drone: 0.4,
   motif: [[0,1],[2,1],[1,1],[3,1.5],[2,0.5],[1,1],[0,1.5],[-1,0.5],[2,1],[1,1],[0,2]],
   motifB: [[3,1],[2,1],[1,1],[0,1.5],[-1,0.5],[1,1],[0,2.5]],

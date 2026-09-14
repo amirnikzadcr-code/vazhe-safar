@@ -21,16 +21,15 @@ const BOOK_COLORS = [
 ];
 
 export function LibraryScreen({
-  coins, onBack, onOpen, onShop,
+  onBack, onOpen, onShop,
 }: {
-  coins: number;
   onBack: () => void;
   onOpen: (ch: number) => void;
   onShop: () => void;
 }) {
   return (
     <Sheet bg="/assets/bg/home2.webp" bgDim={0.3} blur={2}>
-      <TopBar coins={coins} onBack={onBack} onShop={onShop} title="کتابخانه" />
+      <TopBar onBack={onBack} onShop={onShop} title="کتابخانه" />
 
       <div className="scrolly" style={{ paddingBottom: 24 }}>
         <p style={{ textAlign: "center", color: "#ffe9c8", fontWeight: 700, textShadow: "0 2px 4px rgba(0,0,0,.4)", margin: "2px 0 12px" }}>

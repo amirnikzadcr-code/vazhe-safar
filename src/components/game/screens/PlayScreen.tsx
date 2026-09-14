@@ -23,7 +23,7 @@
  * coins) and coming back used to wipe the board — the level is now
  * snapshotted and RESUMED exactly as it was.
  * ------------------------------------------------------------------ */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Sheet, useToast, ToastHost, PlayerHud } from "@/components/game/ui/kit";
 import { StarGold } from "@/components/game/icons";
 import { getLevel, isRealWord } from "@/game/data/levelsIndex";
@@ -54,19 +54,20 @@ const progressCache = new Map<string, {
 }>();
 
 export function PlayScreen({
-  ch, lv, coins, resume, onExit, onNext, onSettings, onShop, onProfile, coinsBump,
+  ch, lv, resume, onExit, onNext, onSettings, onShop, onProfile,
 }: {
   ch: number;
   lv: number;
-  coins: number;
   resume?: boolean; /* true → restore the in-progress snapshot (shop round-trip) */
   onExit: () => void;
   onNext: () => void;
   onSettings: () => void;
   onShop: () => void;
   onProfile?: () => void;
-  coinsBump: () => void;
 }) {
+  /* v3 PERF: no `coins` prop / no `coinsBump` — the HUD coin pill is a
+   * self-subscribing live component, so a balance change NEVER re-renders
+   * this screen (this was the word-guess lag). */
   const level = useMemo(() => getLevel(ch, lv), [ch, lv]);
   /* each word displayed separately, longest first (stable, pretty rows) */
   const wordRows = useMemo(
@@ -197,7 +198,6 @@ export function PlayScreen({
     setEarned((e) => ({ ...e, words: e.words + 1 }));
     Audio.sfxWordFound(foundRef.current.size + pendingRef.current.size);
     buzz([18, 30, 18], Save.data.settings.haptics);
-    coinsBump();
     if (byPlayer) dismissTutorial();
     fxKRef.current += 1;
     const k = fxKRef.current;
@@ -208,7 +208,7 @@ export function PlayScreen({
       commitFound(word);
     }, CELEBRATE_MS);
     timersRef.current.push(t);
-  }, [coinsBump, commitFound, dismissTutorial]);
+  }, [commitFound, dismissTutorial]);
 
   /* words completed purely by hints → auto-found */
   useEffect(() => {
@@ -233,14 +233,13 @@ export function PlayScreen({
         const total = REWARDS.perStar * stars;
         Save.addCoins(total);
         Save.completeLevel(ch, lv, stars, mistakesRef.current);
-        coinsBump();
         Audio.sfxLevelComplete(stars);
         progressCache.delete(progressKey);
       }
       const t = setTimeout(() => setWon({ stars, coins: REWARDS.perStar * stars }), 340);
       return () => clearTimeout(t);
     }
-  }, [found, wordRows, won, ch, lv, coinsBump, progressKey]);
+  }, [found, wordRows, won, ch, lv, progressKey]);
 
   /* ------------ submit — called ONLY on pointer release (v2.0:
    * «اول باید بکشه و رها کنه تا ست بشه») ------------
@@ -264,7 +263,6 @@ export function PlayScreen({
         Save.addCoins(REWARDS.perBonus);
         setEarned((e) => ({ ...e, bonus: e.bonus + 1 }));
         Audio.sfxBonus();
-        coinsBump();
         show(`واژه پنهان! +${faNum(REWARDS.perBonus)} سکه`);
       } else {
         show("این واژهٔ پنهان را قبلاً یافتی!");
@@ -276,7 +274,7 @@ export function PlayScreen({
     buzz(40, Save.data.settings.haptics);
     setShaking(true);
     return false;
-  }, [wordRows, level, ch, lv, coinsBump, show, celebrate]);
+  }, [wordRows, level, ch, lv, show, celebrate]);
 
   /* ------------ hint: reveal next letter of the first unfound word ------------ */
   const doHint = () => {
@@ -292,7 +290,6 @@ export function PlayScreen({
           onShop();
           return;
         }
-        coinsBump();
         setRevealed((prev) => new Set(prev).add(`${nextWord}#${i}`));
         Audio.sfxReveal();
         show("یک حرف آشکار شد");
@@ -310,7 +307,7 @@ export function PlayScreen({
     <Sheet bg={CHAPTERS[ch - 1]?.bg ?? "/assets/bg/play3.webp"} bgDim={0.1}>
       {/* top bar — reference HUD (avatar+plate / coins+BLUE gear)
           the blue gear opens the pause menu (resume/restart/settings/exit) */}
-      <PlayerHud coins={coins} gear="blue" onGear={() => setPaused(true)} onPlus={onShop} onProfile={onProfile} />
+      <PlayerHud gear="blue" onGear={() => setPaused(true)} onPlus={onShop} onProfile={onProfile} />
 
       {/* level banner — wooden plaque with blossom pins */}
       <div className="lvl-banner-row">
@@ -431,7 +428,7 @@ export function PlayScreen({
 /* ================= WordBoard — each word = its own separate row.
    Uniform tile size measured from the longest word → smaller tiles,
    mathematically guaranteed to fit: overlap is impossible. ================= */
-function WordBoard({
+const WordBoard = memo(function WordBoard({
   words, found, isShown, justFound,
 }: {
   words: string[];
@@ -495,7 +492,7 @@ function WordBoard({
       })}
     </div>
   );
-}
+});
 
 /* ================= Wheel — owns its own selection state.
    v2.0 COMMIT-ON-RELEASE: the stroke is judged ONLY in up() (pointer
@@ -510,7 +507,7 @@ function WordBoard({
    mounted ONCE — when the ring turns, every tile GLIDES from its old
    seat to the new one (WAAPI staggered spring + wobble), no more
    remount pop. ================= */
-function Wheel({
+const Wheel = memo(function Wheel({
   letters: ls, shuffleKey, fx, reward, onRelease, onFirstDrag,
 }: {
   letters: string[];
@@ -535,6 +532,10 @@ function Wheel({
   const rRef = useRef(46); /* hit radius in px, measured per stroke */
   /* tile elements for DOM-driven .sel painting (idx → element) */
   const tileElsRef = useRef<Map<number, HTMLElement> | null>(null);
+  /* v3 PERF: rect cached once per stroke — pointermove used to call
+   * getBoundingClientRect() (a forced layout read) on EVERY move event,
+   * which janks the wheel on weak phones during fast drags. */
+  const rectRef = useRef<DOMRect | null>(null);
 
   const positions = useMemo(() => {
     const n = ls.length;
@@ -648,6 +649,7 @@ function Wheel({
    * collect tile elements for DOM class painting */
   const measure = () => {
     const r = wrapRef.current!.getBoundingClientRect();
+    rectRef.current = r;
     centersRef.current = positions.map((p) => ({
       idx: p.idx,
       x: (p.x / 100) * r.width,
@@ -726,7 +728,8 @@ function Wheel({
 
   const move = (e: React.PointerEvent) => {
     if (!dragRef.current) return;
-    const r = wrapRef.current!.getBoundingClientRect();
+    const r = rectRef.current;
+    if (!r) return;
     const lx = e.clientX - r.left, ly = e.clientY - r.top;
     tipTargetRef.current = { x: lx, y: ly };
     const i = hitTile(lx, ly);
@@ -823,7 +826,7 @@ function Wheel({
       )}
     </div>
   );
-}
+});
 
 /* tutorial hand — performs a real drag arc (down → glide → up) */
 function HandSvg() {

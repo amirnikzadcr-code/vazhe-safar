@@ -1,7 +1,7 @@
 {
   "name": "vazhe-safar",
-  "version": "1.14.0",
-  "description": "واژه‌سفر — an original Iranian-inspired Persian word-puzzle journey (100 levels / 10 chapters)",
+  "version": "1.15.0",
+  "description": "واژه‌سفر — an original Iranian-inspired Persian word-puzzle journey (200 levels / 20 chapters)",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",

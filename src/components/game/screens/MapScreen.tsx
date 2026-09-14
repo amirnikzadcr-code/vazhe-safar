@@ -176,10 +176,9 @@ function Realm({
 
 /* ================================ screen ================================ */
 export function MapScreen({
-  ch, coins, onBack, onPlay, onShop,
+  ch, onBack, onPlay, onShop,
 }: {
   ch: number;
-  coins: number;
   onBack: () => void;
   onPlay: (lv: number) => void;
   onShop: () => void;
@@ -222,7 +221,7 @@ export function MapScreen({
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#bfe6ff 0%,#8fd0ff 45%,#a8e08b 100%)" }} />
 
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-        <MapTopBar coins={coins} title="نقشه سفر" onBack={onBack} onPlus={onShop} />
+        <MapTopBar title="نقشه سفر" onBack={onBack} onPlus={onShop} />
 
         <div className="map-scroll" ref={scrollRef}>
           <div className="map-world">
