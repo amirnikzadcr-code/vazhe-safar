@@ -25,8 +25,9 @@ export default function RootLayout({
     <html lang="fa" dir="rtl" suppressHydrationWarning>
       <body className="antialiased">
         {/* critical first-screen images — fetched immediately, before JS boots */}
-        <link rel="preload" as="image" href="/assets/bg/home2.webp" fetchPriority="high" />
-        <link rel="preload" as="image" href="/assets/char/seat.webp" fetchPriority="high" />
+        <link rel="preload" as="image" href="/assets/bg/home3.webp" fetchPriority="high" />
+        <link rel="preload" as="image" href="/assets/img/grandpa.png" fetchPriority="high" />
+        <link rel="preload" as="image" href="/assets/img/logo_banner.png" fetchPriority="high" />
         {children}
       </body>
     </html>

@@ -3,34 +3,30 @@
  *  Aggressive asset preloading: every image is fetched + decoded
  *  during the splash screen with REAL progress, so no screen ever
  *  shows a half-loaded / popping-in image again.
+ *  v1.12: SLIM list — only the three main screens' art. Inner
+ *  screens lazy-load their own images (faster first launch).
  * ------------------------------------------------------------------ */
 
 export const PRELOAD_IMAGES: string[] = [
-  /* backgrounds */
-  "/assets/bg/home2.webp",
-  "/assets/bg/map2.webp",
-  "/assets/bg/sunset2.webp",
-  "/assets/bg/menu.webp",
-  "/assets/bg/ch01.webp",
-  "/assets/bg/ch02.webp",
-  "/assets/bg/ch03.webp",
-  "/assets/bg/ch04.webp",
-  "/assets/bg/ch05.webp",
-  "/assets/bg/ch06.webp",
-  "/assets/bg/ch07.webp",
-  "/assets/bg/ch08.webp",
-  "/assets/bg/ch09.webp",
-  "/assets/bg/ch10.webp",
-  /* guide character (عمو دانا) */
-  "/assets/char/seat.webp",
-  "/assets/char/thumb.webp",
-  "/assets/char/rest.webp",
-  "/assets/char/hello.webp",
-  "/assets/char/cheer.webp",
-  "/assets/char/point.webp",
-  /* objects */
-  "/assets/obj/gift.webp",
-  "/assets/obj/chest.webp",
+  /* main screens */
+  "/assets/bg/home3.webp",
+  "/assets/bg/play3.webp",
+  "/assets/map/m01.webp",
+  /* reference icon set */
+  "/assets/img/logo_banner.png",
+  "/assets/img/grandpa.png",
+  "/assets/img/shop.png",
+  "/assets/img/mission.png",
+  "/assets/img/chest.png",
+  "/assets/img/house.png",
+  "/assets/img/books.png",
+  "/assets/img/tasks.png",
+  "/assets/img/gift.png",
+  "/assets/img/bulb.png",
+  "/assets/img/swap.png",
+  "/assets/img/star.png",
+  "/assets/img/gear.png",
+  "/assets/img/coins.png",
 ];
 
 const decoded = new Set<string>();

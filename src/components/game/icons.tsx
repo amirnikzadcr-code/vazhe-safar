@@ -41,6 +41,25 @@ export function Coin({ size = 22 }: { size?: number }) {
   );
 }
 
+/* ---------- 3D rendered image icons (AI-painted, chroma-cut PNGs).
+   Used on home / play / map for the reference look. Static <img> =
+   zero SVG paint cost, zero idle animation. ---------- */
+export function ImgIcon({ name, size = 28, className, style }: {
+  name: string; size?: number; className?: string; style?: React.CSSProperties;
+}) {
+  return (
+    <img
+      src={`/assets/img/${name}.png`}
+      alt=""
+      width={size}
+      height={size}
+      className={className}
+      style={{ width: size, height: size, objectFit: "contain", pointerEvents: "none", ...style }}
+      draggable={false}
+    />
+  );
+}
+
 /* golden game star — glossy 3-tone gradient */
 export function StarGold({ size = 24, className = "" }: { size?: number; className?: string }) {
   return (

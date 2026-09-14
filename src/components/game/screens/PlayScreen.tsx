@@ -24,11 +24,9 @@
  * snapshotted and RESUMED exactly as it was.
  * ------------------------------------------------------------------ */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Sheet, useToast, ToastHost } from "@/components/game/ui/kit";
+import { Sheet, useToast, ToastHost, PlayerHud } from "@/components/game/ui/kit";
 import { StarGold } from "@/components/game/icons";
-import { HintBulb, ShuffleArrows } from "@/components/game/icons";
 import { getLevel, isRealWord } from "@/game/data/levelsIndex";
-import { CHAPTERS } from "@/game/data/chapters";
 import { letters, faNum, canBuild, buzz } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { Save, COSTS, REWARDS } from "@/game/core/save";
@@ -64,7 +62,6 @@ export function PlayScreen({
   onShop: () => void;
   coinsBump: () => void;
 }) {
-  const theme = CHAPTERS[ch - 1];
   const level = useMemo(() => getLevel(ch, lv), [ch, lv]);
   /* each word displayed separately, longest first (stable, pretty rows) */
   const wordRows = useMemo(
@@ -296,22 +293,15 @@ export function PlayScreen({
     Audio.sfxShuffle();
   };
 
-  const starsDone = wordRows.filter((w) => found.has(w)).length;
-
   return (
-    <Sheet bg={theme.bg} bgDim={0.12}>
-      {/* top bar */}
-      <div className="topbar">
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button type="button" aria-label="منو" className="ib3 sunset" onClick={() => { Audio.sfxClick(); setPaused(true); }}>
-            <MenuLines />
-          </button>
-          <span className="chip" style={{ fontSize: 14 }}>مرحله {faNum((ch - 1) * 10 + lv)}</span>
-        </div>
-        <span className="chip" style={{ fontSize: 14 }}>
-          <StarGold size={17} />
-          {faNum(starsDone)}/{faNum(wordRows.length)}
-        </span>
+    <Sheet bg="/assets/bg/play3.webp" bgDim={0.1}>
+      {/* top bar — reference HUD (avatar+plate / coins+BLUE gear)
+          the blue gear opens the pause menu (resume/restart/settings/exit) */}
+      <PlayerHud coins={coins} gear="blue" onGear={() => setPaused(true)} onPlus={onShop} />
+
+      {/* level banner — wooden plaque with blossom pins */}
+      <div className="lvl-banner-row">
+        <div className="lvl-banner">مرحله {faNum((ch - 1) * 10 + lv)}</div>
       </div>
 
       {/* board — every word its OWN row, cream panel like the reference photo */}
@@ -340,22 +330,18 @@ export function PlayScreen({
         />
       </div>
 
-      {/* helper row — shuffle bottom-LEFT, hint bottom-RIGHT */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 18px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))", position: "relative", zIndex: 20 }}>
-        <button
-          type="button"
-          aria-label="راهنما"
-          className="ib3 helper honey"
-          onClick={doHint}
-        >
-          <HintBulb size={26} />
-          <span className="chip" style={{ position: "absolute", bottom: -10, fontSize: 11.5, padding: "1px 8px", gap: 4 }}>
-            <span className="coin-ic" style={{ width: 13, height: 13 }} />
+      {/* helper bar — shuffle bottom-LEFT, hint bottom-RIGHT (reference) */}
+      <div className="helper-bar">
+        <button type="button" aria-label="راهنما" className="fab-hint" onClick={doHint}>
+          <img src="/assets/img/bulb.png" alt="" draggable={false} />
+          <span className="cost">
+            <span className="coin-ic" />
             {faNum(COSTS.hint)}
           </span>
         </button>
-        <button type="button" aria-label="بر زدن" className="ib3 helper green" onClick={doShuffle}>
-          <ShuffleArrows size={24} />
+        <button type="button" aria-label="بر زدن" className="fab-shuffle" onClick={doShuffle}>
+          <img src="/assets/img/swap.png" alt="" draggable={false} />
+          <b>بُر بزن</b>
         </button>
       </div>
 
@@ -411,16 +397,7 @@ export function PlayScreen({
   );
 }
 
-/* three-line menu glyph (user request: pause button → hamburger icon) */
-function MenuLines() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" className="menu-ic" aria-hidden>
-      <path d="M4.5 6.6h15" stroke="#fff" strokeWidth="2.7" strokeLinecap="round" />
-      <path d="M4.5 12h15" stroke="#ffe08a" strokeWidth="2.7" strokeLinecap="round" />
-      <path d="M4.5 17.4h15" stroke="#fff" strokeWidth="2.7" strokeLinecap="round" />
-    </svg>
-  );
-}
+/* (MenuLines removed — the reference pause entry is the blue HUD gear) */
 
 /* ================= WordBoard — each word = its own separate row.
    Uniform tile size measured from the longest word → smaller tiles,
@@ -564,9 +541,9 @@ function Wheel({
         const wob = ((idx % 2 ? 1 : -1) * (11 + (idx % 3) * 5)).toFixed(1);
         el.animate(
           [
-            { transform: `translate(${dx}px, ${dy}px) rotate(0deg) scale(1)` },
-            { transform: `translate(${(dx * 0.16).toFixed(1)}px, ${(dy * 0.16).toFixed(1)}px) rotate(${wob}deg) scale(1.12)`, offset: 0.55 },
-            { transform: "translate(0px, 0px) rotate(0deg) scale(1)" },
+            { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) rotate(0deg) scale(1)` },
+            { transform: `translate(calc(-50% + ${(dx * 0.16).toFixed(1)}px), calc(-50% + ${(dy * 0.16).toFixed(1)}px)) rotate(${wob}deg) scale(1.12)`, offset: 0.55 },
+            { transform: "translate(-50%, -50%) rotate(0deg) scale(1)" },
           ],
           { duration: 470, delay: d * 26, easing: "cubic-bezier(.22,1.3,.36,1)" },
         );

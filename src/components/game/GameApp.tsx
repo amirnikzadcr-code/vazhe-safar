@@ -55,14 +55,12 @@ export function GameApp() {
   const { data, bump } = useSave();
   const [view, setViewState] = useState<View>({ k: "splash" });
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
-  const [streakK, setStreakK] = useState(0);
   const [modal, setModal] = useState<ModalKind>(null);
   const [playKey, setPlayKey] = useState(0);
   const { toast, show } = useToast();
   const musicRef = useRef<string>("");
   const viewRef = useRef<View>(view);
   const modalRef = useRef<ModalKind>(modal);
-  const streakTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /* v2.0 — where to go back when leaving the shop (play / map / library
    * / challenge / home). Fixes: hint w/o coins → shop → back dumped the
    * player on the home screen instead of the level. */
@@ -79,12 +77,8 @@ export function GameApp() {
     if (next.k === "shop" && cur.k !== "shop") shopReturnRef.current = cur;
     viewRef.current = next;
     setDir(ORDER[next.k] >= ORDER[cur.k] ? "fwd" : "back");
-    setStreakK((k) => k + 1);
     setViewState(next);
-    if (streakTimer.current) clearTimeout(streakTimer.current);
-    streakTimer.current = setTimeout(() => setStreakK(0), 400);
   }, []);
-  useEffect(() => () => { if (streakTimer.current) clearTimeout(streakTimer.current); }, []);
 
   /* v2.0 — leaving the shop → return where the player came from.
    * If that play level completed meanwhile (shop opened from the win
@@ -240,7 +234,6 @@ export function GameApp() {
         return (
           <HomeScreen
             coins={coins}
-            stars={Save.totalStars()}
             giftReady={isGiftReady()}
             onPlay={() => {
               const last = data.last;
@@ -320,13 +313,10 @@ export function GameApp() {
   /* ----- render ----- */
   return (
     <>
-      {/* the active screen — remounts with a direction-aware entrance */}
+      {/* the active screen — remounts with a soft cross-fade */}
       <div key={curKey} className={`page-enter ${dir}`}>
         {renderScreen(view)}
       </div>
-
-      {/* golden motion streak that sweeps across on every navigation */}
-      {streakK > 0 && <div key={`streak-${streakK}`} className={`page-streak ${dir}`} aria-hidden />}
 
       {/* global modals */}
       {modal === "gift" && <GiftModal onClose={() => { setModal(null); bump(); }} />}

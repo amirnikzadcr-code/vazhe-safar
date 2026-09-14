@@ -10,6 +10,7 @@ import {
 } from "@/components/game/icons";
 import { faNum } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
+import { Save } from "@/game/core/save";
 import { buzz } from "@/game/core/utils";
 
 /* ---------- chunky 3D button ---------- */
@@ -86,6 +87,76 @@ export function CoinChip({ value, plus, onPlus }: { value: number; plus?: boolea
           +
         </button>
       )}
+    </div>
+  );
+}
+
+/* ---------- coin pill — dark wood + gold rim (reference HUD) ---------- */
+export function CoinPill({ value, onPlus }: { value: number; onPlus?: () => void }) {
+  return (
+    <div className="coinpill">
+      <img src="/assets/img/coins.png" alt="" draggable={false} />
+      <b>{faNum(value)}</b>
+      {onPlus && (
+        <button type="button" aria-label="افزودن سکه" className="plus" onClick={() => { Audio.sfxClick(); onPlus?.(); }}>+</button>
+      )}
+    </div>
+  );
+}
+
+/* ---------- player HUD — avatar + name plate + level + XP + coins + gear.
+   Shared by home & play screens (exact reference top bars). ---------- */
+export function PlayerHud({
+  coins, gear, onGear, onPlus,
+}: {
+  coins: number;
+  gear?: "bronze" | "blue";
+  onGear?: () => void;
+  onPlus?: () => void;
+}) {
+  const stars = Save.totalStars();
+  const totalXp = stars * 25 + Save.data.wordsFound * 2 + Save.data.bonusTotal * 5;
+  const span = 500;
+  const lvl = Math.floor(totalXp / span) + 1;
+  const cur = totalXp % span;
+  return (
+    <div className="hud">
+      <div className="hud-left">
+        <img className="hud-avatar" src="/assets/img/grandpa.png" alt="عمو دانا" draggable={false} />
+        <div className="plate">
+          <div className="plate-name">کاربر عزیز</div>
+          <div className="plate-row">
+            <span className="lvl-badge">{faNum(lvl)}</span>
+            <div className="plate-xp">
+              <div className="plate-xpbar"><i style={{ width: `${Math.round((cur / span) * 100)}%` }} /></div>
+              <div className="plate-xpnum">{faNum(cur)}/{faNum(span)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="hud-right">
+        <CoinPill value={coins} onPlus={onPlus} />
+        {onGear && (
+          <button type="button" aria-label="تنظیمات" className={`gearbtn ${gear === "blue" ? "blue" : ""}`} onClick={() => { Audio.sfxClick(); onGear(); }}>
+            <img src="/assets/img/gear.png" alt="" draggable={false} style={gear === "blue" ? { filter: "hue-rotate(165deg) saturate(1.5)" } : undefined} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- map top bar — back + wooden banner + coins (reference) ---------- */
+export function MapTopBar({ coins, title, onBack, onPlus }: {
+  coins: number; title: string; onBack: () => void; onPlus?: () => void;
+}) {
+  return (
+    <div className="map-top">
+      <button type="button" aria-label="بازگشت" className="map-back" onClick={() => { Audio.sfxClick(); onBack(); }}>
+        <ChevronRight size={24} />
+      </button>
+      <div className="sheet-title" style={{ fontSize: 16, padding: "7px 22px" }}>{title}</div>
+      <CoinPill value={coins} onPlus={onPlus} />
     </div>
   );
 }
@@ -186,7 +257,6 @@ export function Sheet({
       ) : (
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#8fd0ff 0%,#5cb2ef 45%,#3d9df0 100%)" }} />
       )}
-      <Vines />
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
         {children}
       </div>
