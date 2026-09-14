@@ -42,8 +42,10 @@
     box-shadow: 0 30px 80px rgba(0,0,0,.45), 0 0 0 10px rgba(255,255,255,.08);
   }
 }
-.vz-page { position: absolute; inset: 0; display: flex; flex-direction: column; animation: screenIn .26s cubic-bezier(.2,.9,.3,1) both; }
-@keyframes screenIn { from { opacity: 0; transform: scale(.985) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+/* v2.1: the entrance is owned ONLY by GameApp's .page-enter (slide+fade
+ * + streak). A second animation here caused the home screen to “jump”
+ * on every return (two easings fighting). Keep layout only. */
+.vz-page { position: absolute; inset: 0; display: flex; flex-direction: column; }
 .vz-fill { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
 /* =================== CHUNKY 3D BUTTONS (addictive palette) =================== */
@@ -281,10 +283,22 @@
   border-color: #eaa928;
   color: #7a4d00;
   box-shadow: inset 0 -2.5px 0 rgba(180,110,10,.28), inset 0 1.5px 0 #fff, 0 2.5px 5px rgba(150,90,0,.25);
-  animation: pop .38s cubic-bezier(.2,1.6,.4,1) both;
+  animation: pop .5s cubic-bezier(.2,1.7,.4,1) both;
+  text-shadow: 0 0 9px rgba(255,190,40,.55);
 }
 @keyframes revealIn { 0% { transform: scale(.4); } 70% { transform: scale(1.16); } 100% { transform: scale(1); } }
-@keyframes pop { 0% { transform: scale(.3); } 70% { transform: scale(1.18); } 100% { transform: scale(1); } }
+@keyframes pop { 0% { transform: scale(.3) rotate(-6deg); } 62% { transform: scale(1.24) rotate(2deg); } 100% { transform: scale(1) rotate(0); } }
+
+/* v2.1 richer gold landing — a shine sweeps the completed row right
+ * after the letters pop (user: «ی افکت خوشگل تر بزار») */
+.wrow.done::after {
+  content: ""; position: absolute; inset: -2px 2px; border-radius: 10px;
+  pointer-events: none; mix-blend-mode: screen;
+  background: linear-gradient(100deg, transparent 18%, rgba(255,232,150,.85) 50%, transparent 82%);
+  transform: translateX(130%);
+  animation: rowSweep .62s ease-out .16s both;
+}
+@keyframes rowSweep { to { transform: translateX(-130%); } }
 
 /* sparkle burst on the row that was just completed (bounded, pure CSS) */
 .wsparkles { position: absolute; inset: -8px -12px; pointer-events: none; overflow: visible; }
@@ -670,14 +684,14 @@
   padding: 3px 11px; border-radius: 999px;
   box-shadow: 0 3px 0 #d9a84f, 0 6px 10px rgba(0,0,0,.2);
   pointer-events: none; white-space: nowrap;
-  animation: fxCoin 1.15s ease-out both;
+  animation: fxCoin .62s ease-out both;
 }
 @keyframes fxCoin {
-  0% { transform: translate(-50%, 30px) scale(.55); opacity: 0; }
-  18% { transform: translate(-50%, 0) scale(1.1); opacity: 1; }
-  32% { transform: translate(-50%, -3px) scale(1); }
-  72% { opacity: 1; }
-  100% { transform: translate(-50%, -32px) scale(.94); opacity: 0; }
+  0% { transform: translate(-50%, 22px) scale(.55); opacity: 0; }
+  22% { transform: translate(-50%, 0) scale(1.1); opacity: 1; }
+  36% { transform: translate(-50%, -3px) scale(1); }
+  78% { opacity: 1; }
+  100% { transform: translate(-50%, -30px) scale(.94); opacity: 0; }
 }
 
 /* ---------- map scenery — happy colorful ground ---------- */
@@ -869,4 +883,129 @@
 .shop-note {
   text-align: center; color: #ffe9c8; font-size: 12px; font-weight: 600;
   text-shadow: 0 2px 4px rgba(0,0,0,.4);
+}
+
+/* ==================================================================
+   v2.1 — MAP: «سفرِ واژه‌ها» — all 100 levels in ONE continuous scroll.
+   10 chapter REALMS, each with its own sky→land palette, ornamental
+   gate border, storybook banner, themed SVG scenery and a winding
+   path. Perf: content-visibility skips offscreen realms; every
+   animation is transform/opacity only.
+   ================================================================== */
+.map-world { position: relative; width: 100%; }
+.realm {
+  position: relative;
+  height: 880px;
+  overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: 880px;
+  background:
+    linear-gradient(180deg, var(--sky1, #9fe0ff) 0%, var(--sky2, #eaf9ff) 42%,
+      var(--land1, #b2eb90) 50%, var(--land2, #77c95e) 100%);
+}
+.realm-scenery {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 4;
+}
+
+/* ---- ornamental GATE BAND — the “border” between chapters ---- */
+.gate-band {
+  position: absolute; top: 0; left: 0; right: 0; height: 56px; z-index: 12;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,.16) 0 9px, rgba(255,255,255,0) 9px 18px),
+    linear-gradient(180deg, var(--gate1, #43a862) 0%, var(--gate2, #2e8450) 100%);
+  border-bottom: 3px solid rgba(255,255,255,.85);
+  box-shadow: 0 5px 12px rgba(10,30,20,.22);
+}
+.gate-rope { flex: 1; height: 3px; margin: 0 2px; border-radius: 3px;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.75)); }
+.gate-rope.r { transform: scaleX(-1); }
+.gate-medal {
+  width: 40px; height: 40px; border-radius: 999px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 36% 30%, #fffef6, #ffe9ad 70%, #f2c14e);
+  border: 2.5px solid #fff; color: #7a4a00; font-weight: 800; font-size: 16px;
+  box-shadow: 0 3px 0 rgba(90,50,0,.35), 0 6px 10px rgba(0,0,0,.25);
+}
+.gate-label { color: #fff; font-weight: 800; font-size: 12.5px; white-space: nowrap;
+  text-shadow: 0 1.5px 0 rgba(0,0,0,.3); letter-spacing: .2px; }
+.gate-chev { color: rgba(255,255,255,.9); display: flex; }
+
+/* ---- storybook chapter banner ---- */
+.realm-banner {
+  position: absolute; top: 66px; left: 50%; transform: translateX(-50%);
+  z-index: 12; width: min(88%, 336px);
+}
+.rb-plate {
+  position: relative; border-radius: 20px; padding: 14px 14px 10px; text-align: center;
+  background: linear-gradient(180deg, #fffdf6 0%, #fff3d8 100%);
+  border: 3px solid #fff; outline: 2.5px solid var(--acc, #2e9e6b);
+  box-shadow: 0 6px 0 rgba(40,60,40,.22), 0 12px 20px rgba(20,40,60,.25);
+}
+.rb-plate::before { /* gold top shine */
+  content: ""; position: absolute; inset: 3px 10px 58% 10px; border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,0));
+  pointer-events: none;
+}
+.rb-medal {
+  position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+  width: 44px; height: 44px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 36% 30%, #ffe9a8, #f2b13c 60%, #c9820a);
+  border: 3px solid #fff; color: #6b4000; font-weight: 800; font-size: 19px;
+  box-shadow: 0 4px 0 #a06508, 0 8px 14px rgba(60,30,0,.35);
+}
+.rb-title { font-weight: 800; font-size: 19px; color: #5d3a12; line-height: 1.3;
+  text-shadow: 0 1px 0 #fff; margin-top: 2px; }
+.rb-sub { font-size: 11.5px; font-weight: 600; color: #8a6a3e; line-height: 1.5; }
+.rb-stats { display: flex; justify-content: center; gap: 8px; margin-top: 7px; }
+.rb-stat { display: inline-flex; align-items: center; gap: 4px;
+  background: #fffbe8; border: 1.5px solid #eed9a4; border-radius: 999px;
+  padding: 2px 10px; font-size: 11.5px; font-weight: 800; color: #7a5a2e;
+  box-shadow: inset 0 1px 0 #fff; }
+
+/* ---- winding path + nodes (shared with old map, retinted) ---- */
+.realm .map-node { width: 56px; height: 56px; font-size: 19px; }
+.node-stars { width: 64px; bottom: -13px; }
+.node-stars .star-ic { width: 12px; height: 12px; }
+
+/* “شما اینجایید” tag floating over the current node */
+.cur-tag {
+  position: absolute; bottom: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #8cf291, #2ea648); color: #fff;
+  font-size: 10.5px; font-weight: 800; white-space: nowrap;
+  border: 2px solid #fff; border-radius: 999px; padding: 1.5px 9px;
+  box-shadow: 0 3px 0 #1d7c33, 0 5px 8px rgba(20,90,40,.4);
+  animation: curTagFloat 1.6s ease-in-out infinite; pointer-events: none;
+}
+@keyframes curTagFloat { 0%,100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -5px); } }
+
+/* ---- realm scenery animations (few, transform/opacity only) ---- */
+.twinkle { animation: starTwin 2.3s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+.twinkle.d2 { animation-delay: .6s; } .twinkle.d3 { animation-delay: 1.15s; }
+.firefly { animation: flyGlow 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+@keyframes flyGlow {
+  0%, 100% { transform: translate(0,0) scale(.8); opacity: .35; }
+  30% { transform: translate(3px,-4px) scale(1.15); opacity: 1; }
+  65% { transform: translate(-2.5px,-2px) scale(.9); opacity: .5; }
+}
+.lantern { animation: icSway 3.6s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 0%; }
+.lantern.l2 { animation-delay: .8s; } .lantern.l3 { animation-delay: 1.5s; }
+.flag-wave { animation: flagW 1.5s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 0% 50%; }
+@keyframes flagW { from { transform: skewY(-4deg) scaleX(.94); } to { transform: skewY(4deg) scaleX(1); } }
+.wave-drift { animation: waveD 5.5s ease-in-out infinite alternate; }
+@keyframes waveD { from { transform: translateX(-4px); } to { transform: translateX(4px); } }
+.fw-pulse { animation: fwP 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+.fw-pulse.p2 { animation-delay: .9s; } .fw-pulse.p3 { animation-delay: 1.7s; }
+@keyframes fwP { 0%, 100% { transform: scale(.86); opacity: .55; } 50% { transform: scale(1.08); opacity: 1; } }
+.win-glow { animation: winG 2.6s ease-in-out infinite; transform-box: fill-box; }
+@keyframes winG { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+.bf-drift { animation: bfFloat 6s ease-in-out infinite; }
+
+/* map realms respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .twinkle, .firefly, .lantern, .flag-wave, .wave-drift, .fw-pulse,
+  .win-glow, .bf-drift, .cur-tag { animation: none; }
 }

@@ -3,7 +3,7 @@
  * HomeScreen — happy city + blue sky + عمو دانا at his tea table,
  * gold 3D title, big green PLAY, bottom nav (gift/library/missions/shop)
  * ------------------------------------------------------------------ */
-import { Btn, IconBtn, CoinChip, Vines } from "@/components/game/ui/kit";
+import { Btn, IconBtn, CoinChip, Vines, StableBg } from "@/components/game/ui/kit";
 import { Gear, GiftIcon, BookIcon, TrophyIcon, BagIcon, PlayGold, Star } from "@/components/game/icons";
 import { Coin } from "@/components/game/icons";
 import { Save } from "@/game/core/save";
@@ -24,9 +24,11 @@ export function HomeScreen({
   stars: number;
 }) {
   return (
-    <div className="vz-page fade-in">
-      {/* sky + city */}
-      <img src="/assets/bg/home2.webp" alt="" className="vz-fill" />
+    <div className="vz-page">
+      {/* sky + city — STABLE bg (gradient underlay first, decode-gated
+       * image second) so returning home never pops/flashes → fixes the
+       * “پرش” the player saw on every return */}
+      <StableBg src="/assets/bg/home2.webp" dim={0} />
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(30,80,140,0) 55%, rgba(20,50,90,.35) 100%)" }} />
       <Vines />
 

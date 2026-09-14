@@ -673,13 +673,15 @@ class AudioEngine {
     o.start(t); o.stop(t + opts.dur + 0.05);
   }
 
-  private sfxNoise(opts: { dur: number; vol: number; freq: number; q?: number; delay?: number; type?: BiquadFilterType }): void {
+  private sfxNoise(opts: { dur: number; vol: number; freq: number; f1?: number; q?: number; delay?: number; type?: BiquadFilterType }): void {
     const ctx = this.ctx; if (!ctx || !this.sfxOn || !this.noiseBuf) return;
     const t = ctx.currentTime + (opts.delay ?? 0);
     const src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
     src.playbackRate.value = 1;
     const f = ctx.createBiquadFilter();
-    f.type = opts.type ?? "bandpass"; f.frequency.value = opts.freq; f.Q.value = opts.q ?? 1;
+    f.type = opts.type ?? "bandpass"; f.frequency.setValueAtTime(opts.freq, t);
+    if (opts.f1 != null) f.frequency.linearRampToValueAtTime(opts.f1, t + opts.dur);
+    f.Q.value = opts.q ?? 1;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(opts.vol, t + 0.01);
@@ -707,21 +709,26 @@ class AudioEngine {
     this.sfxOsc({ type: "sine", f0: 1568, dur: 0.024, vol: 0.016, delay: 0.006 });  // whisper of gloss
   }
 
-  /** v2.0 drag voice — what Wordscapes/Word-Cookies-class games do
-   * (research pass): every tile caught plays a SOFT rounded pop whose
-   * pitch climbs a PENTATONIC ladder → always consonant, never fatiguing,
-   * feels like humming a little melody while you drag.
-   * • marimba-style body: soft sine + whisper octave, warm lowpass
-   * • tiny felt transient (barely there) instead of a dry click
-   * • gentle sub for warmth so it never sounds thin/clinical */
+  /** v2.1 drag voice — «پخته» (mature) redesign.
+   * The old C5 sine ladder read thin/childish (“beepy”). Top word games
+   * sound like a real mallet instrument: LOW register, WOOD body, very
+   * short decay, inharmonic partials, humanized detune. This is a full
+   * kalimba/marimba physical model:
+   *   • deep E4 pentatonic ladder → warm, never shrill
+   *   • sine body with a gentle downward droop (wood warmth)
+   *   • marimba's characteristic inharmonic partial (×2.76, fast decay)
+   *   • soft triangle octave whisper for air
+   *   • tiny wooden tap (low bandpass noise) instead of a synthetic click
+   *   • ±0.4% random detune per hit → organic, alive */
   sfxLetter(idx: number): void {
-    const PENT = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24]; // C-pentatonic ladder
+    const PENT = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];   // major-pentatonic ladder
     const step = PENT[Math.min(Math.max(idx, 0), PENT.length - 1)];
-    const f = 523.25 * Math.pow(2, step / 12);            // C5 base
-    this.sfxOsc({ type: "sine", f0: f, dur: 0.22, vol: 0.16, filter: 2300 });      // warm marimba body
-    this.sfxOsc({ type: "triangle", f0: f * 2, dur: 0.11, vol: 0.045, delay: 0.005, filter: 2900 }); // airy octave
-    this.sfxOsc({ type: "sine", f0: f * 0.5, dur: 0.13, vol: 0.05 });               // gentle sub warmth
-    this.sfxNoise({ dur: 0.026, vol: 0.012, freq: 3000, q: 1.8 });                  // felt touch
+    const det = 1 + (Math.random() * 0.008 - 0.004);        // humanize ±0.4%
+    const f = 329.63 * Math.pow(2, step / 12) * det;        // E4 base — deep & warm
+    this.sfxOsc({ type: "sine", f0: f, f1: f * 0.982, dur: 0.17, vol: 0.15, curve: "lin", filter: 1900 }); // wooden body
+    this.sfxOsc({ type: "sine", f0: f * 2.76, dur: 0.055, vol: 0.026, filter: 5200 });  // marimba partial
+    this.sfxOsc({ type: "triangle", f0: f * 2, dur: 0.05, vol: 0.028, delay: 0.004, filter: 3400 }); // airy octave
+    this.sfxNoise({ dur: 0.03, vol: 0.02, freq: 1150, q: 1.3 });                        // wooden tap
   }
 
   sfxWordFound(step: number = 0): void {
@@ -734,11 +741,14 @@ class AudioEngine {
     this.sfxNoise({ dur: 0.42, vol: 0.035, freq: 5600, q: 3, delay: 0.05 });
   }
 
-  /** soft wooden "tap-tap" — a word just landed on the board */
+  /** v2.1 — satisfying wooden landing for a word reaching the board:
+   * a low mallet knock + a gentle two-note resolve (C5→E5) that feels
+   * like the row gently “clicks” into place — warm, never harsh. */
   sfxSettle(): void {
-    this.sfxOsc({ type: "sine", f0: 392, dur: 0.12, vol: 0.12, filter: 2400 });
-    this.sfxOsc({ type: "sine", f0: 523.25, dur: 0.16, vol: 0.12, delay: 0.07, filter: 2600 });
-    this.sfxNoise({ dur: 0.06, vol: 0.028, freq: 1800, q: 1, delay: 0.07 });
+    this.sfxOsc({ type: "sine", f0: 208, f1: 158, dur: 0.1, vol: 0.14, curve: "lin", filter: 900 });  // mallet knock
+    this.sfxNoise({ dur: 0.045, vol: 0.02, freq: 950, q: 1.2 });                                       // felt contact
+    this.note(523.25, 0.15, 0.3, 0.05);                                                                // C5
+    this.note(659.25, 0.13, 0.36, 0.12);                                                               // E5
   }
 
   sfxBonus(): void {
@@ -770,9 +780,12 @@ class AudioEngine {
     this.sfxNoise({ dur: 0.4, vol: 0.035, freq: 6200, q: 4, delay: 0.04 });
   }
 
+  /** v2.1 — soft airy WHOOSH + two wooden taps, matched to the FLIP
+   * glide of the tiles (tiles fly ~0.46s; the whoosh covers them). */
   sfxShuffle(): void {
-    for (let i = 0; i < 5; i++)
-      this.sfxNoise({ dur: 0.06, vol: 0.07, freq: 2000 + i * 380, delay: i * 0.05 });
+    this.sfxNoise({ dur: 0.3, vol: 0.045, freq: 900, f1: 2600, q: 0.9, type: "bandpass" }); // rising whoosh
+    this.sfxNoise({ dur: 0.04, vol: 0.024, freq: 1300, q: 1.3, delay: 0.2 });               // wooden tap
+    this.sfxNoise({ dur: 0.04, vol: 0.02, freq: 1500, q: 1.3, delay: 0.3 });                // wooden tap
   }
 
   sfxLevelComplete(stars: number): void {

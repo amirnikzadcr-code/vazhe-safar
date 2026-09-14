@@ -7,12 +7,11 @@
  *   wheel: wooden ring with letter tiles, tap or drag to spell
  *   bottom: shuffle LEFT, hint RIGHT (with coin cost)
  *
- * WORD TIMING (user request: "don't settle instantly — apply a
- * beautiful effect for ~1s, THEN put it on the board"):
- *   1. word completed → wheel CELEBRATION (golden burst, ring shock,
- *      tile glow cascade, +۵ سکه float, chime) for 1.15 s
- *   2. then the word lands on the board (staggered gold pop + sparkles
- *      + soft settle sound)
+ * WORD TIMING (v2.1 — user: «خیلی دیر توی کادر اعمال میشه»):
+ *   1. word completed → SHORT wheel celebration (golden burst, ring
+ *      shock, tile glow cascade, +۵ سکه float, chime) for 0.55 s
+ *   2. then the word lands on the board with a rich gold landing
+ *      (staggered pop + shine sweep + sparkles + wooden resolve)
  *   3. last word → win modal shortly after. Queue-safe: pending words
  *      are guarded, restart/unmount cancels the timers.
  *
@@ -36,8 +35,10 @@ import { Save, COSTS, REWARDS } from "@/game/core/save";
 import { WinModal } from "@/components/game/modals/WinModal";
 import { PauseModal } from "@/components/game/modals/Overlays";
 
-/* celebration duration BEFORE the word applies to the board (ms) */
-const CELEBRATE_MS = 1150;
+/* celebration duration BEFORE the word applies to the board (ms).
+ * v2.1: was 1150 — the player read it as “the word applies too late”.
+ * 550 keeps a juicy beat but feels instant. */
+const CELEBRATE_MS = 550;
 
 /* ---- in-progress level snapshots (shop round-trip) ----
  * Leaving a level to visit the shop unmounts PlayScreen; this cache
@@ -115,16 +116,25 @@ export function PlayScreen({
   /* fresh plays always start from a clean slate (kills stale snapshots) */
   useEffect(() => { if (!resume) progressCache.delete(progressKey); }, [resume, progressKey]);
 
-  /* leaving the level mid-progress → snapshot it for the shop round-trip */
+  /* leaving the level mid-progress → snapshot it for the shop round-trip.
+   * v2.1 BUGFIX (user: hint letters vanished after the shop): the old
+   * guard only kept the snapshot when a word had been FOUND — a hint
+   * pressed before the first word (found=0, revealed>0) threw the
+   * snapshot away. Keep it whenever ANY progress exists. */
   useEffect(() => () => {
     if (wonRef.current) { progressCache.delete(progressKey); return; }
     const f = foundRef.current;
-    if (f.size === 0) { progressCache.delete(progressKey); return; }
+    const r = revealedRef.current;
+    const e = earnedRef.current;
+    if (f.size === 0 && r.size === 0 && e.words === 0 && e.bonus === 0) {
+      progressCache.delete(progressKey);
+      return;
+    }
     progressCache.set(progressKey, {
       found: [...f],
-      revealed: [...revealedRef.current],
+      revealed: [...r],
       mistakes: mistakesRef.current,
-      earned: { ...earnedRef.current },
+      earned: { ...e },
     });
   }, [progressKey]);
 
@@ -489,7 +499,11 @@ function WordBoard({
    visible, tiles glow in a cascade and new drags are blocked.
    v2.0 JUICY STROKE: 3 layered polylines (soft aura + gold core +
    bright shine) + a glowing bead that rides under the finger —
-   all painted by direct DOM writes, still zero re-renders. ================= */
+   all painted by direct DOM writes, still zero re-renders.
+   v2.1 FLIP SHUFFLE (user: «کلمات با افکت جا ب جا بشن»): tiles are
+   mounted ONCE — when the ring turns, every tile GLIDES from its old
+   seat to the new one (WAAPI staggered spring + wobble), no more
+   remount pop. ================= */
 function Wheel({
   letters: ls, shuffleKey, fx, reward, onRelease, onFirstDrag,
 }: {
@@ -518,7 +532,8 @@ function Wheel({
 
   const positions = useMemo(() => {
     const n = ls.length;
-    const rot = shuffleKey % n;
+    /* varied, deterministic rotation per shuffle (feels hand-shuffled) */
+    const rot = shuffleKey === 0 ? 0 : 1 + ((shuffleKey * 5) % (n - 1));
     return ls.map((_, i) => {
       const idx = (i + rot) % n;
       const ang = -90 + (360 / n) * i;
@@ -526,6 +541,41 @@ function Wheel({
       return { idx, x: 50 + 37 * Math.cos(rad), y: 50 + 37 * Math.sin(rad) };
     });
   }, [ls, shuffleKey]);
+
+  /* ---- FLIP SHUFFLE ---- tiles glide from old seat → new seat.
+   * Pure transform/opacity (WAAPI) → fully composited, no jank. */
+  const seatPxRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const firstMountRef = useRef(true);
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const r = wrap.getBoundingClientRect();
+    const next = new Map<number, { x: number; y: number }>();
+    for (const p of positions) next.set(p.idx, { x: (p.x / 100) * r.width, y: (p.y / 100) * r.height });
+    if (!firstMountRef.current) {
+      let d = 0;
+      next.forEach((np, idx) => {
+        const op = seatPxRef.current.get(idx);
+        if (!op) return;
+        const dx = op.x - np.x, dy = op.y - np.y;
+        if (Math.abs(dx) + Math.abs(dy) < 1) return;
+        const el = wrap.querySelector<HTMLElement>(`[data-tile="${idx}"]`);
+        if (!el || typeof el.animate !== "function") return;
+        const wob = ((idx % 2 ? 1 : -1) * (11 + (idx % 3) * 5)).toFixed(1);
+        el.animate(
+          [
+            { transform: `translate(${dx}px, ${dy}px) rotate(0deg) scale(1)` },
+            { transform: `translate(${(dx * 0.16).toFixed(1)}px, ${(dy * 0.16).toFixed(1)}px) rotate(${wob}deg) scale(1.12)`, offset: 0.55 },
+            { transform: "translate(0px, 0px) rotate(0deg) scale(1)" },
+          ],
+          { duration: 470, delay: d * 26, easing: "cubic-bezier(.22,1.3,.36,1)" },
+        );
+        d++;
+      });
+    }
+    firstMountRef.current = false;
+    seatPxRef.current = next;
+  }, [positions]);
 
   /* selection lives ONLY in refs — tiles + line are painted by direct
    * DOM writes. A drag causes ZERO React re-renders. */
@@ -726,7 +776,7 @@ function Wheel({
           <circle r={5.2} fill="#fff6d8" stroke="#ffb302" strokeWidth="2" />
         </g>
       </svg>
-      <div key={shuffleKey} style={{ position: "absolute", inset: 0 }}>
+      <div style={{ position: "absolute", inset: 0 }}>
         {positions.map(({ idx, x, y }, pi) => (
           <span
             key={idx}

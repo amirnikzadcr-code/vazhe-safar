@@ -135,6 +135,40 @@ export function Stars({ n, total = 3, size = 24 }: { n: number; total?: number; 
   );
 }
 
+/* ---------- STABLE BACKGROUND — gradient underlay + decode gate.
+ * The screen NEVER flashes white/gray while an image decodes: a
+ * cheerful sky→meadow gradient paints first, the image fades in only
+ * once fetched+decoded. Shared by Sheet + HomeScreen. ---------- */
+export function StableBg({ src, dim = 0, blur = 0 }: { src: string; dim?: number; blur?: number }) {
+  const [ready, setReady] = useState(false);
+  return (
+    <>
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#9fd9ff 0%,#6cc0f5 34%,#a8e08b 62%,#7ccb62 100%)" }} />
+      <img
+        ref={(el) => {
+          if (!el) return;
+          if (el.complete && el.naturalWidth > 0) setReady(true);
+          else setReady(false);
+        }}
+        src={src}
+        alt=""
+        className="vz-fill"
+        style={{
+          filter: blur ? `blur(${blur}px)` : undefined,
+          opacity: ready ? 1 : 0,
+          transition: "opacity .16s ease",
+        }}
+        fetchPriority="high"
+        decoding="async"
+        onLoad={() => setReady(true)}
+      />
+      {dim > 0 && (
+        <div style={{ position: "absolute", inset: 0, background: `rgba(10,30,50,${dim})`, opacity: ready ? 1 : 0, transition: "opacity .16s ease" }} />
+      )}
+    </>
+  );
+}
+
 /* ---------- full-screen sheet with wooden/vine frame ---------- */
 export function Sheet({
   children, bg, bgDim = 0.25, blur = 0, style,
@@ -145,48 +179,13 @@ export function Sheet({
   blur?: number;
   style?: CSSProperties;
 }) {
-  /*
-   * STABLE BACKGROUND (no late pop-in):
-   *  1. a cheerful sky→meadow gradient underlay is ALWAYS painted,
-   *     so the screen never flashes white/gray while decoding
-   *  2. all images are preloaded during splash — if the <img> is
-   *     already complete we render it instantly with no fade at all
-   */
-  const [bgReady, setBgReady] = useState(false);
-  const imgRef = useRef<HTMLImageElement | null>(null);
   return (
-    <div className="vz-page fade-in" style={style}>
-      {bg && (
-        <>
-          {/* colorful stable underlay — matches every scene's palette */}
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#9fd9ff 0%,#6cc0f5 34%,#a8e08b 62%,#7ccb62 100%)" }} />
-          <img
-            key={bg}
-            ref={(el) => {
-              imgRef.current = el;
-              /* preloaded/cached → paint instantly, no fade (and reset
-               * while a fresh background decodes). Ref callbacks run at
-               * commit time, so this is lint-clean and loop-safe. */
-              if (!el) return;
-              if (el.complete && el.naturalWidth > 0) setBgReady(true);
-              else setBgReady(false);
-            }}
-            src={bg}
-            alt=""
-            className="vz-fill"
-            style={{
-              filter: blur ? `blur(${blur}px)` : undefined,
-              opacity: bgReady ? 1 : 0,
-              transition: "opacity .16s ease",
-            }}
-            fetchPriority="high"
-            decoding="async"
-            onLoad={() => setBgReady(true)}
-          />
-          <div style={{ position: "absolute", inset: 0, background: `rgba(10,30,50,${bgDim})`, opacity: bgReady ? 1 : 0, transition: "opacity .16s ease" }} />
-        </>
+    <div className="vz-page" style={style}>
+      {bg ? (
+        <StableBg src={bg} dim={bgDim} blur={blur} />
+      ) : (
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#8fd0ff 0%,#5cb2ef 45%,#3d9df0 100%)" }} />
       )}
-      {!bg && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#8fd0ff 0%,#5cb2ef 45%,#3d9df0 100%)" }} />}
       <Vines />
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
         {children}
