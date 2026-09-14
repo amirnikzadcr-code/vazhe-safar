@@ -154,10 +154,6 @@ export function Sheet({
    */
   const [bgReady, setBgReady] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
-  useEffect(() => {
-    setBgReady(false);
-    if (imgRef.current?.complete) setBgReady(true); /* cached → instant */
-  }, [bg]);
   return (
     <div className="vz-page fade-in" style={style}>
       {bg && (
@@ -165,7 +161,16 @@ export function Sheet({
           {/* colorful stable underlay — matches every scene's palette */}
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#9fd9ff 0%,#6cc0f5 34%,#a8e08b 62%,#7ccb62 100%)" }} />
           <img
-            ref={imgRef}
+            key={bg}
+            ref={(el) => {
+              imgRef.current = el;
+              /* preloaded/cached → paint instantly, no fade (and reset
+               * while a fresh background decodes). Ref callbacks run at
+               * commit time, so this is lint-clean and loop-safe. */
+              if (!el) return;
+              if (el.complete && el.naturalWidth > 0) setBgReady(true);
+              else setBgReady(false);
+            }}
             src={bg}
             alt=""
             className="vz-fill"

@@ -15,6 +15,14 @@
  *      + soft settle sound)
  *   3. last word → win modal shortly after. Queue-safe: pending words
  *      are guarded, restart/unmount cancels the timers.
+ *
+ * v2.0 COMMIT-ON-RELEASE (user request: «تا وقتی رها نمرکرده کلمه
+ * اعمال نشه»): nothing applies while the finger is down — the stroke
+ * is judged ONLY on pointer-up. No more mid-drag auto-commit.
+ *
+ * v2.0 SHOP ROUND-TRIP: opening the shop mid-level (hint with no
+ * coins) and coming back used to wipe the board — the level is now
+ * snapshotted and RESUMED exactly as it was.
  * ------------------------------------------------------------------ */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Sheet, useToast, ToastHost } from "@/components/game/ui/kit";
@@ -31,12 +39,24 @@ import { PauseModal } from "@/components/game/modals/Overlays";
 /* celebration duration BEFORE the word applies to the board (ms) */
 const CELEBRATE_MS = 1150;
 
+/* ---- in-progress level snapshots (shop round-trip) ----
+ * Leaving a level to visit the shop unmounts PlayScreen; this cache
+ * lets us restore found/revealed/mistakes exactly when the player
+ * comes back. Memory-only → a fresh app start starts clean. */
+const progressCache = new Map<string, {
+  found: string[];
+  revealed: string[];
+  mistakes: number;
+  earned: { words: number; bonus: number };
+}>();
+
 export function PlayScreen({
-  ch, lv, coins, onExit, onNext, onSettings, onShop, coinsBump,
+  ch, lv, coins, resume, onExit, onNext, onSettings, onShop, coinsBump,
 }: {
   ch: number;
   lv: number;
   coins: number;
+  resume?: boolean; /* true → restore the in-progress snapshot (shop round-trip) */
   onExit: () => void;
   onNext: () => void;
   onSettings: () => void;
@@ -52,8 +72,21 @@ export function PlayScreen({
   );
   const wheelLetters = useMemo(() => letters(level.wheel), [level]);
 
-  const [found, setFound] = useState<Set<string>>(new Set());
-  const [revealed, setRevealed] = useState<Set<string>>(new Set()); // "word#idx"
+  /* -------- resume support (shop round-trip) -------- */
+  const progressKey = `${ch}:${lv}`;
+  const resumeSnap = useMemo(
+    () => (resume ? progressCache.get(progressKey) : undefined),
+    [resume, progressKey],
+  );
+  const wasCompleted = useMemo(() => !!Save.data.levels[progressKey], [progressKey]);
+  const resumedDoneRef = useRef(resume === true && wasCompleted && !resumeSnap);
+
+  const [found, setFound] = useState<Set<string>>(
+    () => new Set(resumeSnap?.found ?? (resume && wasCompleted ? wordRows : [])),
+  );
+  const [revealed, setRevealed] = useState<Set<string>>(
+    () => new Set(resumeSnap?.revealed ?? []), // "word#idx"
+  );
   const [justFound, setJustFound] = useState<{ word: string; k: number } | null>(null);
   const [wheelFx, setWheelFx] = useState<{ word: string; k: number } | null>(null);
   const [shaking, setShaking] = useState(false);
@@ -63,15 +96,37 @@ export function PlayScreen({
   const [tutorial, setTutorial] = useState(() => !Save.data.tutorialDone && ch === 1 && lv === 1);
   const [tutFading, setTutFading] = useState(false);
   const tutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [earned, setEarned] = useState({ words: 0, bonus: 0 });
-  const mistakesRef = useRef(0);
+  const [earned, setEarned] = useState(() => resumeSnap?.earned ?? { words: 0, bonus: 0 });
+  const mistakesRef = useRef(resumeSnap?.mistakes ?? 0);
   const foundRef = useRef<Set<string>>(new Set());
   const pendingRef = useRef<Set<string>>(new Set());
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const fxKRef = useRef(0);
 
-  /* keep ref in sync (effects only — never during render) */
+  /* keep refs in sync (effects only — never during render) */
   useEffect(() => { foundRef.current = found; }, [found]);
+  const wonRef = useRef(false);
+  const revealedRef = useRef(revealed);
+  const earnedRef = useRef(earned);
+  useEffect(() => { wonRef.current = !!won; }, [won]);
+  useEffect(() => { revealedRef.current = revealed; }, [revealed]);
+  useEffect(() => { earnedRef.current = earned; }, [earned]);
+
+  /* fresh plays always start from a clean slate (kills stale snapshots) */
+  useEffect(() => { if (!resume) progressCache.delete(progressKey); }, [resume, progressKey]);
+
+  /* leaving the level mid-progress → snapshot it for the shop round-trip */
+  useEffect(() => () => {
+    if (wonRef.current) { progressCache.delete(progressKey); return; }
+    const f = foundRef.current;
+    if (f.size === 0) { progressCache.delete(progressKey); return; }
+    progressCache.set(progressKey, {
+      found: [...f],
+      revealed: [...revealedRef.current],
+      mistakes: mistakesRef.current,
+      earned: { ...earnedRef.current },
+    });
+  }, [progressKey]);
 
   const { toast, show } = useToast();
 
@@ -148,22 +203,27 @@ export function PlayScreen({
     }
   }, [revealed, found, wordRows, celebrate]);
 
-  /* all words done → finish */
+  /* all words done → finish. Resumed-already-complete levels (shop
+   * visited from the win modal) re-show the modal WITHOUT re-awarding */
   useEffect(() => {
     if (won || wordRows.length === 0) return;
     if (found.size >= wordRows.length) {
       const stars = mistakesRef.current === 0 ? 3 : mistakesRef.current <= 2 ? 2 : 1;
-      const total = REWARDS.perStar * stars;
-      Save.addCoins(total);
-      Save.completeLevel(ch, lv, stars, mistakesRef.current);
-      coinsBump();
-      Audio.sfxLevelComplete(stars);
-      const t = setTimeout(() => setWon({ stars, coins: total }), 340);
+      if (!resumedDoneRef.current) {
+        const total = REWARDS.perStar * stars;
+        Save.addCoins(total);
+        Save.completeLevel(ch, lv, stars, mistakesRef.current);
+        coinsBump();
+        Audio.sfxLevelComplete(stars);
+        progressCache.delete(progressKey);
+      }
+      const t = setTimeout(() => setWon({ stars, coins: REWARDS.perStar * stars }), 340);
       return () => clearTimeout(t);
     }
-  }, [found, wordRows, won, ch, lv, coinsBump]);
+  }, [found, wordRows, won, ch, lv, coinsBump, progressKey]);
 
-  /* ------------ submit (from wheel release) ------------
+  /* ------------ submit — called ONLY on pointer release (v2.0:
+   * «اول باید بکشه و رها کنه تا ست بشه») ------------
    * "new"   → target word just celebrated (wheel keeps its selection
    *           through the fx, then clears)
    * "known" → already-found word (never punished, wheel clears)
@@ -197,18 +257,6 @@ export function PlayScreen({
     setShaking(true);
     return false;
   }, [wordRows, level, ch, lv, coinsBump, show, celebrate]);
-
-  /* mid-drag auto-complete — true ONLY when a NEW word was just
-   * celebrated (dragging through an already-found word continues
-   * the stroke so longer words like قوی are still reachable) */
-  const checkAuto = useCallback((str: string): boolean => {
-    if (str.length < 2) return false;
-    if (wordRows.includes(str) && !foundRef.current.has(str) && !pendingRef.current.has(str)) {
-      celebrate(str, true);
-      return true;
-    }
-    return false;
-  }, [wordRows, celebrate]);
 
   /* ------------ hint: reveal next letter of the first unfound word ------------ */
   const doHint = () => {
@@ -277,7 +325,6 @@ export function PlayScreen({
           shuffleKey={shuffleKey}
           fx={wheelFx}
           reward={REWARDS.perWord}
-          onAuto={checkAuto}
           onRelease={submit}
           onFirstDrag={dismissTutorial}
         />
@@ -323,6 +370,7 @@ export function PlayScreen({
           onResume={() => setPaused(false)}
           onRestart={() => {
             clearPending();
+            progressCache.delete(progressKey);
             setPaused(false);
             setFound(new Set());
             setRevealed(new Set());
@@ -434,23 +482,29 @@ function WordBoard({
 }
 
 /* ================= Wheel — owns its own selection state.
+   v2.0 COMMIT-ON-RELEASE: the stroke is judged ONLY in up() (pointer
+   release) — dragging through a word never applies it early, and
+   longer words stay reachable because strokes never end mid-drag.
    While `fx` is set (word celebrated) the selection polyline stays
-   visible, tiles glow in a cascade and new drags are blocked. ================= */
+   visible, tiles glow in a cascade and new drags are blocked.
+   v2.0 JUICY STROKE: 3 layered polylines (soft aura + gold core +
+   bright shine) + a glowing bead that rides under the finger —
+   all painted by direct DOM writes, still zero re-renders. ================= */
 function Wheel({
-  letters: ls, shuffleKey, fx, reward, onAuto, onRelease, onFirstDrag,
+  letters: ls, shuffleKey, fx, reward, onRelease, onFirstDrag,
 }: {
   letters: string[];
   shuffleKey: number;
   fx: { word: string; k: number } | null;
   reward: number;
-  onAuto: (str: string) => boolean;
   onRelease: (str: string) => "new" | "known" | false;
   onFirstDrag?: () => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const lineRef = useRef<SVGPolylineElement | null>(null);
-  const [sel, setSel] = useState<number[]>([]);
-  const [celebK, setCelebK] = useState(0);
+  const auraRef = useRef<SVGPolylineElement | null>(null);
+  const coreRef = useRef<SVGPolylineElement | null>(null);
+  const shineRef = useRef<SVGPolylineElement | null>(null);
+  const beadRef = useRef<SVGGElement | null>(null);
   const selRef = useRef<number[]>([]);
   const dragRef = useRef(false);
   const firstDragRef = useRef(false);
@@ -459,6 +513,8 @@ function Wheel({
   const tipCurRef = useRef<{ x: number; y: number } | null>(null);
   const rafRef = useRef(0);
   const rRef = useRef(46); /* hit radius in px, measured per stroke */
+  /* tile elements for DOM-driven .sel painting (idx → element) */
+  const tileElsRef = useRef<Map<number, HTMLElement> | null>(null);
 
   const positions = useMemo(() => {
     const n = ls.length;
@@ -471,10 +527,17 @@ function Wheel({
     });
   }, [ls, shuffleKey]);
 
-  /* keep selRef in sync inside handlers via helper */
+  /* selection lives ONLY in refs — tiles + line are painted by direct
+   * DOM writes. A drag causes ZERO React re-renders. */
+  const paintTiles = () => {
+    const els = tileElsRef.current;
+    if (!els) return;
+    const cur = selRef.current;
+    els.forEach((el, idx) => { el.classList.toggle("sel", cur.includes(idx)); });
+  };
   const applySel = (next: number[]) => {
     selRef.current = next;
-    setSel(next);
+    paintTiles();
     paintLine();
   };
 
@@ -486,23 +549,33 @@ function Wheel({
    * • the tail CHASES the finger with a lerp in a rAF loop and retracts
    *   into the last caught tile when the stroke ends */
   const paintLine = () => {
-    const el = lineRef.current;
-    if (!el) return;
     const pts = selRef.current
       .map((i) => centersRef.current.find((c) => c.idx === i))
       .filter(Boolean)
       .map((c) => `${c!.x},${c!.y}`);
     const tip = tipCurRef.current;
     if (tip) pts.push(`${tip.x},${tip.y}`);
-    el.setAttribute("points", pts.join(" "));
+    const s = pts.join(" ");
+    auraRef.current?.setAttribute("points", s);
+    coreRef.current?.setAttribute("points", s);
+    shineRef.current?.setAttribute("points", s);
+    const bead = beadRef.current;
+    if (bead) {
+      if (tip) {
+        bead.setAttribute("transform", `translate(${tip.x} ${tip.y})`);
+        bead.setAttribute("opacity", "1");
+      } else {
+        bead.setAttribute("opacity", "0");
+      }
+    }
   };
 
   const tick = () => {
     const tipT = tipTargetRef.current;
     const tipC = tipCurRef.current;
     if (tipT && tipC) {
-      tipC.x += (tipT.x - tipC.x) * 0.45;
-      tipC.y += (tipT.y - tipC.y) * 0.45;
+      tipC.x += (tipT.x - tipC.x) * 0.38;
+      tipC.y += (tipT.y - tipC.y) * 0.38;
       if (Math.abs(tipT.x - tipC.x) < 0.7 && Math.abs(tipT.y - tipC.y) < 0.7) {
         tipC.x = tipT.x; tipC.y = tipT.y;
       }
@@ -515,7 +588,8 @@ function Wheel({
   const ensureRaf = () => { if (!rafRef.current) rafRef.current = requestAnimationFrame(tick); };
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
 
-  /* cache tile centers in PIXELS once per stroke (1 layout read) */
+  /* cache tile centers in PIXELS once per stroke (1 layout read) +
+   * collect tile elements for DOM class painting */
   const measure = () => {
     const r = wrapRef.current!.getBoundingClientRect();
     centersRef.current = positions.map((p) => ({
@@ -524,8 +598,17 @@ function Wheel({
       y: (p.y / 100) * r.height,
     }));
     rRef.current = Math.max(30, r.width * 0.15);
+    if (!tileElsRef.current) {
+      const m = new Map<number, HTMLElement>();
+      wrapRef.current!.querySelectorAll<HTMLElement>("[data-tile]").forEach((el) => {
+        m.set(Number(el.dataset.tile), el);
+      });
+      tileElsRef.current = m;
+    }
     return r;
   };
+  /* tiles remount on shuffle → drop the cached elements */
+  useEffect(() => { tileElsRef.current = null; }, [shuffleKey]);
 
   /* distance hit-test — never misses between tiles, super cheap */
   const hitTile = (lx: number, ly: number): number | null => {
@@ -540,17 +623,18 @@ function Wheel({
     return best;
   };
 
-  /* fx set → celebrate; fx cleared (word landed) → release selection */
+  /* fx set → celebrate (class derived from fx, no state needed);
+   * fx cleared (word landed) → release the selection, DOM-only */
+  const hadFxRef = useRef(false);
   useEffect(() => {
-    if (fx) setCelebK(fx.k);
-    else if (celebK) {
-      applySel([]);
-      tipTargetRef.current = null;
-      tipCurRef.current = null;
-      paintLine();
-      setCelebK(0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (fx) { hadFxRef.current = true; return; }
+    if (!hadFxRef.current) return;
+    hadFxRef.current = false;
+    selRef.current = [];
+    tipTargetRef.current = null;
+    tipCurRef.current = null;
+    paintTiles();
+    paintLine();
   }, [fx]);
 
   const endStroke = (keepLineDuringFx: boolean) => {
@@ -568,7 +652,7 @@ function Wheel({
   };
 
   const down = (e: React.PointerEvent) => {
-    if (celebK) return; /* celebrating → inputs locked for the moment */
+    if (fx) return; /* celebrating → inputs locked for the moment */
     const r = measure();
     const lx = e.clientX - r.left, ly = e.clientY - r.top;
     const i = hitTile(lx, ly);
@@ -595,12 +679,10 @@ function Wheel({
       const next = [...cur, i];
       Audio.sfxLetter(next.length);
       applySel(next);
-      /* tail snaps to the newly caught tile — then keeps chasing */
+      /* tail snaps to the newly caught tile — then keeps chasing.
+       * NO auto-commit here anymore (v2.0): the word is judged on release */
       const c = centersRef.current.find((c) => c.idx === i)!;
       tipCurRef.current = { x: c.x, y: c.y };
-      /* auto-submit on exact unfound word (no mistake penalty) —
-       * selection stays visible through the celebration */
-      if (onAuto(next.map((k) => ls[k]).join(""))) endStroke(true);
     }
     ensureRaf();
   };
@@ -609,6 +691,7 @@ function Wheel({
     if (!dragRef.current) return;
     const cur = selRef.current;
     if (cur.length >= 2) {
+      /* v2.0: the ONLY moment a word can apply — finger released */
       const r = onRelease(cur.map((k) => ls[k]).join(""));
       if (r === "new") { endStroke(true); return; } /* keep line during fx */
     }
@@ -618,7 +701,7 @@ function Wheel({
   return (
     <div
       ref={wrapRef}
-      className={`wheel-wrap ${celebK ? "fx" : ""}`}
+      className={`wheel-wrap ${fx ? "fx" : ""}`}
       onPointerDown={down}
       onPointerMove={move}
       onPointerUp={up}
@@ -633,23 +716,22 @@ function Wheel({
         <StarGold size={26} />
       </div>
       <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible" }} aria-hidden>
-        <polyline
-          ref={lineRef}
-          points=""
-          fill="none"
-          stroke="rgba(255,190,40,.92)"
-          strokeWidth={9}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={0.85}
-        />
+        {/* 3-layer juicy stroke: soft aura → gold core → bright shine */}
+        <polyline ref={auraRef} points="" fill="none" stroke="rgba(255,187,56,.32)" strokeWidth={21} strokeLinecap="round" strokeLinejoin="round" />
+        <polyline ref={coreRef} points="" fill="none" stroke="#ffc93c" strokeWidth={10.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
+        <polyline ref={shineRef} points="" fill="none" stroke="rgba(255,252,232,.9)" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" />
+        {/* glowing bead riding under the finger (Wordscapes-style) */}
+        <g ref={beadRef} opacity="0">
+          <circle r={11} fill="rgba(255,220,110,.30)" />
+          <circle r={5.2} fill="#fff6d8" stroke="#ffb302" strokeWidth="2" />
+        </g>
       </svg>
       <div key={shuffleKey} style={{ position: "absolute", inset: 0 }}>
         {positions.map(({ idx, x, y }, pi) => (
           <span
             key={idx}
             data-tile={idx}
-            className={`tile tile-in ${sel.includes(idx) ? "sel" : ""}`}
+            className="tile tile-in"
             style={{ left: `${x}%`, top: `${y}%`, ["--i" as string]: pi }}
             aria-label={ls[idx]}
           >
@@ -658,9 +740,10 @@ function Wheel({
         ))}
       </div>
 
-      {/* ---- CELEBRATION FX (pure CSS, bounded, 60fps) ---- */}
-      {celebK > 0 && (
-        <div key={celebK} className="wheel-burst" aria-hidden>
+      {/* ---- CELEBRATION FX (pure CSS, bounded, 60fps) — keyed by fx.k,
+           shown only while the parent keeps `fx` set ---- */}
+      {fx && (
+        <div key={fx.k} className="wheel-burst" aria-hidden>
           <span className="wb-ring" />
           <span className="wb-flash" />
           {Array.from({ length: 10 }, (_, s) => (
@@ -676,8 +759,8 @@ function Wheel({
           ))}
         </div>
       )}
-      {celebK > 0 && (
-        <span key={`coin${celebK}`} className="fx-coin" aria-hidden>
+      {fx && (
+        <span key={`coin${fx.k}`} className="fx-coin" aria-hidden>
           <span className="coin-ic" style={{ width: 18, height: 18 }} />
           +{faNum(reward)}
         </span>

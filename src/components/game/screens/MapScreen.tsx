@@ -175,7 +175,6 @@ export function MapScreen({
     } else if (highest >= 10) {
       sc.scrollTop = 0; /* chapter complete → show the top */
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ch]);
 
   const lines = [

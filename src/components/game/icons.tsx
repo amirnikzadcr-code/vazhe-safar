@@ -48,72 +48,82 @@ export function StarGold({ size = 24, className = "" }: { size?: number; classNa
   );
 }
 
-/* ---------- gift box: gold box + crimson ribbon (anim: wiggle) ---------- */
+/* ---------- CARTOON GIFT BOX (kawaii face, bold outline, anim: wiggle) ---------- */
 export function GiftIcon({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className="anim-gift" aria-hidden>
-      <defs>
-        <linearGradient id="gv-box" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffe27a" /><stop offset="1" stopColor="#ff9d2e" />
-        </linearGradient>
-      </defs>
-      <rect x="4.2" y="11" width="15.6" height="9.6" rx="2" fill="url(#gv-box)" stroke="#b45f06" strokeWidth="1.2" />
-      <rect x="3" y="7.6" width="18" height="4" rx="1.6" fill="#ffd43b" stroke="#b45f06" strokeWidth="1.2" />
-      <rect x="10.6" y="7.6" width="2.8" height="13" fill="#f43f5f" />
-      <path d="M12 7.4C10.2 7.4 8.4 6.9 8.4 5.4c0-1.1.9-1.9 2-1.9 1.5 0 1.6 2.3 1.6 3.9Zm0 0c1.8 0 3.6-.5 3.6-2 0-1.1-.9-1.9-2-1.9-1.5 0-1.6 2.3-1.6 3.9Z"
-        fill="#ff8fab" stroke="#c22947" strokeWidth="1.1" />
-      <circle cx="7" cy="15.8" r="0.9" fill="#fff3bf" opacity=".85" />
+      <rect x="4" y="10.4" width="16" height="10.2" rx="2.6" fill="#ff9d2e" stroke="#6b3400" strokeWidth="1.9" strokeLinejoin="round" />
+      <rect x="2.8" y="6.6" width="18.4" height="4.4" rx="2" fill="#ffd43b" stroke="#6b3400" strokeWidth="1.9" strokeLinejoin="round" />
+      <rect x="10.5" y="6.6" width="3" height="14" fill="#f43f5f" stroke="#6b3400" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M12 6.2C10 6.2 8 5.7 8 4.1c0-1.2 1-2.1 2.1-2.1 1.6 0 1.9 2.5 1.9 4.2Zm0 0c2 0 4-.5 4-2.1 0-1.2-1-2.1-2.1-2.1-1.6 0-1.9 2.5-1.9 4.2Z" fill="#ff8fab" stroke="#6b3400" strokeWidth="1.4" strokeLinejoin="round" />
+      <ellipse cx="6.9" cy="13.2" rx="1.2" ry="0.8" fill="#fff" opacity=".85" />
+      {/* kawaii face */}
+      <circle cx="9.3" cy="15.9" r="1" fill="#5d2c04" />
+      <circle cx="14.7" cy="15.9" r="1" fill="#5d2c04" />
+      <path d="M10.9 17.6c.75.65 1.45.65 2.2 0" fill="none" stroke="#5d2c04" strokeWidth="1.05" strokeLinecap="round" />
+      <circle cx="9" cy="15.5" r="0.32" fill="#fff" />
+      <circle cx="14.4" cy="15.5" r="0.32" fill="#fff" />
     </svg>
   );
 }
 
-/* ---------- open book: cream pages + red bookmark (anim: flap) ---------- */
+/* ---------- CARTOON BOOK (chunky, sparkle, anim: flap) ---------- */
 export function BookIcon({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className="anim-book" aria-hidden>
-      <path d="M12 5.6C10.4 4.3 8 3.8 4.6 3.8c-.9 0-1.6.7-1.6 1.6v11.8c0 .9.7 1.6 1.6 1.6 3.1 0 5.6.5 7.4 1.8 1.8-1.3 4.3-1.8 7.4-1.8.9 0 1.6-.7 1.6-1.6V5.4c0-.9-.7-1.6-1.6-1.6-3.4 0-5.8.5-7.4 1.8Z" fill="#a5541e" />
-      <path d="M12 5.6C10.4 4.5 8.2 4 5 4c-.6 0-1 .4-1 1v10.6c0 .6.4 1 1 1 2.9 0 5.3.5 7 1.6V5.6Z" fill="#fff8ea" />
-      <path d="M12 5.6C13.6 4.5 15.8 4 19 4c.6 0 1 .4 1 1v10.6c0 .6-.4 1-1 1-2.9 0-5.3.5-7 1.6V5.6Z" fill="#fffdf4" />
-      <path d="M12 5.6v12.6" stroke="#d9b878" strokeWidth="1.1" />
-      <path d="M13.4 4.4v5l1.5-1.2 1.5 1.2v-5.4c-1.1.1-2.1.2-3 .4Z" fill="#f43f5f" />
-      <circle cx="7.6" cy="9.4" r="0.8" fill="#ffd43b" />
-      <circle cx="7.6" cy="12.6" r="0.8" fill="#74c0fc" />
+      <path d="M12 5.4C10.3 4.1 7.9 3.6 4.5 3.6c-1 0-1.7.8-1.7 1.7v11.9c0 1 .8 1.7 1.7 1.7 3.1 0 5.6.5 7.5 1.8 1.9-1.3 4.4-1.8 7.5-1.8 1 0 1.7-.7 1.7-1.7V5.3c0-1-.7-1.7-1.7-1.7-3.4 0-5.8.5-7.5 1.8Z" fill="#a5541e" stroke="#6b3400" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M12 5.4C10.3 4.3 8.1 3.8 5 3.8c-.6 0-1 .4-1 1v10.7c0 .6.4 1 1 1 2.9 0 5.3.5 7 1.7V5.4Z" fill="#fff8ea" />
+      <path d="M12 5.4c1.7-1.1 3.9-1.6 7-1.6.6 0 1 .4 1 1v10.7c0 .6-.4 1-1 1-2.9 0-5.3.5-7 1.7V5.4Z" fill="#fffdf4" />
+      <path d="M12 5.4v12.8" stroke="#d9b878" strokeWidth="1.2" />
+      <path d="M13.6 4.2v5.2l1.6-1.3 1.6 1.3V4.5c-1.1.1-2.2.2-3.2.4Z" fill="#f43f5f" stroke="#6b3400" strokeWidth="1" strokeLinejoin="round" />
+      <circle cx="8" cy="9.6" r="0.9" fill="#ffd43b" stroke="#e8940a" strokeWidth="0.7" />
+      <circle cx="8" cy="12.9" r="0.9" fill="#74c0fc" stroke="#339af0" strokeWidth="0.7" />
+      <path className="book-spark" d="M18.4 7.2l.5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5Z" fill="#ffd43b" stroke="#e8940a" strokeWidth="0.6" strokeLinejoin="round" />
     </svg>
   );
 }
 
-/* ---------- trophy: gold cup + red ribbon (anim: bounce) ---------- */
+/* ---------- CARTOON TROPHY (kawaii cup with face, anim: bounce) ---------- */
 export function TrophyIcon({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className="anim-trophy" aria-hidden>
       <defs>
-        <linearGradient id="tr-gold" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffe98a" /><stop offset="1" stopColor="#f59f00" />
+        <linearGradient id="tr-gold2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffec99" /><stop offset="1" stopColor="#f5a50a" />
         </linearGradient>
       </defs>
-      <path d="M7 3.8h10v6a5 5 0 0 1-10 0v-6Z" fill="url(#tr-gold)" stroke="#b45f06" strokeWidth="1.2" />
-      <path d="M7 5.2H4.2a0 0 0 0 0 0 0c0 3 .9 4.8 3 5.4M17 5.2h2.8c0 3-.9 4.8-3 5.4" fill="none" stroke="#e89a10" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M10.4 14.4h3.2l.5 2.8h-4.2Z" fill="#e89a10" />
-      <rect x="7.6" y="17.2" width="8.8" height="3" rx="1.2" fill="#c22947" />
-      <path d="M12 6l.9 1.8 2 .3-1.45 1.4.35 2L12 10.6l-1.8.9.35-2L9.1 8.1l2-.3Z" fill="#fff" opacity=".92" />
-      <circle cx="18.6" cy="3" r="0.9" fill="#ffd43b" className="trophy-spark" />
+      <path d="M6.6 3.4h10.8v6.4a5.4 5.4 0 0 1-10.8 0V3.4Z" fill="url(#tr-gold2)" stroke="#6b3400" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M6.6 5H3.6c0 3.2 1 5.2 3.2 5.9M17.4 5h3c0 3.2-1 5.2-3.2 5.9" fill="none" stroke="#6b3400" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M10.3 14.9h3.4l.5 2.9h-4.4Z" fill="#e8940a" stroke="#6b3400" strokeWidth="1.3" strokeLinejoin="round" />
+      <rect x="7.2" y="17.8" width="9.6" height="3.2" rx="1.4" fill="#f43f5f" stroke="#6b3400" strokeWidth="1.5" />
+      {/* kawaii face on the cup */}
+      <circle cx="9.8" cy="8.2" r="0.95" fill="#5d2c04" />
+      <circle cx="14.2" cy="8.2" r="0.95" fill="#5d2c04" />
+      <path d="M10.7 10.1c.85.7 1.75.7 2.6 0" fill="none" stroke="#5d2c04" strokeWidth="1.05" strokeLinecap="round" />
+      <circle cx="9.5" cy="7.8" r="0.32" fill="#fff" />
+      <circle cx="13.9" cy="7.8" r="0.32" fill="#fff" />
+      <ellipse cx="8.6" cy="5" rx="1.3" ry="0.7" fill="#fff" opacity=".8" />
+      <path className="trophy-spark" d="M19.6 2.2l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6Z" fill="#ffd43b" stroke="#e8940a" strokeWidth="0.6" strokeLinejoin="round" />
     </svg>
   );
 }
 
-/* ---------- shopping bag: crimson bag + gold tag (anim: swing) ---------- */
+/* ---------- CARTOON SHOP BAG (kawaii face + coin, anim: swing) ---------- */
 export function BagIcon({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className="anim-bag" aria-hidden>
-      <defs>
-        <linearGradient id="bg-body" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ff8fab" /><stop offset="1" stopColor="#e11d48" />
-        </linearGradient>
-      </defs>
-      <path d="M9 8V6.4A3 3 0 0 1 15 6.4V8" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" />
-      <path d="M4.6 7.6h14.8l-1.2 12a2 2 0 0 1-2 1.8H7.8a2 2 0 0 1-2-1.8Z" fill="url(#bg-body)" stroke="#9f1239" strokeWidth="1.1" />
-      <circle cx="12" cy="13.6" r="3" fill="#ffd43b" stroke="#b45f06" strokeWidth="0.9" />
-      <path d="M12 11.9l.62 1.25 1.38.2-1 .97.24 1.38L12 15.03l-1.24.67.24-1.38-1-.97 1.38-.2Z" fill="#8a5500" />
+      <path d="M8.8 7.8V6.2a3.2 3.2 0 0 1 6.4 0v1.6" fill="none" stroke="#6b3400" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M4.4 7.4h15.2l-1.3 12.2a2.2 2.2 0 0 1-2.2 2H7.9a2.2 2.2 0 0 1-2.2-2L4.4 7.4Z" fill="#f43f5f" stroke="#6b3400" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M5.9 9.2h12.2l-.9 9.2c-.06.6-.6 1.2-1.2 1.2H8c-.6 0-1.14-.6-1.2-1.2l-.9-9.2Z" fill="#ff8fab" opacity=".55" />
+      {/* kawaii face */}
+      <circle cx="9.4" cy="13.2" r="1" fill="#5d0a20" />
+      <circle cx="14.6" cy="13.2" r="1" fill="#5d0a20" />
+      <path d="M10.7 15.1c.85.7 1.75.7 2.6 0" fill="none" stroke="#5d0a20" strokeWidth="1.05" strokeLinecap="round" />
+      <circle cx="9.1" cy="12.8" r="0.32" fill="#fff" />
+      <circle cx="14.3" cy="12.8" r="0.32" fill="#fff" />
+      <circle cx="12" cy="17.6" r="1.7" fill="#ffd43b" stroke="#6b3400" strokeWidth="0.9" />
+      <path d="M12 16.7l.5 1 1.1.16-.8.76.2 1.08-.97-.52-.97.52.2-1.08-.8-.76 1.1-.16Z" fill="#8a5500" />
+      <ellipse cx="7.4" cy="9.8" rx="1.1" ry="0.6" fill="#fff" opacity=".7" />
     </svg>
   );
 }
@@ -132,33 +142,43 @@ export function PlayGold({ size = 24 }: { size?: number }) {
   );
 }
 
-/* ---------- hint bulb: glowing glass + animated rays ---------- */
+/* ---------- CARTOON HINT BULB (kawaii glowy friend + rays) ---------- */
 export function HintBulb({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className="bulb-ic" aria-hidden>
-      <g className="bulb-rays" stroke="#ffb302" strokeWidth="1.5" strokeLinecap="round">
-        <path d="M12 1.6v2" /><path d="M4.6 4.9l1.4 1.4" /><path d="M19.4 4.9 18 6.3" />
-        <path d="M2.4 11.4h2" /><path d="M19.6 11.4h2" />
+      <g className="bulb-rays" stroke="#ffb302" strokeWidth="1.9" strokeLinecap="round">
+        <path d="M12 1.4v2.2" /><path d="M4.4 4.7l1.6 1.6" /><path d="M19.6 4.7 18 6.3" />
+        <path d="M2.2 11.6h2.2" /><path d="M19.6 11.6h2.2" />
       </g>
-      <path d="M12 4.4a6 6 0 0 1 3.6 10.8c-.8.6-1.2 1.3-1.3 2.1h-4.6c-.1-.8-.5-1.5-1.3-2.1A6 6 0 0 1 12 4.4Z" fill="#ffe066" stroke="#e8940a" strokeWidth="1.3" />
-      <path d="M10 14.2a4.4 4.4 0 0 0-1.3-5.4" fill="none" stroke="#fff3bf" strokeWidth="1.4" strokeLinecap="round" />
-      <rect x="9.6" y="18.4" width="4.8" height="1.5" rx="0.7" fill="#8494ab" />
-      <rect x="10.1" y="20.2" width="3.8" height="1.5" rx="0.7" fill="#6b7c95" />
-      <path d="M10.6 17.3h2.8" stroke="#e8940a" strokeWidth="1.1" strokeLinecap="round" />
+      <path d="M12 4a6.6 6.6 0 0 1 4 11.9c-.9.7-1.3 1.4-1.4 2.3h-5.2c-.1-.9-.5-1.6-1.4-2.3A6.6 6.6 0 0 1 12 4Z" fill="#ffe066" stroke="#b06a00" strokeWidth="1.7" />
+      <path d="M9.4 8.4a4.6 4.6 0 0 0-1.2 5.2" fill="none" stroke="#fff3bf" strokeWidth="1.6" strokeLinecap="round" />
+      {/* kawaii face */}
+      <circle cx="10" cy="10.6" r="1" fill="#8a5500" />
+      <circle cx="14" cy="10.6" r="1" fill="#8a5500" />
+      <path d="M10.7 12.7c.85.65 1.75.65 2.6 0" fill="none" stroke="#8a5500" strokeWidth="1.05" strokeLinecap="round" />
+      <circle cx="9.7" cy="10.2" r="0.32" fill="#fff" />
+      <circle cx="13.7" cy="10.2" r="0.32" fill="#fff" />
+      <rect x="9.4" y="18.6" width="5.2" height="1.7" rx="0.85" fill="#8494ab" stroke="#5d6b80" strokeWidth="0.7" />
+      <rect x="10" y="20.6" width="4" height="1.6" rx="0.8" fill="#6b7c95" stroke="#5d6b80" strokeWidth="0.7" />
     </svg>
   );
 }
 
-/* ---------- shuffle: two glossy curved arrows (anim: sway) ---------- */
+/* ---------- CARTOON SHUFFLE (chunky glossy arrows, anim: sway) ---------- */
 export function ShuffleArrows({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className="shuffle-ic" aria-hidden>
-      <path d="M3.5 7.5h3.4c1.5 0 2.9.7 3.8 1.9l3.6 4.8a4.8 4.8 0 0 0 3.8 1.9h2" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-      <path d="M3.5 16.1h3.4c1.5 0 2.9-.7 3.8-1.9l.9-1.2" fill="none" stroke="#ffe08a" strokeWidth="2" strokeLinecap="round" />
-      <path d="M14.9 10.6l.4-.6a4.8 4.8 0 0 1 3.8-1.9h2" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-      <path d="M18.6 5.4 21.2 8l-2.6 2.6" fill="none" stroke="#ffe08a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M18.6 13.4 21.2 16l-2.6 2.6" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="5.4" cy="7.5" r="1" fill="#ffd43b" />
+      {/* back path (cream) */}
+      <path d="M3.4 16.2h3.5c1.6 0 3.1-.75 4-2l.8-1.1" fill="none" stroke="#6b3400" strokeWidth="3.4" strokeLinecap="round" opacity="0.25" transform="translate(0 .9)" />
+      <path d="M3.4 16.2h3.5c1.6 0 3.1-.75 4-2l.8-1.1" fill="none" stroke="#ffe08a" strokeWidth="3" strokeLinecap="round" />
+      {/* front path (white) */}
+      <path d="M3.4 7.6h3.5c1.6 0 3.1.75 4 2l3.6 4.8a4.9 4.9 0 0 0 3.9 2h2" fill="none" stroke="#6b3400" strokeWidth="3.4" strokeLinecap="round" opacity="0.25" transform="translate(0 .9)" />
+      <path d="M3.4 7.6h3.5c1.6 0 3.1.75 4 2l3.6 4.8a4.9 4.9 0 0 0 3.9 2h2" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
+      <path d="M14.9 10.7l.4-.6a4.9 4.9 0 0 1 3.9-2h2" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
+      {/* chunky arrowheads */}
+      <path d="M17.9 4.6 21.4 8l-3.5 3.4" fill="none" stroke="#ffd43b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M17.9 12.9 21.4 16.3l-3.5 3.4" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="5.2" cy="7.6" r="1.15" fill="#ffd43b" stroke="#e8940a" strokeWidth="0.8" />
     </svg>
   );
 }

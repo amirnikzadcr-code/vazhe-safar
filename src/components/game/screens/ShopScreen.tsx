@@ -1,13 +1,20 @@
 "use client";
 /* ------------------------------------------------------------------
- * ShopScreen — coin packs (demo pricing) + special bundle
+ * ShopScreen — v2.0 full visual upgrade (user request: «صفحه فروشگاه
+ * رو خوشگل تر بکن ارتقا بده»):
+ *   • golden hero banner with glossy sheen sweep
+ *   • cartoon pack cards: coin-badge with animated coin face, price
+ *     pill, springy staggered entrance, bobbing badges
+ *   • pulsing «محبوب» ribbon
+ *   • purple special bundle with twinkling sparkles
+ * Back button returns to where the player came from (GameApp.leaveShop).
  * ------------------------------------------------------------------ */
 import { Sheet, TopBar, Btn, useToast, ToastHost } from "@/components/game/ui/kit";
-import { Sparkles } from "@/components/game/icons";
+import { Coin, Sparkles } from "@/components/game/icons";
 import { faNum } from "@/game/core/utils";
 
 const PACKS = [
-  { coins: 50,   price: "۵۰۰ تومان",  hot: false },
+  { coins: 50,   price: "۵۰۰ تومان",   hot: false },
   { coins: 250,  price: "۲٬۴۵۰ تومان", hot: true },
   { coins: 550,  price: "۴٬۹۰۰ تومان", hot: false },
   { coins: 1200, price: "۹٬۹۰۰ تومان", hot: false },
@@ -20,41 +27,61 @@ export function ShopScreen({ coins, onBack }: { coins: number; onBack: () => voi
     <Sheet bg="/assets/bg/home2.webp" bgDim={0.34}>
       <TopBar coins={coins} onBack={onBack} title="فروشگاه" />
 
+      {/* golden hero banner */}
+      <div className="shop-hero">
+        <span style={{ display: "inline-flex", filter: "drop-shadow(0 3px 4px rgba(120,60,0,.4))" }}>
+          <Coin size={44} />
+        </span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, color: "#5d2c04", fontSize: 17, textShadow: "0 1px 0 rgba(255,255,255,.45)" }}>
+            بستهٔ سکه
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#7a4a10" }}>
+            برای راهنما و ادامهٔ بازی سکه جمع کن!
+          </div>
+        </div>
+        <span className="chip" style={{ fontSize: 13, gap: 5, padding: "3px 10px" }}>
+          <span className="coin-ic" style={{ width: 15, height: 15 }} />
+          {faNum(coins)}
+        </span>
+      </div>
+
       <div className="scrolly">
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 22 }}>
-          {PACKS.map((p) => (
-            <div key={p.coins} className="panel" style={{ borderRadius: 20, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, position: "relative" }}>
-              <span style={{ width: 54, height: 54, borderRadius: 16, background: "linear-gradient(180deg,#fff3d0,#ffd76e)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 -3px 3px rgba(160,100,0,.3)", flex: "none" }}>
-                
-                <img src="/assets/obj/gift.webp" alt="" style={{ height: 44, objectFit: "contain" }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 13, paddingBottom: 22 }}>
+
+          {/* coin packs — cartoon cards */}
+          {PACKS.map((p, i) => (
+            <div key={p.coins} className="shop-pack" style={{ ["--i" as string]: i }}>
+              <span className="pack-badge" style={{ ["--i" as string]: i }}>
+                <Coin size={36} />
               </span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, color: "#5d3a12", fontSize: 16 }}>{faNum(p.coins)} سکه</div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: "#8a6a3a" }}>{p.price}</div>
-              </div>
-              {p.hot && (
-                <span style={{ position: "absolute", top: -9, right: 14, background: "linear-gradient(180deg,#ff9d9d,#e13f3f)", color: "#fff", fontSize: 11, fontWeight: 800, borderRadius: 999, padding: "2px 10px", boxShadow: "0 3px 0 #a31f1f" }}>
-                  <Sparkles size={11} style={{ verticalAlign: -1 }} /> محبوب
+                <div style={{ fontWeight: 800, color: "#5d3a12", fontSize: 16.5, display: "flex", alignItems: "center", gap: 6 }}>
+                  {faNum(p.coins)} سکه
+                </div>
+                <span className="price-pill">
+                  <Sparkles size={11} style={{ verticalAlign: -1 }} />
+                  {p.price}
                 </span>
-              )}
-              <Btn color={p.hot ? "gold" : "green"} style={{ fontSize: 14, padding: ".5em 1.1em" }} onClick={() => show("خرید در نسخهٔ فعلی فعال نیست — جایزهٔ رایگان زیر را از دست نده!")}>
+              </div>
+              {p.hot && <span className="ribbon">🔥 محبوب‌ترین</span>}
+              <Btn color={p.hot ? "gold" : "green"} style={{ fontSize: 14.5, padding: ".5em 1.15em" }} onClick={() => show("خرید در نسخهٔ فعلی فعال نیست — به‌زودی در نسخهٔ اندروید!")}>
                 خرید
               </Btn>
             </div>
           ))}
 
-          {/* special bundle */}
-          <div className="panel" style={{ borderRadius: 22, padding: 14, display: "flex", alignItems: "center", gap: 12, background: "linear-gradient(180deg,#fff7e0,#ffe3ae)" }}>
-            
-            <img src="/assets/obj/chest.webp" alt="بسته ویژه" className="breathe" style={{ height: 74, objectFit: "contain", flex: "none" }} />
+          {/* special bundle — purple mystery chest */}
+          <div className="shop-bundle">
+            <img src="/assets/obj/chest.webp" alt="بسته ویژه" className="breathe" style={{ height: 76, objectFit: "contain", flex: "none", filter: "drop-shadow(0 4px 6px rgba(20,0,60,.45))" }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, color: "#7a4a00", fontSize: 16 }}>بستهٔ ویژه</div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: "#8a6a3a" }}>امتیاز جذاب، پیشرفت دلت آب می‌شه!</div>
+              <div style={{ fontWeight: 800, color: "#fff", fontSize: 16.5, textShadow: "0 2px 3px rgba(40,0,90,.5)" }}>بستهٔ ویژه</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: "#ecdcff" }}>شگفتی‌های جذاب، پیشرفت دلت آب می‌شه!</div>
             </div>
-            <Btn color="teal" style={{ fontSize: 14, padding: ".5em 1.1em" }} onClick={() => show("به‌زودی در نسخهٔ اندروید!")}>اطلاعات</Btn>
+            <Btn color="gold" style={{ fontSize: 14.5, padding: ".5em 1.15em" }} onClick={() => show("به‌زودی در نسخهٔ اندروید!")}>اطلاعات</Btn>
           </div>
 
-          <p style={{ textAlign: "center", color: "#ffe9c8", fontSize: 12, fontWeight: 600, textShadow: "0 2px 4px rgba(0,0,0,.4)" }}>
+          <p className="shop-note">
             خریدهای واقعی فقط در نسخهٔ اندروید فعال می‌شوند.
           </p>
         </div>

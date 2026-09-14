@@ -696,28 +696,32 @@ class AudioEngine {
 
   // — public SFX vocabulary —
 
-  /** polished UI click: tactile tick + warm woody body + glossy top */
+  /** v2.0 «پنبه‌ای» UI click — research pass: other hit games use a soft,
+   * rounded, low-tension tap (felt/marimba family, ~-12dB transient).
+   * The old glossy 2kHz tick read as “dry”; this one lands like a warm
+   * wooden tap wrapped in felt — zero harshness, gentle low body. */
   sfxClick(): void {
-    this.sfxNoise({ dur: 0.035, vol: 0.055, freq: 3200, q: 1.4 });                 // tactile transient
-    this.sfxOsc({ type: "triangle", f0: 660, f1: 470, dur: 0.065, vol: 0.15, filter: 3800 }); // body
-    this.sfxOsc({ type: "sine", f0: 196, f1: 150, dur: 0.09, vol: 0.11 });          // warm low body
-    this.sfxOsc({ type: "sine", f0: 2093, dur: 0.03, vol: 0.03, delay: 0.005 });    // gloss
+    this.sfxNoise({ dur: 0.028, vol: 0.026, freq: 1900, q: 1.1 });                  // soft felt touch
+    this.sfxOsc({ type: "triangle", f0: 520, f1: 385, dur: 0.075, vol: 0.11, filter: 2400 }); // woody body
+    this.sfxOsc({ type: "sine", f0: 175, f1: 138, dur: 0.1, vol: 0.08 });           // warm low body
+    this.sfxOsc({ type: "sine", f0: 1568, dur: 0.024, vol: 0.016, delay: 0.006 });  // whisper of gloss
   }
 
+  /** v2.0 drag voice — what Wordscapes/Word-Cookies-class games do
+   * (research pass): every tile caught plays a SOFT rounded pop whose
+   * pitch climbs a PENTATONIC ladder → always consonant, never fatiguing,
+   * feels like humming a little melody while you drag.
+   * • marimba-style body: soft sine + whisper octave, warm lowpass
+   * • tiny felt transient (barely there) instead of a dry click
+   * • gentle sub for warmth so it never sounds thin/clinical */
   sfxLetter(idx: number): void {
-    // walk up the current chapter scale — harp-like pluck (soft, musical)
-    const cfg = this.cfg;
-    let f: number;
-    if (cfg && this.musicOn) {
-      const deg = idx % cfg.cents.length;
-      f = cfg.root * c2r(cfg.cents[deg] + 1200 * (cfg.octave + 1));
-    } else {
-      f = 500 * Math.pow(1.059, Math.min(idx, 10));
-    }
-    this.sfxOsc({ type: "triangle", f0: f, dur: 0.17, vol: 0.2, filter: 5200 });
-    this.sfxOsc({ type: "sine", f0: f * 2, dur: 0.1, vol: 0.07, delay: 0.012 });
-    this.sfxOsc({ type: "sine", f0: f * 3, dur: 0.06, vol: 0.028, delay: 0.024 });
-    this.sfxNoise({ dur: 0.04, vol: 0.028, freq: 4200, q: 2 });
+    const PENT = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24]; // C-pentatonic ladder
+    const step = PENT[Math.min(Math.max(idx, 0), PENT.length - 1)];
+    const f = 523.25 * Math.pow(2, step / 12);            // C5 base
+    this.sfxOsc({ type: "sine", f0: f, dur: 0.22, vol: 0.16, filter: 2300 });      // warm marimba body
+    this.sfxOsc({ type: "triangle", f0: f * 2, dur: 0.11, vol: 0.045, delay: 0.005, filter: 2900 }); // airy octave
+    this.sfxOsc({ type: "sine", f0: f * 0.5, dur: 0.13, vol: 0.05 });               // gentle sub warmth
+    this.sfxNoise({ dur: 0.026, vol: 0.012, freq: 3000, q: 1.8 });                  // felt touch
   }
 
   sfxWordFound(step: number = 0): void {

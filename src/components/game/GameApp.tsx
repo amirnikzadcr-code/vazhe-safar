@@ -34,7 +34,7 @@ type View =
   | { k: "welcome" }
   | { k: "home" }
   | { k: "map"; ch: number }
-  | { k: "play"; ch: number; lv: number; from: "map" | "challenge" }
+  | { k: "play"; ch: number; lv: number; from: "map" | "challenge"; resume?: boolean }
   | { k: "library" }
   | { k: "missions" }
   | { k: "shop" }
@@ -63,6 +63,10 @@ export function GameApp() {
   const viewRef = useRef<View>(view);
   const modalRef = useRef<ModalKind>(modal);
   const streakTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* v2.0 — where to go back when leaving the shop (play / map / library
+   * / challenge / home). Fixes: hint w/o coins → shop → back dumped the
+   * player on the home screen instead of the level. */
+  const shopReturnRef = useRef<View>({ k: "home" });
 
   useEffect(() => { modalRef.current = modal; }, [modal]);
 
@@ -72,6 +76,7 @@ export function GameApp() {
     const curK = viewKey(cur);
     const nextK = viewKey(next);
     if (nextK === curK) return;
+    if (next.k === "shop" && cur.k !== "shop") shopReturnRef.current = cur;
     viewRef.current = next;
     setDir(ORDER[next.k] >= ORDER[cur.k] ? "fwd" : "back");
     setStreakK((k) => k + 1);
@@ -80,6 +85,19 @@ export function GameApp() {
     streakTimer.current = setTimeout(() => setStreakK(0), 400);
   }, []);
   useEffect(() => () => { if (streakTimer.current) clearTimeout(streakTimer.current); }, []);
+
+  /* v2.0 — leaving the shop → return where the player came from.
+   * If that play level completed meanwhile (shop opened from the win
+   * modal) land on the chapter map instead of a dead board. */
+  const leaveShop = useCallback(() => {
+    const r = shopReturnRef.current;
+    if (r.k === "play") {
+      if (Save.data.levels[`${r.ch}:${r.lv}`]) { setView({ k: "map", ch: r.ch }); return; }
+      setView({ ...r, resume: true });
+      return;
+    }
+    setView(r.k === "shop" ? { k: "home" } : r);
+  }, [setView]);
 
   /* ----- boot: audio settings; first-screen decided by Splash timer ----- */
   useEffect(() => {
@@ -128,11 +146,12 @@ export function GameApp() {
   const backAction = useCallback(() => {
     if (modalRef.current) { setModal(null); return; }
     const v = viewRef.current;
+    if (v.k === "shop") { leaveShop(); return; }                     // shop → where you came from
     if (v.k === "play") { setModal("exitMap"); return; }          // ask before leaving the level
     if (v.k === "splash" || v.k === "welcome" || v.k === "home") { setModal("exitApp"); return; } // ask before quitting
     Save.markSeen();
     setView({ k: "home" });
-  }, [setView]);
+  }, [setView, leaveShop]);
 
   useEffect(() => {
     let dead = false;
@@ -252,6 +271,7 @@ export function GameApp() {
             lv={v.lv}
             coins={coins}
             coinsBump={bump}
+            resume={v.resume === true}
             onExit={() => setView({ k: "map", ch: v.ch })}
             onNext={() => afterWin(v.ch, v.lv, v.from)}
             onSettings={() => setModal("settings")}
@@ -270,7 +290,7 @@ export function GameApp() {
       case "missions":
         return <MissionsScreen coins={coins} onBack={goHome} onChallenge={() => setView({ k: "challenge" })} />;
       case "shop":
-        return <ShopScreen coins={coins} onBack={goHome} />;
+        return <ShopScreen coins={coins} onBack={leaveShop} />;
       case "challenge":
         return (
           <ChallengeScreen

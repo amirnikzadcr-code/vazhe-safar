@@ -61,7 +61,7 @@ export function WelcomeScreen({
 export function Splash({ onDone }: { onDone: () => void }) {
   const [prog, setProg] = useState(0);
   const doneRef = useRef(onDone);
-  doneRef.current = onDone;
+  useEffect(() => { doneRef.current = onDone; }); /* keep latest — never during render */
   useEffect(() => {
     let finished = false;
     const t0 = Date.now();
