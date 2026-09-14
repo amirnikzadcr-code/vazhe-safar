@@ -37,6 +37,9 @@ import { PauseModal } from "@/components/game/modals/Overlays";
  * v2.1: was 1150 — the player read it as “the word applies too late”.
  * 550 keeps a juicy beat but feels instant. */
 const CELEBRATE_MS = 550;
+/* the complete-word banner («جملهٔ کاملش زیبا ظاهر شه بعد محو شه»):
+ * golden ribbon with the FULL word, pops in → holds → fades away. */
+const BANNER_MS = 1500;
 
 /* ---- in-progress level snapshots (shop round-trip) ----
  * Leaving a level to visit the shop unmounts PlayScreen; this cache
@@ -86,6 +89,8 @@ export function PlayScreen({
     () => new Set(resumeSnap?.revealed ?? []), // "word#idx"
   );
   const [justFound, setJustFound] = useState<{ word: string; k: number } | null>(null);
+  const [banner, setBanner] = useState<{ word: string; k: number } | null>(null);
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [wheelFx, setWheelFx] = useState<{ word: string; k: number } | null>(null);
   const [shaking, setShaking] = useState(false);
   const [won, setWon] = useState<{ stars: number; coins: number } | null>(null);
@@ -163,7 +168,8 @@ export function PlayScreen({
     return revealed.has(`${word}#${idx}`);
   }, [revealed]);
 
-  /* stage 2: the word actually lands on the board */
+  /* stage 2: the word actually lands on the board + the FULL word
+   * banner blooms over the screen, then fades (user request) */
   const commitFound = useCallback((word: string) => {
     pendingRef.current.delete(word);
     const next = new Set(foundRef.current);
@@ -172,8 +178,13 @@ export function PlayScreen({
     setFound(next);
     fxKRef.current += 1;
     setJustFound({ word, k: fxKRef.current });
+    fxKRef.current += 1;
+    setBanner({ word, k: fxKRef.current });
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    bannerTimerRef.current = setTimeout(() => setBanner(null), BANNER_MS);
     Audio.sfxSettle();
   }, []);
+  useEffect(() => () => { if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current); }, []);
 
   /* stage 1: reward + wheel celebration, then apply to the board */
   const celebrate = useCallback((word: string, byPlayer: boolean) => {
@@ -358,6 +369,22 @@ export function PlayScreen({
             </div>
             <HandSvg />
           </div>
+        </div>
+      )}
+
+      {/* COMPLETE-WORD BANNER — blooms when a word is guessed, then fades */}
+      {banner && (
+        <div key={banner.k} className="word-banner" aria-hidden>
+          <span className="wb-ribbon">
+            <i className="wb-star l" />
+            <b className="wb-word">{banner.word}</b>
+            <i className="wb-star r" />
+          </span>
+          <span className="wb-dust">
+            {Array.from({ length: 8 }, (_, s) => (
+              <i key={s} style={{ ["--dx" as string]: `${Math.cos((s / 8) * Math.PI * 2) * 90}px`, ["--dy" as string]: `${Math.sin((s / 8) * Math.PI * 2) * 46 - 20}px`, ["--dd" as string]: `${s * 40}ms` }} />
+            ))}
+          </span>
         </div>
       )}
 

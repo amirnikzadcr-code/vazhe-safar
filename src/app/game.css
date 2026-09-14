@@ -184,6 +184,28 @@
   box-shadow: 0 3px 0 #dcb87a, 0 6px 10px rgba(0,0,0,.2);
 }
 
+/* عمو دانا — waving avatar chip on home (static, out of flex flow).
+   No idle animation: returning home never bounces/jitters. */
+.home-grandpa {
+  position: absolute; left: 12px; bottom: 158px; z-index: 22;
+  width: 76px; pointer-events: none;
+}
+.home-grandpa img {
+  width: 76px; height: 76px; border-radius: 999px; object-fit: cover; object-position: 50% 10%;
+  border: 3px solid #ffd76e; outline: 2.5px solid #fff;
+  box-shadow: 0 4px 0 rgba(122,74,0,.45), 0 8px 14px rgba(0,0,0,.3);
+  background: linear-gradient(180deg,#ffe9bb,#e8c07c);
+  display: block;
+}
+.hg-bubble {
+  position: absolute; left: 62px; top: -8px;
+  background: linear-gradient(180deg,#fffdf4,#f7e9c8);
+  border: 2px solid #fff; outline: 1.5px solid #d9b87a;
+  color: #6b4a1e; font-weight: 800; font-size: 12px;
+  padding: 3px 10px; border-radius: 12px; white-space: nowrap;
+  box-shadow: 0 3px 0 #dcb87a, 0 6px 10px rgba(0,0,0,.2);
+}
+
 /* next-level side card */
 .next-card {
   position: absolute; top: 118px; right: 10px; z-index: 24;
@@ -230,31 +252,65 @@
   margin: 0 2px 0 0;
 }
 
-/* bottom nav — cream bar, 5 colorful items, active = golden square */
+/* bottom nav — GRASS GROUND DOCK (v2.2): round icon podiums rise out of
+   a scalloped grass mound with tiny flowers; active = golden podium */
 .navbar2 {
-  flex: none; margin: 8px 10px calc(8px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg,#fffdf4,#f9ecc9);
-  border: 3px solid #fff; outline: 2px solid #e2c893;
-  border-radius: 24px; box-shadow: 0 6px 0 #dcb87a, 0 12px 18px rgba(0,0,0,.25);
-  display: flex; align-items: stretch; justify-content: space-around;
-  padding: 7px 6px; position: relative; z-index: 30;
+  flex: none; position: relative; z-index: 30;
+  margin: 30px 10px calc(6px + env(safe-area-inset-bottom));
+  display: flex; align-items: flex-end; justify-content: space-around;
+  padding: 0 4px 7px;
+  background:
+    /* tiny flower dots in the grass */
+    radial-gradient(circle at 12% 38%, #ff8fab 0 3px, transparent 4px),
+    radial-gradient(circle at 38% 66%, #ffd94e 0 2.6px, transparent 3.6px),
+    radial-gradient(circle at 64% 30%, #ff8fab 0 2.6px, transparent 3.6px),
+    radial-gradient(circle at 88% 62%, #fff 0 2.4px, transparent 3.4px),
+    /* grass body */
+    linear-gradient(180deg,#8ed472 0%,#63b651 42%,#3f8f36 100%);
+  border: 3px solid #fff; outline: 2.5px solid #2f7a30;
+  border-radius: 24px;
+  box-shadow: 0 7px 0 #2c6e2c, 0 14px 20px rgba(0,0,0,.3);
+}
+/* scalloped grass lip along the top edge */
+.navbar2::before {
+  content: ""; position: absolute; left: 6px; right: 6px; top: -10px; height: 14px;
+  background: radial-gradient(circle at 14px 14px, #8ed472 10px, transparent 11px);
+  background-size: 26px 14px; background-repeat: repeat-x;
+  pointer-events: none;
 }
 .nav2-item {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  background: none; border: none; padding: 5px 2px 3px; cursor: pointer;
-  color: #8a6a3e; font-family: inherit; font-weight: 700; font-size: 10.5px;
+  position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: none; border: none; padding: 0 2px; cursor: pointer;
+  font-family: inherit;
+  margin-top: -20px; /* podiums rise out of the ground */
 }
-.nav2-item img { width: 30px; height: 30px; }
-.nav2-item .nav2-orb { position: relative; display: flex; padding: 4px; border-radius: 14px; }
+.nav2-item .nav2-orb {
+  width: 52px; height: 52px; border-radius: 999px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 36% 30%, #fffdf4, #ffe9ae 58%, #f3c163);
+  border: 3px solid #fff; outline: 2.5px solid #d9a13c;
+  box-shadow: 0 5px 0 #b9842c, 0 9px 12px rgba(0,0,0,.28);
+  transition: transform .15s ease;
+}
+.nav2-item img { width: 32px; height: 32px; }
+.nav2-item .nav2-label {
+  background: rgba(255,253,244,.94); border: 1.5px solid #fff;
+  border-radius: 8px; padding: 1px 8px 2px;
+  font-size: 10px; font-weight: 800; color: #3f6f2c;
+  box-shadow: 0 2px 0 rgba(47,95,32,.45);
+  white-space: nowrap;
+}
 .nav2-item.active .nav2-orb {
-  background: linear-gradient(180deg,#ffe08a,#f5b93c);
-  box-shadow: 0 3px 0 #c98d2e, inset 0 2px 1px rgba(255,255,255,.8);
+  background: radial-gradient(circle at 36% 30%, #fff8d0, #ffd76e 52%, #f0a92c);
+  outline-color: #b47708; box-shadow: 0 5px 0 #b47708, 0 0 0 4px rgba(255,224,138,.55), 0 9px 12px rgba(0,0,0,.3);
+  transform: translateY(-4px);
 }
-.nav2-item.active { color: #7a4a00; }
+.nav2-item.active .nav2-label { color: #7a4a00; background: linear-gradient(180deg,#fffdf4,#ffe9ae); }
 .nav2-item:active .nav2-orb { transform: translateY(2px); }
 .nav2-item .dot {
-  position: absolute; top: -2px; left: -2px; width: 11px; height: 11px;
+  position: absolute; top: -2px; left: -2px; width: 12px; height: 12px;
   border-radius: 999px; background: #ff4757; border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,.35); z-index: 2;
 }
 
 /* ==================================================================
@@ -395,13 +451,16 @@
 }
 @keyframes revealIn { 0% { transform: scale(.4); } 70% { transform: scale(1.16); } 100% { transform: scale(1); } }
 @keyframes pop { 0% { transform: scale(.3) rotate(-6deg); } 62% { transform: scale(1.24) rotate(2deg); } 100% { transform: scale(1) rotate(0); } }
+/* PERF: shine sweep = a translated gradient strip (transform only).
+   The old background-position sweep repainted the whole row each frame. */
 .wrow.done::after {
-  content: ""; position: absolute; inset: -4px -10px; border-radius: 14px;
-  background: linear-gradient(100deg, transparent 20%, rgba(255,244,180,.85) 50%, transparent 80%);
-  background-size: 220% 100%; background-position: 130% 0;
+  content: ""; position: absolute; top: -4px; bottom: -4px; left: -30%; width: 34%;
+  border-radius: 14px;
+  background: linear-gradient(100deg, transparent 12%, rgba(255,244,180,.85) 50%, transparent 88%);
   animation: rowSweep .9s ease .12s both; pointer-events: none;
+  will-change: transform, opacity;
 }
-@keyframes rowSweep { to { background-position: -130% 0; } }
+@keyframes rowSweep { from { transform: translateX(0); opacity: 0; } 18% { opacity: 1; } to { transform: translateX(430%); opacity: 0; } }
 .wsparkles { position: absolute; inset: -8px -12px; pointer-events: none; overflow: visible; }
 .wsparkles i {
   position: absolute; left: 50%; top: 40%; width: 7px; height: 7px; border-radius: 2px;
@@ -482,11 +541,20 @@
 @keyframes selPing { 0% { transform: scale(.85); opacity: 1; } 100% { transform: scale(1.16); opacity: 0; } }
 .tile.used { filter: grayscale(.4) brightness(.92); }
 
-/* wheel celebration FX (bounded one-shot) */
-.wheel-wrap.fx .tile.sel { animation: tileCelebrate .55s ease-in-out infinite alternate; }
-@keyframes tileCelebrate {
-  from { box-shadow: 0 4px 0 #c9a35e, 0 0 0 0 rgba(255,214,90,.0); }
-  to   { box-shadow: 0 4px 0 #c9a35e, 0 0 18px 5px rgba(255,214,90,.65); }
+/* wheel celebration FX (bounded one-shot).
+   PERF: glow = composited ::after halo (transform+opacity), NOT an
+   animated box-shadow — the old shadow loop repainted every frame and
+   made the “نور گیر می‌کنه” stuck-glow artifact on weak phones. */
+.wheel-wrap.fx .tile.sel::after {
+  content: ""; position: absolute; inset: -6px; border-radius: 999px;
+  background: radial-gradient(circle, rgba(255,236,170,.95) 0%, rgba(255,214,90,.55) 45%, rgba(255,214,90,0) 72%);
+  z-index: -1;
+  animation: tileHalo .5s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+@keyframes tileHalo {
+  from { transform: scale(.92); opacity: .55; }
+  to   { transform: scale(1.22); opacity: 1; }
 }
 .wheel-burst { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
 .wb-ring {
@@ -522,6 +590,58 @@
   25% { transform: translate(-50%, 0) scale(1.08); opacity: 1; }
   75% { transform: translate(-50%, -14px) scale(1); opacity: 1; }
   100% { transform: translate(-50%, -30px) scale(.9); opacity: 0; }
+}
+
+/* ==================================================================
+   COMPLETE-WORD BANNER — the full word blooms over the screen then
+   fades (user request: «جملهٔ کاملش زیبا ظاهر شه بعد محو شه»).
+   100% composited: transform + opacity only.
+   ================================================================== */
+.word-banner {
+  position: absolute; inset: 0; z-index: 45; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.wb-ribbon {
+  position: relative; display: inline-flex; align-items: center; gap: 12px;
+  padding: 14px 34px 16px; border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255,253,244,.97), rgba(255,233,174,.97));
+  border: 3px solid #fff; outline: 3px solid #e8a93c;
+  box-shadow: 0 10px 26px rgba(80,40,0,.4);
+  animation: wbRibbon 1.5s cubic-bezier(.2,1.5,.4,1) both;
+  will-change: transform, opacity;
+}
+.wb-word {
+  font-weight: 800; font-size: 40px; line-height: 1.25; color: #7a4a00;
+  text-shadow: 0 2px 0 #ffe9ae;
+}
+.wb-star { width: 20px; height: 20px; flex: none; position: relative; }
+.wb-star::before, .wb-star::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 20px; height: 20px;
+  margin: -10px 0 0 -10px; border-radius: 4px; background: #f0a92c;
+}
+.wb-star::after { transform: rotate(90deg); background: #ffd76e; }
+.wb-star.l { animation: wbSpin 1.5s ease both; }
+.wb-star.r { animation: wbSpinR 1.5s ease both; }
+@keyframes wbSpin { from { transform: rotate(-160deg) scale(0); } 55% { transform: rotate(20deg) scale(1.25); } to { transform: rotate(0) scale(1); } }
+@keyframes wbSpinR { from { transform: rotate(160deg) scale(0); } 55% { transform: rotate(-20deg) scale(1.25); } to { transform: rotate(0) scale(1); } }
+@keyframes wbRibbon {
+  0%   { transform: scale(.3) translateY(26px); opacity: 0; }
+  16%  { transform: scale(1.1) translateY(0); opacity: 1; }
+  26%  { transform: scale(1); }
+  72%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(.94) translateY(-34px); opacity: 0; }
+}
+.wb-dust { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.wb-dust i {
+  position: absolute; left: 0; top: 0; width: 8px; height: 8px; border-radius: 2px;
+  background: #ffd94e;
+  animation: wbDust 1.15s ease-out var(--dd,0ms) both;
+  will-change: transform, opacity;
+}
+@keyframes wbDust {
+  0% { transform: translate(0,0) scale(.4) rotate(0); opacity: 0; }
+  14% { opacity: 1; }
+  100% { transform: translate(var(--dx),var(--dy)) scale(1) rotate(200deg); opacity: 0; }
 }
 
 /* ==================================================================
@@ -670,11 +790,19 @@
   background: radial-gradient(circle at 38% 30%, #a8ef86, #5ec131 58%, #3c9e1f 100%);
   border-color: #fff; outline-color: rgba(30,90,10,.55);
   box-shadow: 0 5px 0 #2f8f1f, 0 0 0 4px rgba(140,230,90,.4), 0 10px 16px rgba(20,90,10,.45);
+}
+/* PERF: the pulse is a composited ::after ring (transform+opacity only)
+   — animating box-shadow repaints every frame and janks the scroll */
+.map-node.cur::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 999px;
+  border: 4px solid rgba(150,235,100,.9);
   animation: curPulse 1.6s ease-in-out infinite;
+  pointer-events: none;
+  will-change: transform, opacity;
 }
 @keyframes curPulse {
-  0%, 100% { box-shadow: 0 5px 0 #2f8f1f, 0 0 0 4px rgba(140,230,90,.35), 0 10px 16px rgba(20,90,10,.45); }
-  50% { box-shadow: 0 5px 0 #2f8f1f, 0 0 0 9px rgba(140,230,90,.16), 0 10px 16px rgba(20,90,10,.45); }
+  0%, 100% { transform: scale(1); opacity: .9; }
+  50% { transform: scale(1.28); opacity: 0; }
 }
 .node-stars {
   position: absolute; left: 50%; transform: translateX(-50%);
@@ -689,22 +817,17 @@
   box-shadow: 0 3px 0 #dcb87a, 0 6px 10px rgba(0,0,0,.25); z-index: 13;
 }
 
-/* wooden signpost (right side) */
-.sign-post {
-  position: absolute; top: 46%; left: 8px; z-index: 12; width: 108px;
-  transform: rotate(-2.5deg);
-  background: linear-gradient(180deg,#b57a3a,#8a5423);
-  border: 3px solid #5f3a14; border-radius: 12px;
-  padding: 9px 10px 10px; text-align: center;
-  box-shadow: 0 5px 0 #5f3a14, 0 10px 16px rgba(0,0,0,.35);
-  pointer-events: none;
+/* dotted stone trail between level nodes (static decoration, zero cost) */
+.path-stone {
+  position: absolute; width: 10px; height: 7px; border-radius: 999px;
+  transform: translate(-50%,-50%) rotate(-14deg);
+  background: linear-gradient(180deg,#fdf3d2,#d9c08c);
+  border: 1.5px solid rgba(122,74,0,.55);
+  box-shadow: 0 1.5px 0 rgba(95,58,20,.4);
+  opacity: .9; z-index: 9; pointer-events: none;
 }
-.sign-post::before {
-  content: ""; position: absolute; left: 50%; bottom: -34px; transform: translateX(-50%);
-  width: 10px; height: 34px; background: linear-gradient(180deg,#7c4a1e,#5f3a14); border-radius: 3px;
-}
-.sign-post b { display: block; color: #ffe9c4; font-weight: 800; font-size: 11.5px; line-height: 1.7; text-shadow: 0 1.5px 0 rgba(60,30,0,.6); }
-.sign-post .heart { color: #ff8fab; font-size: 13px; }
+
+/* wooden signpost removed in v2.2 (collided with node column) */
 
 /* guide (grandpa + bubble) bottom bar */
 .map-guide {
@@ -915,8 +1038,8 @@
    transitions — cheap, opacity-only (lag-free page changes)
    ================================================================== */
 .page-enter { position: absolute; inset: 0; }
-.page-enter.fwd  { animation: pageFwd  .26s ease both; }
-.page-enter.back { animation: pageBack .26s ease both; }
+.page-enter.fwd  { animation: pageFwd  .22s ease both; }
+.page-enter.back { animation: pageBack .22s ease both; }
 @keyframes pageFwd  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pageBack { from { opacity: 0; } to { opacity: 1; } }
 

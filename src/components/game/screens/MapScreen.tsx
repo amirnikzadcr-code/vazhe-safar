@@ -18,21 +18,22 @@ import { faNum } from "@/game/core/utils";
 import { CHAPTERS } from "@/game/data/chapters";
 import { Audio } from "@/game/core/audio";
 
-/* per-chapter waypoints (% of realm canvas) — eyeball-tuned to the
- * painted stone path of each generated scene. Index = level-1 (bottom→top). */
-const PATHS: Record<number, [number, number][]> = {
-  1: [[52, 90], [46, 83], [39, 77], [46, 70], [56, 63], [52, 55], [44, 48], [40, 41], [42, 36], [39, 31]],
-  2: [[52, 90], [42, 83], [58, 77], [40, 69], [57, 62], [41, 53], [56, 47], [43, 39], [55, 34], [54, 30]],
-  3: [[52, 87], [60, 79], [52, 71], [62, 64], [52, 56], [61, 48], [53, 41], [61, 36], [62, 33], [62, 29]],
-  4: [[48, 90], [33, 82], [44, 74], [60, 66], [56, 58], [42, 50], [40, 42], [45, 36], [51, 33], [52, 30]],
-  5: [[42, 87], [55, 79], [64, 71], [56, 63], [44, 54], [38, 46], [44, 38], [49, 32], [51, 31], [52, 29]],
-  6: [[45, 87], [34, 79], [46, 71], [56, 63], [47, 55], [40, 47], [44, 40], [49, 33], [51, 31], [50, 29]],
-  7: [[40, 87], [52, 80], [61, 72], [56, 65], [44, 57], [33, 49], [32, 43], [36, 37], [41, 33], [44, 29]],
-  8: [[50, 89], [60, 81], [55, 73], [45, 65], [51, 57], [59, 49], [55, 42], [48, 35], [45, 32], [43, 29]],
-  9: [[52, 87], [64, 79], [57, 71], [45, 63], [51, 55], [59, 47], [52, 40], [45, 33], [49, 31], [53, 29]],
-  10: [[48, 87], [37, 79], [45, 71], [55, 63], [48, 55], [40, 47], [46, 40], [53, 33], [51, 31], [51, 29]],
-};
-const WP: [number, number][] = PATHS[1];
+/* v2.2 SERPENTINE LAYOUT — computed zigzag that can NEVER overlap.
+ * The old hand-tuned waypoints put nodes 3–5% apart → on narrow phones
+ * the 54px buttons collided («دکمه‌ها تو هم تو هم شده»). Now: 5 rows ×
+ * 2 columns, row spacing ≈ 15.5% of realm height (~110px on phones) —
+ * more than 1.5× the node+stars height. Level 1 = bottom-right start,
+ * the trail snakes upward. A dotted stone trail connects the nodes. */
+const ROW_Y = [88.5, 73, 57.5, 42, 26.5];       /* % of realm height, bottom → top */
+const COL_X = { l: 30, r: 70 };                  /* % of realm width */
+
+export function nodePos(lv: number): { x: number; y: number } {
+  const row = Math.floor((lv - 1) / 2);          /* 0..4 */
+  const second = (lv - 1) % 2 === 1;             /* second node of the row */
+  const evenRow = row % 2 === 0;
+  const x = evenRow ? (second ? COL_X.r : COL_X.l) : (second ? COL_X.l : COL_X.r);
+  return { x, y: ROW_Y[row] };
+}
 
 /* the player's CURRENT level: first unlocked-not-done spot on the journey */
 function currentLevel(): { c: number; l: number } | null {
@@ -100,17 +101,27 @@ function Realm({
         </div>
       </div>
 
-      {/* wooden signpost — only on the first chapter (reference) */}
-      {ch === 1 && (
-        <div className="sign-post">
-          <b>هر مرحله<br />یک دنیای<br />جدید!</b>
-          <span className="heart">♥</span>
-        </div>
-      )}
+      {/* wooden signpost removed (v2.2) — it collided with the left node
+          column and duplicated the guide bubble's text */}
 
-      {/* 10 level nodes riding the painted path */}
-      {(PATHS[ch] ?? WP).map(([x, y], i) => {
+      {/* dotted stone trail connecting level 1 → 10 (static, zero cost) */}
+      {Array.from({ length: 9 }, (_, s) => {
+        const a = nodePos(s + 1);
+        const b = nodePos(s + 2);
+        return [0.36, 0.68].map((t, ti) => (
+          <span
+            key={`${s}-${ti}`}
+            className="path-stone"
+            style={{ left: `${a.x + (b.x - a.x) * t}%`, top: `${a.y + (b.y - a.y) * t}%` }}
+            aria-hidden
+          />
+        ));
+      })}
+
+      {/* 10 level nodes on the serpentine trail */}
+      {Array.from({ length: 10 }, (_, i) => {
         const lv = i + 1;
+        const { x, y } = nodePos(lv);
         const key = `${ch}:${lv}`;
         const rec = Save.data.levels[key];
         const unlocked = unlockedCh && Save.levelUnlocked(ch, lv);

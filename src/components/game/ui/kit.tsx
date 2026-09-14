@@ -11,6 +11,7 @@ import {
 import { faNum } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
+import { isDecoded } from "@/game/core/preload";
 import { buzz } from "@/game/core/utils";
 
 /* ---------- chunky 3D button ---------- */
@@ -207,11 +208,15 @@ export function Stars({ n, total = 3, size = 24 }: { n: number; total?: number; 
 }
 
 /* ---------- STABLE BACKGROUND — gradient underlay + decode gate.
- * The screen NEVER flashes white/gray while an image decodes: a
- * cheerful sky→meadow gradient paints first, the image fades in only
- * once fetched+decoded. Shared by Sheet + HomeScreen. ---------- */
+ * The screen NEVER flashes white/gray/blue while an image decodes: a
+ * soft gradient paints first, the image fades in only once fetched+
+ * decoded. v2.2: images are pre-decoded during the splash, and
+ * isDecoded() is checked SYNCHRONOUSLY on the first render → returning
+ * to any screen paints the image at full opacity instantly (zero blue
+ * flash between pages). Shared by Sheet + HomeScreen. ---------- */
 export function StableBg({ src, dim = 0, blur = 0 }: { src: string; dim?: number; blur?: number }) {
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(() => isDecoded(src));
+  useEffect(() => { if (isDecoded(src)) setReady(true); }, [src]);
   return (
     <>
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#9fd9ff 0%,#6cc0f5 34%,#a8e08b 62%,#7ccb62 100%)" }} />
@@ -227,7 +232,7 @@ export function StableBg({ src, dim = 0, blur = 0 }: { src: string; dim?: number
         style={{
           filter: blur ? `blur(${blur}px)` : undefined,
           opacity: ready ? 1 : 0,
-          transition: "opacity .16s ease",
+          transition: ready ? "none" : "opacity .16s ease",
         }}
         fetchPriority="high"
         decoding="async"

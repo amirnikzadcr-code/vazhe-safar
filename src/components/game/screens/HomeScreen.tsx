@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { PlayerHud } from "@/components/game/ui/kit";
 import { ImgIcon } from "@/components/game/icons";
 import { Save } from "@/game/core/save";
+import { isDecoded } from "@/game/core/preload";
 import { faNum } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 
@@ -77,7 +78,12 @@ export function HomeScreen({
           <img className="next-thumb" src="/assets/map/m01.webp" alt="" draggable={false} loading="lazy" decoding="async" onError={(e) => { e.currentTarget.src = "/assets/bg/home3.webp"; }} />
         </button>
 
-        {/* spacer — the painted grandpa shows through */}
+        {/* spacer — عمو دانا waves from the meadow (static avatar chip,
+            zero idle animation → no bounce/jitter when returning home) */}
+        <div className="home-grandpa" aria-hidden>
+          <img src="/assets/char/hello.webp" alt="" draggable={false} />
+          <span className="hg-bubble">سلام!</span>
+        </div>
         <div style={{ flex: 1, minHeight: 0 }} />
 
         {/* play */}
@@ -88,27 +94,28 @@ export function HomeScreen({
           </button>
         </div>
 
-        {/* bottom nav — خانه / کتابخانه / ماموریت‌ها / فروشگاه / تنظیمات */}
+        {/* bottom nav — خانه / کتابخانه / ماموریت‌ها / جوایز / تنظیمات
+            (grass ground dock: round podiums rising out of the turf) */}
         <nav className="navbar2" aria-label="منوی اصلی">
           <button type="button" className="nav2-item active">
-            <span className="nav2-orb"><ImgIcon name="house" size={30} /></span>
-            خانه
+            <span className="nav2-orb"><ImgIcon name="house" size={32} /></span>
+            <span className="nav2-label">خانه</span>
           </button>
           <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onLibrary(); }}>
-            <span className="nav2-orb"><ImgIcon name="books" size={30} /></span>
-            کتابخانه
+            <span className="nav2-orb"><ImgIcon name="books" size={32} /></span>
+            <span className="nav2-label">کتابخانه</span>
           </button>
           <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onMissions(); }}>
-            <span className="nav2-orb"><ImgIcon name="tasks" size={30} /></span>
-            ماموریت‌ها
+            <span className="nav2-orb"><ImgIcon name="tasks" size={32} /></span>
+            <span className="nav2-label">ماموریت‌ها</span>
           </button>
           <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onShop(); }}>
-            <span className="nav2-orb"><ImgIcon name="gift" size={30} /></span>
-            جوایز
+            <span className="nav2-orb"><ImgIcon name="gift" size={32} /></span>
+            <span className="nav2-label">جوایز</span>
           </button>
           <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onSettings(); }}>
-            <span className="nav2-orb"><ImgIcon name="gear" size={30} /></span>
-            تنظیمات
+            <span className="nav2-orb"><ImgIcon name="gear" size={32} /></span>
+            <span className="nav2-label">تنظیمات</span>
           </button>
         </nav>
       </div>
@@ -116,18 +123,12 @@ export function HomeScreen({
   );
 }
 
-/* stable home background — decode-gated so returning home never flashes */
+/* stable home background — decode-gated so returning home never flashes.
+ * v2.2: preloaded during splash → the sync isDecoded() check makes the
+ * very first paint already show the full image (no sky-blue flash). */
 function StableHomeBg() {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    let dead = false;
-    const img = new Image();
-    img.src = "/assets/bg/home3.webp";
-    img.decode()
-      .then(() => { if (!dead) setReady(true); })
-      .catch(() => { if (!dead) setReady(true); });
-    return () => { dead = true; };
-  }, []);
+  const [ready, setReady] = useState(() => isDecoded("/assets/bg/home3.webp"));
+  useEffect(() => { if (isDecoded("/assets/bg/home3.webp")) setReady(true); }, []);
   return (
     <>
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#9fd9ff 0%,#6cc0f5 40%,#a8e08b 70%,#7ccb62 100%)" }} />
@@ -135,7 +136,7 @@ function StableHomeBg() {
         src="/assets/bg/home3.webp"
         alt=""
         className="vz-fill"
-        style={{ opacity: ready ? 1 : 0, transition: "opacity .18s ease" }}
+        style={{ opacity: ready ? 1 : 0, transition: ready ? "none" : "opacity .18s ease" }}
         fetchPriority="high"
         decoding="async"
       />
