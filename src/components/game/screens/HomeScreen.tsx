@@ -17,6 +17,7 @@ import { Save } from "@/game/core/save";
 import { isDecoded } from "@/game/core/preload";
 import { faNum } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
+import { CHAPTERS } from "@/game/data/chapters";
 
 export function HomeScreen({
   coins, onPlay, onParty, onLibrary, onMissions, onShop, onSettings, onProfile,
@@ -31,14 +32,15 @@ export function HomeScreen({
   onProfile: () => void;
 }) {
   /* next level = first unlocked-not-done level (same rule as the map) */
+  const N = CHAPTERS.length;
   let next: { c: number; l: number } | null = null;
-  for (let c = 1; c <= 10 && !next; c++) {
+  for (let c = 1; c <= N && !next; c++) {
     if (!Save.chapterUnlocked(c)) continue;
     for (let l = 1; l <= 10; l++) {
       if (Save.levelUnlocked(c, l) && !Save.data.levels[`${c}:${l}`]) { next = { c, l }; break; }
     }
   }
-  const nextNo = next ? (next.c - 1) * 10 + next.l : 100;
+  const nextNo = next ? (next.c - 1) * 10 + next.l : N * 10;
 
   return (
     <div className="vz-page">
@@ -49,7 +51,7 @@ export function HomeScreen({
 
         {/* logo — painted banner + crisp golden text */}
         <div className="logo-wrap">
-          <img className="logo-banner" src="/assets/img/logo_banner.png" alt="" draggable={false} />
+          <img className="logo-banner" src="/assets/img/logo_banner.webp" alt="" draggable={false} />
           <div className="logo-text">واژه‌سفر</div>
           <span className="logo-tag">کلمه بساز؛ حالِ خوب بچین!</span>
         </div>

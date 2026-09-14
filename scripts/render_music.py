@@ -370,7 +370,7 @@ def main():
     only = sys.argv[1:] if len(sys.argv) > 1 else None
     for item in CFG:
         cid = item["id"]
-        name = "menu" if cid == 0 else f"ch{cid:02d}"
+        name = "menu" if cid == 0 else ("party" if cid == "party" else f"ch{cid:02d}")
         if only and name not in only: continue
         cfg = item["music"]
         if "cents" not in cfg or not cfg["cents"]:
@@ -379,7 +379,7 @@ def main():
             # cents embedded in TS — fallback: dump already resolved them
             raise SystemExit(f"missing cents for {name}")
         print(f"render {name} … bpm={cfg['bpm']} lead={cfg['lead']}", flush=True)
-        audio = render_track(cfg, seed=1000+cid)
+        audio = render_track(cfg, seed=1000 + (cid if isinstance(cid, int) else 777))
         raw = f"/tmp/{name}.wav"
         import wave
         pcm = (audio.T * 32767).astype(np.int16)

@@ -49,7 +49,7 @@ export function ImgIcon({ name, size = 28, className, style }: {
 }) {
   return (
     <img
-      src={`/assets/img/${name}.png`}
+      src={`/assets/img/${name}.webp`}
       alt=""
       width={size}
       height={size}

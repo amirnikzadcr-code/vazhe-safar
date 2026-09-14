@@ -10,13 +10,37 @@
  * cost nothing. NO idle animations anywhere except ONE tiny pulse on
  * the current node. Images lazy-decode as you approach them.
  * ------------------------------------------------------------------ */
-import { useLayoutEffect, useRef, type MutableRefObject } from "react";
+import { useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import { MapTopBar } from "@/components/game/ui/kit";
 import { LockChunky, StarGold } from "@/components/game/icons";
 import { Save } from "@/game/core/save";
 import { faNum } from "@/game/core/utils";
 import { CHAPTERS } from "@/game/data/chapters";
+import { isDecoded } from "@/game/core/preload";
 import { Audio } from "@/game/core/audio";
+
+/* v2.4 — realm image with decode-gated fade-in: paints instantly from
+ * the cache when already decoded (deferred preload got it), otherwise
+ * fades in over the chapter gradient as soon as it decodes. */
+function RealmImg({ src }: { src: string }) {
+  const [ready, setReady] = useState(() => isDecoded(src));
+  return (
+    <img
+      className="realm-img"
+      src={src}
+      alt=""
+      draggable={false}
+      loading="lazy"
+      decoding="async"
+      onLoad={(e) => {
+        const el = e.currentTarget;
+        if (el.complete && el.naturalWidth > 0) setReady(true);
+      }}
+      style={{ opacity: ready ? 1 : 0, transition: ready ? "none" : "opacity .3s ease" }}
+      onError={() => setReady(true)}
+    />
+  );
+}
 
 /* v2.2 SERPENTINE LAYOUT — computed zigzag that can NEVER overlap.
  * The old hand-tuned waypoints put nodes 3–5% apart → on narrow phones
@@ -37,7 +61,7 @@ export function nodePos(lv: number): { x: number; y: number } {
 
 /* the player's CURRENT level: first unlocked-not-done spot on the journey */
 function currentLevel(): { c: number; l: number } | null {
-  for (let c = 1; c <= 10; c++) {
+  for (let c = 1; c <= CHAPTERS.length; c++) {
     if (!Save.chapterUnlocked(c)) continue;
     for (let l = 1; l <= 10; l++) {
       if (Save.levelUnlocked(c, l) && !Save.data.levels[`${c}:${l}`]) return { c, l };
@@ -70,17 +94,11 @@ function Realm({
       data-realm={ch}
       style={{ aspectRatio: "700 / 1225", ["--acc" as string]: theme.accent }}
     >
-      {/* painted scene — ALL eager: every realm image is pre-decoded during
-          the splash, so eager mounting paints instantly from the memory
-          cache (lazy made scrolling pop art in late = «زمینه با تاخیر») */}
-      <img
-        className="realm-img"
-        src={`/assets/map/m${String(ch).padStart(2, "0")}.webp`}
-        alt=""
-        draggable={false}
-        loading="eager"
-        decoding="async"
-      />
+      {/* painted scene — v2.4 LAZY + fade-in: 20 full-page bitmaps can no
+          longer all sit in memory (weak phones), so realms decode as the
+          player scrolls near them. Gate/banner/gradient keep the section
+          fully presentable while the art fades in. */}
+      <RealmImg src={`/assets/map/m${String(ch).padStart(2, "0")}.webp`} />
       <div className="realm-shade" />
 
       {/* ornamental gate — the «مرز» between chapters (chapter medal) */}
@@ -233,13 +251,13 @@ export function MapScreen({
         <div className="map-guide">
           <img
             className="guide-avatar"
-            src="/assets/img/grandpa.png"
+            src="/assets/img/grandpa.webp"
             alt="عمو دانا"
             draggable={false}
           />
           <div className="bubble">{line}</div>
           <button type="button" className="fab-rewards" onClick={() => { Audio.sfxClick(); onShop(); }} aria-label="جوایز">
-            <img src="/assets/img/star.png" alt="" draggable={false} />
+            <img src="/assets/img/star.webp" alt="" draggable={false} />
             جوایز
             <span className="dot" />
           </button>

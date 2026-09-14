@@ -19,7 +19,7 @@ export function DoneScreen({
 }) {
   const theme = CHAPTERS[ch - 1];
   const canChest = !Save.hasChest(ch);
-  const hasNext = ch < 10;
+  const hasNext = ch < CHAPTERS.length;
 
   return (
     <Sheet bg="/assets/bg/sunset2.webp" bgDim={0.18}>

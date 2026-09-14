@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSave } from "@/components/game/useSave";
 import { Save } from "@/game/core/save";
 import { Audio } from "@/game/core/audio";
-import { CHAPTERS } from "@/game/data/chapters";
+import { CHAPTERS, MENU_MUSIC, PARTY_MUSIC } from "@/game/data/chapters";
 import { ToastHost, useToast } from "@/components/game/ui/kit";
 import { HomeScreen } from "@/components/game/screens/HomeScreen";
 import { MapScreen } from "@/components/game/screens/MapScreen";
@@ -31,6 +31,7 @@ import { GiftModal, SettingsModal, AboutModal, ExitConfirmModal } from "@/compon
 import { NameAskModal, ProfileModal } from "@/components/game/modals/ProfileModals";
 import { PartyScreen } from "@/components/game/screens/PartyScreen";
 import { ImgPool } from "@/components/game/ImgPool";
+import { startDeferredPreload } from "@/game/core/preload";
 
 type View =
   | { k: "splash" }
@@ -104,6 +105,11 @@ export function GameApp() {
     Audio.setSfxOn(s.sfx);
     Audio.setMusicVol(s.musicVol);
     Audio.setSfxVol(s.sfxVol);
+    /* v2.4 — moved from page.tsx (now a server component): unlock the
+     * audio context on the first user gesture (mobile autoplay policy) */
+    const resume = () => { Audio.ensure(); };
+    window.addEventListener("pointerdown", resume, { once: true });
+    return () => window.removeEventListener("pointerdown", resume);
   }, []);
 
   /* mark seen whenever we land on home */
@@ -111,18 +117,27 @@ export function GameApp() {
     if (view.k === "home") Save.markSeen();
   }, [view]);
 
-  /* ----- music per screen ----- */
+  /* ----- music per SECTION (user: «موسیقی بساز برای هربخش») -----
+   * • صفحه اصلی + منوها → warm menu theme (menu.ogg)
+   * • داخل بازی (map/play/done) → that chapter's own track
+   * • بازی دورهمی → its own festive party theme
+   * The key check keeps a section's music playing uninterrupted when
+   * you move between screens of the same section (no re-start). */
   useEffect(() => {
-    let key = "ch01";
-    if (view.k === "play") key = `ch${view.ch}`;
     if (view.k === "splash") return; // stay quiet during splash
-    const ch = view.k === "play" ? view.ch : view.k === "map" ? view.ch : view.k === "done" ? view.ch : 1;
-    const theme = CHAPTERS[ch - 1];
-    if (!theme) return;
+    let key: string;
+    let cfg: typeof MENU_MUSIC;
+    if (view.k === "party") { key = "party"; cfg = PARTY_MUSIC; }
+    else if (view.k === "play" || view.k === "map" || view.k === "done") {
+      const ch = view.ch;
+      key = `ch${ch}`;
+      cfg = CHAPTERS[ch - 1]?.music ?? MENU_MUSIC;
+    } else { key = "menu"; cfg = MENU_MUSIC; }
+    if (!cfg) return;
     if (musicRef.current !== key) {
       musicRef.current = key;
-      Audio.setMusicConfig(theme.music);
-      Audio.startMusic(theme.music);
+      Audio.setMusicConfig(cfg);
+      Audio.startMusic(cfg);
     }
   }, [view]);
 
@@ -182,6 +197,9 @@ export function GameApp() {
 
   /* ----- navigation helpers ----- */
   const boot = () => {
+    /* v2.4 — chapter realm art + poses keep loading in the background
+     * AFTER the game is interactive (boot is never blocked by them) */
+    startDeferredPreload();
     const d = Save.data;
     const away = d.lastSeen > 0 && Date.now() - d.lastSeen > 4 * 3600_000;
     if (!d.profile.name) {
@@ -206,8 +224,9 @@ export function GameApp() {
   };
   const startChallenge = () => {
     /* random unlocked level from the highest reachable chapter */
+    const N = CHAPTERS.length;
     let ch = 1;
-    for (let c = 10; c >= 1; c--) if (Save.chapterUnlocked(c)) { ch = c; break; }
+    for (let c = N; c >= 1; c--) if (Save.chapterUnlocked(c)) { ch = c; break; }
     let lv = 1;
     for (let l = 10; l >= 1; l--) if (Save.data.levels[`${ch}:${l}`]) { lv = Math.min(10, l + 1); break; }
     goPlay(ch, lv, "challenge");
@@ -281,6 +300,7 @@ export function GameApp() {
             onNext={() => afterWin(v.ch, v.lv, v.from)}
             onSettings={() => setModal("settings")}
             onShop={() => setView({ k: "shop" })}
+            onProfile={() => setModal("profile")}
           />
         );
       case "library":
@@ -314,7 +334,7 @@ export function GameApp() {
             coins={coins}
             onLibrary={() => setView({ k: "library" })}
             onNext={() => {
-              if (v.ch < 10) setView({ k: "map", ch: v.ch + 1 });
+              if (v.ch < CHAPTERS.length) setView({ k: "map", ch: v.ch + 1 });
               else goHome();
             }}
           />

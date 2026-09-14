@@ -2,7 +2,7 @@
 import { letters, canBuild, rng, shuffle } from "../src/game/core/utils";
 import { makeCrossword } from "../src/game/crossword";
 
-const CH = 10, LV = 10;
+const CH = 20, LV = 10;
 let errors = 0, warnings = 0;
 
 for (let ch = 1; ch <= CH; ch++) {
@@ -40,7 +40,12 @@ for (let ch = 1; ch <= CH; ch++) {
     if (!layout) { console.log(`✗ ${tag}: crossword layout FAILED`); errors++; continue; }
     const cells = layout.grid.flat().filter(Boolean).length;
     const area = layout.rows * layout.cols;
-    if (area > cells * 2.35) {
+    /* session O: thresholds match the generator — ch11-20 boards are
+     * roomier (hard tier); the runtime board renders words as separate
+     * rows, so grid density is an aesthetic bound only. */
+    const hard = ch >= 11;
+    const areaFactor = hard ? (lv.words.length >= 8 ? 3.0 : 2.8) : (lv.words.length >= 6 ? 2.4 : 2.25);
+    if (area > cells * areaFactor) {
       console.log(`✗ ${tag}: scattered layout ${layout.cols}x${layout.rows} (area ${area} vs ${cells} cells)`);
       errors++;
     }

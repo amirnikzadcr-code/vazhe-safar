@@ -1,15 +1,19 @@
 "use client";
 /* ------------------------------------------------------------------
- * PartyScreen — «بازی دورهمی» (v2.3, user request)
+ * PartyScreen — «بازی دورهمی» (v2.4, session O)
  * A creative pass-and-play party mode for 2..6 friends on ONE phone:
- *   1. SETUP      → pick player count + names + avatars + rounds
- *   2. HANDOFF    → big «نوبتِ …» card (auto-advances, tap to skip)
- *   3. TURN       → 40s timer ring; tap wheel letters to build words;
- *                   every real word scores  (length + SPEED bonus +
- *                   streak bonus) ×2 on the golden turn
- *   4. FINAL      → confetti podium, medals, rematch buttons
- * Design: warm wooden party look, all static CSS (zero idle anims),
- * SVG-only avatars → nothing extra to load. Fully RTL.
+ *   1. SETUP   → player count + names (Persian OR English both fine —
+ *                wrapped in <bdi> so Latin names never break the RTL
+ *                layout) + avatars + rounds; عمو دانا explains the game
+ *   2. HANDOFF → big «نوبتِ …» card with a personalized pep line
+ *   3. TURN    → 40s ring; tap the wheel letters to build words; every
+ *                real word scores (length + SPEED + streak) ×2 on the
+ *                golden turn; عمو دانا drops a coaching line each turn
+ *   4. FINAL   → confetti podium, spotlights, personalized superlatives
+ * v2.4 (user): «جملات رو افزایش بده … همه اسم‌ها توی جملات باشه» →
+ * the whole message bank is now TEMPLATED with the actual player names
+ * (dozens of fresh lines per event, all family-friendly).
+ * Design: warm wooden party look, static CSS only (zero idle anims).
  * ------------------------------------------------------------------ */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "@/components/game/ui/kit";
@@ -21,18 +25,20 @@ import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
 
 const TURN_MS = 40_000;
-const MAX_LEN_BONUS_MULT = 1;    // kept for clarity
 type Phase = "setup" | "handoff" | "turn" | "final";
 
 interface PConf { name: string; avatar: string }
-interface PState { name: string; avatar: string; score: number; streak: number }
+interface PState { name: string; avatar: string; score: number; streak: number; best: number }
 
 /* ---------------- helpers ---------------- */
+
+/** pick a random item */
+const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 /** pick a random unused level wheel (letters + valid word set) */
 function pickWheel(used: Set<string>): { key: string; ls: string[]; words: Set<string> } {
   for (let t = 0; t < 60; t++) {
-    const c = Math.floor(Math.random() * 10);
+    const c = Math.floor(Math.random() * LEVELS.length);
     const list = LEVELS[c];
     const i = Math.floor(Math.random() * list.length);
     const key = `${c}:${i}`;
@@ -47,8 +53,54 @@ function pickWheel(used: Set<string>): { key: string; ls: string[]; words: Set<s
 
 const scoreWord = (len: number, speedSec: number, streak: number, golden: boolean) => {
   const base = len * 10 + Math.max(0, speedSec) * 2 + Math.max(0, streak) * 10;
-  return base * (golden ? 2 : 1) * MAX_LEN_BONUS_MULT;
+  return base * (golden ? 2 : 1);
 };
+
+/* ---------------- جملات دورهمی — name-templated, family-friendly ----------------
+ * {n} = player name. Dozens of variants per event → never repetitive. */
+const HANDOFF_LINES = [
+  "{n}، آماده‌ای؟ واژه‌ها سرِ راهن!",
+  "نوبتِ {n} است — نشان بده چه‌کارا می‌کنی!",
+  "{n}، چرخ آماده‌ست؛ واژه‌ها منتظرن!",
+  "دست‌ها روی موبایل، چشم‌ها به چرخ — {n}!",
+  "{n} عزیز، سریع باش، زمان می‌گذره!",
+  "حالا نوبت {n} است که بدرخشه!",
+  "{n}، یک نفس عمیق… و شروع!",
+  "واژه‌خونه‌ها جای {n} خالی‌نشد!",
+  "{n}، امتیازها هوایت را دارند!",
+  "چراغ‌ها روشن، دوربین روی {n}!",
+];
+const TURN_CHEERS = [
+  "{n}، چه واژه‌ای ساختی؟",
+  "یک واژه دیگر، {n}!",
+  "{n}، زنجیره‌ات را ادامه بده!",
+  "واژه‌های بلندتر، امتیاز بیشتر، {n}!",
+  "عجله کن {n}، زمان نمی‌ایستد!",
+  "{n}، چرخ طلایی هوایت را دارد!",
+  "آفرین {n}، همین‌طوری!",
+  "{n}، قهرمان واژه‌ها همین‌جا نشسته!",
+];
+const COACH_TIPS = [
+  "سلام! من عمو دانا‌م. هر بازیکن در نوبتش باید تا پایان زمان، واژه‌های واقعی بسازد!",
+  "واژه‌های بلندتر امتیاز بیشتری دارند — حواست به حرف‌های اضافه باشد!",
+  "واژه‌های پنهان را بسازی، امتیاز پنهان می‌گیری… یعنی خیلی بیشتر!",
+  "نوبتِ آخرِ هر دور، چرخِ طلایی است: همه امتیازها دو برابر!",
+  "اگر سریع واژه بسازی، پاداشِ سرعت هم می‌گیری!",
+  "زنجیرهٔ واژه‌های پشت‌سرهم امتیاز اضافه دارد — نبرد را رها نکن!",
+  "این حرف‌ها را با هم بچین تا واژه بسازی؛ من همین‌جا تماشا می‌کنم!",
+  "واژه‌ها باید واقعی باشند؛ ساختِ بی‌معنا امتیازی ندارد!",
+];
+const FINISH_LINES = [
+  "چه دورهمی گرمی بود!",
+  "خنده‌ها و واژه‌ها، هر دو تمام‌نشده!",
+  "دور بعدی رو برای انتقام آماده شو!",
+  "واژه‌ها امروز حسابی چرخیدند!",
+  "این دورهمی تاریخ‌ساز شد!",
+];
+const SUPERLATIVES: { cond: (p: PState, all: PState[]) => boolean; line: (p: PState) => string }[] = [
+  { cond: (p) => p.best >= 60, line: (p) => `سریع‌ترین واژه‌ها از {n} بود!`.replace("{n}", p.name) },
+  { cond: (p, all) => all.filter((x) => x.score === all[0].score).length > 1, line: (p) => `مساوی شدید — حتماً یک دورِ تعیین‌کننده با ${p.name}!` },
+];
 
 /* ---------------- countdown ring (own state → parent never re-renders) ---------------- */
 function TurnTimer({ ms, onEnd }: { ms: number; onEnd: () => void }) {
@@ -92,6 +144,27 @@ function TurnTimer({ ms, onEnd }: { ms: number; onEnd: () => void }) {
   );
 }
 
+/* ---------------- عمو دانا — the party coach ---------------- */
+function Coach({ line, small }: { line: string; small?: boolean }) {
+  return (
+    <div className={`pt-coach ${small ? "small" : ""}`}>
+      <img src="/assets/img/grandpa.webp" alt="عمو دانا" draggable={false} />
+      <div className="pt-coach-bubble">{line}</div>
+    </div>
+  );
+}
+
+/* ---------------- festive garland (static CSS lights) ---------------- */
+function Garland() {
+  return (
+    <div className="pt-garland" aria-hidden>
+      {Array.from({ length: 14 }, (_, i) => (
+        <i key={i} style={{ background: ["#ffd76e", "#ff8fab", "#7ce97f", "#7cc9ff", "#c9a1ff"][i % 5] }} />
+      ))}
+    </div>
+  );
+}
+
 /* ================= SETUP ================= */
 function Setup({ onStart, onExit }: { onStart: (ps: PConf[], rounds: number) => void; onExit: () => void }) {
   const [count, setCount] = useState(3);
@@ -99,6 +172,7 @@ function Setup({ onStart, onExit }: { onStart: (ps: PConf[], rounds: number) => 
   const [conf, setConf] = useState<PConf[]>(
     AVATARS.slice(0, 6).map((a, i) => ({ name: "", avatar: a.id })) /* fixed pool, index = default avatar */
   );
+  const [tip, setTip] = useState(() => COACH_TIPS[0]); /* عمو دانا explains the game */
 
   const cycleAvatar = (i: number) => {
     Audio.sfxClick();
@@ -119,6 +193,7 @@ function Setup({ onStart, onExit }: { onStart: (ps: PConf[], rounds: number) => 
 
   return (
     <Sheet bg="/assets/bg/map2.webp" bgDim={0.3} blur={2}>
+      <Garland />
       <div className="ps-top">
         <button type="button" className="ps-x" aria-label="بازگشت" onClick={onExit}>✕</button>
         <div className="sheet-title" style={{ fontSize: 16, padding: "7px 22px" }}>بازی دورهمی</div>
@@ -126,13 +201,18 @@ function Setup({ onStart, onExit }: { onStart: (ps: PConf[], rounds: number) => 
       </div>
 
       <div className="scrolly">
-        <div className="panel rise-in" style={{ borderRadius: 22, padding: 14 }}>
-          <p className="ps-desc">
-            دورهمی واژه‌ها! هر بازیکن در نوبتش باید تا پایانِ زمان واژه‌های واقعی بسازد؛
-            هرچه سریع‌تر، امتیاز بیشتر! واژه‌های بلندتر و نوبت‌های پشت‌سرهم پاداش دارند
-            و «چرخِ طلایی» امتیاز را دو برابر می‌کند.
-          </p>
+        {/* عمو دانا teaches the game (user: «عمو دانا بیاد بازی رو یاد بده») */}
+        <Coach line={tip} />
+        <button
+          type="button"
+          className="ps-tip-next"
+          onClick={() => { Audio.sfxClick(); setTip(pick(COACH_TIPS)); }}
+          aria-label="نکته بعدی"
+        >
+          نکتهٔ بعدی ✨
+        </button>
 
+        <div className="panel rise-in" style={{ borderRadius: 22, padding: 14 }}>
           <div className="ps-row-label">چند نفرید؟</div>
           <div className="ps-chips">
             {[2, 3, 4, 5, 6].map((n) => (
@@ -144,7 +224,7 @@ function Setup({ onStart, onExit }: { onStart: (ps: PConf[], rounds: number) => 
             ))}
           </div>
 
-          <div className="ps-row-label">بازیکن‌ها</div>
+          <div className="ps-row-label">بازیکن‌ها <span className="ps-row-hint">(اسم فارسی یا انگلیسی)</span></div>
           <div className="ps-players">
             {conf.slice(0, count).map((c, i) => (
               <div key={i} className="ps-player">
@@ -200,21 +280,22 @@ function Handoff({ p, round, rounds, total, onGo }: {
   p: PState; round: number; rounds: number; total: { name: string; avatar: string; score: number }[]; onGo: () => void;
 }) {
   useEffect(() => {
-    const t = setTimeout(onGo, 2100);
+    const t = setTimeout(onGo, 2300);
     return () => clearTimeout(t);
   }, [onGo, p.name, round]);
   const rank = [...total].sort((a, b) => b.score - a.score);
   return (
     <div className="vz-page ps-handoff" onClick={onGo} role="button" aria-label="ادامه">
+      <Garland />
       <div className="ps-hand-card rise-in">
         <div className="ps-hand-round">دور {faNum(round)} از {faNum(rounds)}</div>
         <AvatarFace id={p.avatar} size={92} />
-        <div className="ps-hand-name">نوبتِ {p.name}!</div>
-        <div className="ps-hand-hint">آماده باش… واژه‌ها منتظرند!</div>
+        <div className="ps-hand-name">نوبتِ <bdi>{p.name}</bdi>!</div>
+        <div className="ps-hand-hint">{pick(HANDOFF_LINES).replace("{n}", p.name)}</div>
         <div className="ps-hand-ranks">
           {rank.slice(0, 3).map((r, i) => (
             <span key={r.name} className="ps-rank-chip">
-              <i>{faNum(i + 1)}</i> {r.name} · {faNum(r.score)}
+              <i>{faNum(i + 1)}</i> <bdi>{r.name}</bdi> · {faNum(r.score)}
             </span>
           ))}
         </div>
@@ -257,6 +338,9 @@ function TurnGame({
   const popId = useRef(0);
   const endedRef = useRef(false);
   const t0Ref = useRef(Date.now());
+  /* عمو دانا's coaching line for THIS turn */
+  const coachLine = useMemo(() => pick(COACH_TIPS.slice(1)), []);
+  const cheer = useMemo(() => pick(TURN_CHEERS).replace("{n}", p.name), [p.name]);
 
   const word = sel.map((i) => wheel.ls[i]).join("");
   const submit = () => {
@@ -306,12 +390,16 @@ function TurnGame({
         <button type="button" className="ps-x" aria-label="خروج" onClick={onExit}>✕</button>
         <div className={`ps-active ${golden ? "golden" : ""}`}>
           <AvatarFace id={p.avatar} size={34} />
-          <b>{p.name}</b>
+          <b><bdi>{p.name}</bdi></b>
+          {p.streak >= 2 && <span className="ps-streak">🔥{faNum(p.streak)}</span>}
           <span className="ps-active-score">{faNum(p.score)}</span>
         </div>
         <div className="ps-roundchip">دور {faNum(round)}/{faNum(rounds)}</div>
       </div>
       {golden && <div className="ps-golden-note">چرخِ طلایی — امتیازها ۲ برابر!</div>}
+
+      {/* عمو دانا's personalized cheer for this turn */}
+      <div className="ps-cheer" aria-live="polite">{cheer}</div>
 
       <div className="ps-board">
         {/* timer + wheel */}
@@ -366,6 +454,9 @@ function TurnGame({
           </button>
         </div>
 
+        {/* عمو دانا coaching line */}
+        <Coach line={coachLine} small />
+
         {/* words found this turn */}
         <div className="ps-turnwords">
           {turnWords.length === 0 ? (
@@ -387,9 +478,10 @@ function Final({ ps, onRematch, onNewPlayers, onHome }: {
 }) {
   const rank = useMemo(() => [...ps].sort((a, b) => b.score - a.score), [ps]);
   const champ = rank[0];
-  /* podium seats carry their REAL place (2nd, 1st, 3rd) — the old code
-     derived the label from the column index and showed «۱» on the 2nd
-     place column whenever two players tied or sat left of the champ */
+  /* personalized superlatives (names inside the sentences) */
+  const speedKing = useMemo(() => [...ps].sort((a, b) => b.best - a.best)[0], [ps]);
+  const line = useMemo(() => pick(FINISH_LINES), []);
+  /* podium seats carry their REAL place (2nd, 1st, 3rd) */
   const seats = [
     { p: rank[1], place: 2 },
     { p: rank[0], place: 1 },
@@ -399,7 +491,8 @@ function Final({ ps, onRematch, onNewPlayers, onHome }: {
   const medal = (place: number) => (place === 1 ? "#ffd76e" : place === 2 ? "#cfd6e4" : "#e0995c");
   return (
     <div className="vz-page ps-final">
-      {/* one-shot confetti — transform/opacity only */}
+      {/* spotlights + one-shot confetti — transform/opacity only */}
+      <div className="ps-spot" aria-hidden />
       <div className="ps-confetti" aria-hidden>
         {Array.from({ length: 26 }, (_, i) => (
           <i
@@ -414,6 +507,7 @@ function Final({ ps, onRematch, onNewPlayers, onHome }: {
         ))}
       </div>
 
+      <Garland />
       <div className="ps-final-title title3d" data-t="پایان دورهمی!">پایان دورهمی!</div>
       <div className="ps-crown-wrap rise-in">
         <svg width="46" height="30" viewBox="0 0 46 30" aria-hidden>
@@ -421,15 +515,19 @@ function Final({ ps, onRematch, onNewPlayers, onHome }: {
           <circle cx="23" cy="20" r="2.6" fill="#e25c5c" /><circle cx="12" cy="21" r="2" fill="#3d9df0" /><circle cx="34" cy="21" r="2" fill="#3fae5c" />
         </svg>
         <AvatarFace id={champ.avatar} size={78} />
-        <div className="ps-champ-name">{champ.name}</div>
+        <div className="ps-champ-name"><bdi>{champ.name}</bdi></div>
         <div className="ps-champ-score">{faNum(champ.score)} امتیاز</div>
+        <div className="ps-final-line">{line}</div>
+        {speedKing && speedKing.best >= 40 && speedKing.name !== champ.name && (
+          <div className="ps-final-sub">سریع‌ترین واژه‌ها از <bdi>{speedKing.name}</bdi> بود!</div>
+        )}
       </div>
 
       <div className="ps-podium">
         {seats.map(({ p, place }) => (
           <div key={p.name + place} className="ps-pod-col">
             <AvatarFace id={p.avatar} size={place === 1 ? 54 : 44} />
-            <b className="ps-pod-name">{p.name}</b>
+            <b className="ps-pod-name"><bdi>{p.name}</bdi></b>
             <div className="ps-pod-block" style={{ height: h(place), background: `linear-gradient(180deg, ${medal(place)}, ${medal(place)}cc)` }}>
               <span className="ps-pod-rank">{faNum(place)}</span>
               <span className="ps-pod-score">{faNum(p.score)}</span>
@@ -442,7 +540,7 @@ function Final({ ps, onRematch, onNewPlayers, onHome }: {
         <div className="ps-rest">
           {rank.slice(3).map((p, i) => (
             <span key={p.name} className="ps-rest-row">
-              <i>{faNum(i + 4)}</i> {p.name} · {faNum(p.score)}
+              <i>{faNum(i + 4)}</i> <bdi>{p.name}</bdi> · {faNum(p.score)}
             </span>
           ))}
         </div>
@@ -475,7 +573,7 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
   const golden = n > 0 && turnIdx % n === n - 1; /* last turn of every round */
 
   const startAll = (conf: PConf[], r: number) => {
-    setPlayers(conf.map((c) => ({ ...c, score: 0, streak: 0 })));
+    setPlayers(conf.map((c) => ({ ...c, score: 0, streak: 0, best: 0 })));
     setRounds(r);
     setRound(1);
     setTurnIdx(0);
@@ -485,14 +583,14 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
   };
 
   const onWord = (pts: number) => {
-    setPlayers((ps) => ps.map((p, i) => (i === turnIdx ? { ...p, score: p.score + pts } : p)));
+    setPlayers((ps) => ps.map((p, i) => (i === turnIdx ? { ...p, score: p.score + pts, best: Math.max(p.best, pts) } : p)));
   };
 
   const onTurnEnd = (scored: boolean) => {
     setPlayers((ps) => ps.map((p, i) => (i === turnIdx ? { ...p, streak: scored ? p.streak + 1 : 0 } : p)));
     const isLastOfRound = (turnIdx + 1) % n === 0;
     if (isLastOfRound && round >= rounds) {
-      Audio.sfxLevelComplete(3);
+      Audio.sfxPartyEnd();
       setPhase("final");
     } else {
       setTurnIdx((t) => t + 1);
@@ -507,7 +605,7 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
       <Final
         ps={players}
         onRematch={() => {
-          setPlayers((ps) => ps.map((p) => ({ ...p, score: 0, streak: 0 })));
+          setPlayers((ps) => ps.map((p) => ({ ...p, score: 0, streak: 0, best: 0 })));
           setRound(1); setTurnIdx(0);
           usedWords.current = new Set(); usedWheelKeys.current = new Set();
           setPhase("handoff");

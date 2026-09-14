@@ -97,7 +97,7 @@ export function CoinChip({ value, plus, onPlus }: { value: number; plus?: boolea
 export function CoinPill({ value, onPlus }: { value: number; onPlus?: () => void }) {
   return (
     <div className="coinpill">
-      <img src="/assets/img/coins.png" alt="" draggable={false} />
+      <img src="/assets/img/coins.webp" alt="" draggable={false} />
       <b>{faNum(value)}</b>
       {onPlus && (
         <button type="button" aria-label="افزودن سکه" className="plus" onClick={() => { Audio.sfxClick(); onPlus?.(); }}>+</button>
@@ -106,10 +106,11 @@ export function CoinPill({ value, onPlus }: { value: number; onPlus?: () => void
   );
 }
 
-/* ---------- player HUD — REAL profile: avatar + name + level + XP.
-   v2.3: driven by Save.data.profile (name + chosen avatar); the plate
-   is tappable → opens the profile editor. Level rises with hidden
-   words + progress (user request «ارتقای لول»). ---------- */
+/* ---------- player HUD — REAL profile: v2.4 ONE unified plate.
+   «پروفایل مرتب‌تر … آواتار با کادر پروفایل یکی بکن»: the avatar sits
+   INSIDE the wooden profile plate (no separate floating circle) with
+   the level badge docked on its corner; name + XP bar fill the rest.
+   Tap opens the profile editor. ---------- */
 export function PlayerHud({
   coins, gear, onGear, onPlus, onProfile,
 }: {
@@ -129,17 +130,16 @@ export function PlayerHud({
         onClick={() => { Audio.sfxClick(); onProfile?.(); }}
         aria-label="پروفایل بازیکن"
       >
-        <span className="hud-avatar-wrap">
-          <AvatarFace id={prof.avatar} size={52} />
-          <span className="hud-lvl-corner">{faNum(lvl)}</span>
-        </span>
-        <span className="plate">
-          <span className="plate-name">{prof.name || "مسافر"}</span>
-          <span className="plate-row">
-            <span className="lvl-badge">{faNum(lvl)}</span>
+        <span className="plate plate-unified">
+          <span className="plate-avatar">
+            <AvatarFace id={prof.avatar} size={44} />
+            <span className="hud-lvl-corner">{faNum(lvl)}</span>
+          </span>
+          <span className="plate-info">
+            <span className="plate-name">{prof.name || "مسافر"}</span>
             <span className="plate-xp">
               <span className="plate-xpbar"><i style={{ width: `${Math.round((cur / need) * 100)}%` }} /></span>
-              <span className="plate-xpnum">{faNum(cur)}/{faNum(need)}</span>
+              <span className="plate-xpnum">سطح {faNum(lvl)} · {faNum(cur)}/{faNum(need)}</span>
             </span>
           </span>
         </span>
@@ -148,7 +148,7 @@ export function PlayerHud({
         <CoinPill value={coins} onPlus={onPlus} />
         {onGear && (
           <button type="button" aria-label="تنظیمات" className={`gearbtn ${gear === "blue" ? "blue" : ""}`} onClick={() => { Audio.sfxClick(); onGear(); }}>
-            <img src="/assets/img/gear.png" alt="" draggable={false} style={gear === "blue" ? { filter: "hue-rotate(165deg) saturate(1.5)" } : undefined} />
+            <img src="/assets/img/gear.webp" alt="" draggable={false} style={gear === "blue" ? { filter: "hue-rotate(165deg) saturate(1.5)" } : undefined} />
           </button>
         )}
       </div>

@@ -68,6 +68,10 @@ let cache: SaveData | null = null;
 export const Save = {
   load(): SaveData {
     if (cache) return cache;
+    /* SSR guard (v2.4): the boot shell prerenders on the server — there
+     * is no localStorage there; a fresh default is used and the real
+     * save loads on the client. */
+    if (typeof localStorage === "undefined") return (cache = fresh());
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {

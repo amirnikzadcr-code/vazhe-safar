@@ -396,6 +396,13 @@
   padding: 12px 10px;
   display: flex; align-items: center; justify-content: center;
 }
+/* v2.4 — hard chapters have up to 10 words: the board scrolls gently
+ * instead of shrinking tiles into unreadability */
+.board-box .wboard {
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  max-height: 100%; padding: 2px 4px;
+}
+.board-box .wboard::-webkit-scrollbar { display: none; }
 .wboard {
   width: 100%; max-height: 100%; overflow: visible;
   display: flex; flex-direction: column; align-items: center;
@@ -1449,3 +1456,238 @@
 }
 .ps-final-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 5; margin-top: 6px; }
 
+
+/* ==================================================================
+   v2.4 — session O
+   • instant boot shell (server-rendered splash — no white/blue void)
+   • unified profile plate (avatar INSIDE the profile frame)
+   • tidy profile card (avatar + level + XP in one header)
+   • home next-card moved BELOW the logo hat + text/number fix
+   • bigger, prettier hint lamp
+   • party-mode graphics (garland, balloons, festive turn, coach)
+   ================================================================== */
+
+/* ---------- instant boot shell (pure HTML/CSS, paints before JS) ---------- */
+.boot-shell {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg,#8fd0ff 0%,#5cb2ef 55%,#3d9df0 100%);
+}
+.boot-inner { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.boot-logo {
+  font-size: clamp(44px, 14vw, 64px); font-weight: 800; line-height: 1;
+  background: linear-gradient(180deg,#fff8d0 8%,#ffd94e 45%,#f39c12 82%,#c87f06 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 1.6px #7a4a00;
+  filter: drop-shadow(0 2.5px 0 #7a4a00) drop-shadow(0 5px 7px rgba(60,30,0,.45));
+}
+.boot-bar {
+  width: 170px; height: 12px; border-radius: 999px; overflow: hidden;
+  background: rgba(255,255,255,.4); border: 2px solid rgba(255,255,255,.7); padding: 2px;
+}
+.boot-bar i {
+  display: block; width: 42%; height: 100%; border-radius: 999px;
+  background: linear-gradient(180deg,#ffe08a,#f79c0d);
+  animation: boot-sweep 1.15s ease-in-out infinite alternate;
+}
+@keyframes boot-sweep { from { transform: translateX(56%); } to { transform: translateX(-56%); } }
+.boot-hint { color: rgba(255,255,255,.92); font-weight: 700; font-size: 13px; text-shadow: 0 2px 4px rgba(0,0,0,.3); }
+/* the body itself gets the splash gradient → zero white flash even
+ * during WebView cold start */
+body { background: #5cb2ef; }
+
+/* ---------- unified profile plate (HUD) ---------- */
+.plate-unified {
+  display: flex; align-items: center; gap: 8px;
+  min-width: 148px; padding: 4px 10px 5px 12px;
+}
+.plate-avatar { position: relative; flex: none; width: 48px; height: 48px; display: block; }
+.plate-avatar svg { border-radius: 999px; background: #fdf3dd; box-shadow: 0 0 0 2px #fff, 0 2px 5px rgba(122,74,0,.35); }
+.plate-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.plate-info .plate-name { font-size: 13px; }
+.plate-info .plate-xpnum { font-size: 9px; }
+/* level corner badge docks onto the avatar inside the plate */
+.plate-avatar .hud-lvl-corner { bottom: -5px; left: -7px; }
+
+/* ---------- tidy profile card (editor modal) ---------- */
+.prof-card { display: flex; flex-direction: column; }
+.prof-head {
+  display: flex; align-items: center; gap: 12px; text-align: right;
+  background: linear-gradient(180deg,#fffbe6,#ffeecb);
+  border: 2.5px solid #fff; outline: 2px solid #e2c893;
+  border-radius: 18px; padding: 10px 12px;
+  box-shadow: 0 3px 0 #dcb87a, inset 0 1px 0 #fff;
+}
+.prof-avatar { position: relative; flex: none; width: 76px; height: 76px; display: block; }
+.prof-avatar svg { border-radius: 999px; background: #fdf3dd; box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--ring, #f0a92c), 0 4px 8px rgba(122,74,0,.3); }
+.prof-lvl-corner {
+  position: absolute; bottom: -6px; left: -6px;
+  min-width: 26px; height: 26px; padding: 0 7px; border-radius: 999px;
+  background: linear-gradient(180deg,#6fc0f5,#2a7fc9);
+  border: 2px solid #fff; outline: 1.5px solid #1b5da0;
+  color: #fff; font-weight: 800; font-size: 12.5px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 0 #1b5da0;
+}
+.prof-head-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.prof-head-name {
+  font-size: 17px; font-weight: 800; color: #5d3a12; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.prof-head-xp { display: flex; flex-direction: column; gap: 3px; }
+.prof-label {
+  display: block; margin: 12px 2px 0; font-size: 12px; font-weight: 800; color: #8a6a3a;
+}
+.prof-card .name-input { margin-top: 6px; }
+
+/* compact avatar strip — one row, swipe-free, wraps on tiny screens */
+.av-strip {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+  margin-top: 7px;
+}
+.av-strip-cell {
+  position: relative; width: 52px; height: 52px; border-radius: 999px;
+  border: 2.5px solid #fff; outline: 2px solid #e2c893; cursor: pointer;
+  background: #fdf3dd; padding: 2px; box-shadow: 0 2.5px 0 #d9b87a;
+}
+.av-strip-cell:active { transform: translateY(2px); box-shadow: 0 .5px 0 #d9b87a; }
+.av-strip-cell.sel { outline-color: var(--ring, #f0a92c); box-shadow: 0 0 0 3px rgba(255,215,110,.6), 0 2.5px 0 var(--ring, #b47708); }
+.av-strip-cell.sel::after {
+  content: "✓"; position: absolute; top: -6px; left: -6px;
+  width: 19px; height: 19px; border-radius: 999px;
+  background: linear-gradient(180deg,#8fe06a,#379c24);
+  border: 2px solid #fff; color: #fff; font-size: 10.5px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 0 #2f8f1f;
+}
+.prof-card .prof-stats { margin-top: 14px; }
+
+/* first-entry name-ask hero (avatar prewarm — no picker) */
+.nameask-hero {
+  width: 96px; height: 96px; margin: 0 auto; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 36% 30%, #fffdf4, #ffe9ae 60%, #f3c163);
+  box-shadow: 0 4px 0 #c98d2e, 0 8px 14px rgba(0,0,0,.25);
+}
+.nameask-hero svg { border-radius: 999px; background: #fdf3dd; }
+
+/* ---------- home next-card: BELOW the logo hat + label/number fix ---------- */
+.next-card { top: 214px; }
+.next-head {
+  padding: 3px 10px 5px;
+  box-shadow: 0 3px 0 #5f3a14;
+  z-index: 3;                       /* text never hides under the medal */
+}
+.next-num { margin-top: -5px; }     /* kisses the ribbon without covering it */
+
+/* ---------- hint lamp — BIG & beautiful ---------- */
+.fab-hint {
+  position: relative;
+  width: 86px; height: 66px; border-radius: 999px; border: 3px solid #fff;
+  outline: 2.5px solid #b47708; cursor: pointer;
+  background: radial-gradient(circle at 50% 26%, #fff7d8 0%, #ffe9a8 42%, #f6c452 100%);
+  box-shadow: 0 6px 0 #c98d2e, 0 10px 16px rgba(0,0,0,.3);
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.fab-hint:active { transform: translateY(3px); box-shadow: 0 2px 0 #c98d2e, 0 5px 8px rgba(0,0,0,.25); }
+.fab-hint img { width: 52px; height: 52px; filter: drop-shadow(0 2px 3px rgba(180,119,8,.45)); }
+.fab-hint .cost {
+  position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 3px;
+  background: linear-gradient(180deg,#4a2e14,#6b4218);
+  border: 2px solid #ffd76e; color: #fff;
+  font-weight: 800; font-size: 12.5px; line-height: 1;
+  border-radius: 999px; padding: 3px 9px; white-space: nowrap;
+  box-shadow: 0 2.5px 0 rgba(40,20,0,.55);
+}
+.fab-hint .cost .coin-ic { width: 14px; height: 14px; }
+
+/* ---------- map realms: skip offscreen work (20 realms now) ---------- */
+.realm {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 700px 1225px;
+}
+
+/* ==================================================================
+   v2.4 — PARTY «بازی دورهمی» graphics upgrade
+   (garland lights, عمو دانا coach, personalized cheer, streak flame,
+   spotlit podium — all static CSS, zero idle animations)
+   ================================================================== */
+
+/* string-light garland across the top */
+.pt-garland {
+  position: absolute; top: 6px; left: 10px; right: 10px; z-index: 26;
+  height: 14px; pointer-events: none;
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+.pt-garland i {
+  width: 9px; height: 9px; border-radius: 999px; flex: none;
+  border: 1.5px solid rgba(255,255,255,.85);
+  box-shadow: 0 2px 5px rgba(40,10,60,.35);
+  transform: translateY(calc(3px * sin(0)));
+}
+.pt-garland i:nth-child(odd) { transform: translateY(4px); }
+
+/* عمو دانا coach */
+.pt-coach {
+  display: flex; align-items: flex-end; gap: 0;
+  margin: 6px 6px 2px; position: relative; z-index: 25;
+}
+.pt-coach img {
+  width: 58px; height: auto; flex: none; object-fit: contain;
+  filter: drop-shadow(0 5px 8px rgba(30,10,0,.4));
+}
+.pt-coach.small img { width: 44px; }
+.pt-coach-bubble {
+  position: relative; flex: 1; margin-right: -6px; margin-bottom: 10px;
+  background: linear-gradient(180deg,#fffdf4,#f7ecd2);
+  border: 2.5px solid #fff; outline: 2px solid #e2c893;
+  border-radius: 16px 16px 16px 4px;
+  padding: 8px 12px; color: #5d3a12; font-weight: 800; font-size: 12.5px; line-height: 1.7;
+  box-shadow: 0 3px 0 #d9b87a, 0 7px 12px rgba(0,0,0,.22);
+}
+.pt-coach.small .pt-coach-bubble { font-size: 11.5px; padding: 6px 10px; }
+.ps-tip-next {
+  display: block; margin: 4px auto 8px; cursor: pointer;
+  background: linear-gradient(180deg,#8fe06a,#379c24);
+  border: 2.5px solid #fff; outline: 2px solid #2f8f1f;
+  color: #fff; font-family: inherit; font-weight: 800; font-size: 12px;
+  border-radius: 999px; padding: 5px 16px;
+  box-shadow: 0 3px 0 #2f8f1f;
+  position: relative; z-index: 25;
+}
+.ps-tip-next:active { transform: translateY(2px); box-shadow: 0 1px 0 #2f8f1f; }
+
+/* personalized cheer line with the player's name */
+.ps-cheer {
+  text-align: center; margin: 2px 14px 4px; position: relative; z-index: 24;
+  color: #fff3dd; font-weight: 800; font-size: 13px;
+  text-shadow: 0 2px 5px rgba(60,20,0,.55);
+}
+.ps-cheer bdi { color: #ffd76e; }
+
+/* streak flame chip in the active-player bar */
+.ps-active { position: relative; }
+.ps-streak {
+  display: inline-flex; align-items: center;
+  background: linear-gradient(180deg,#ff9f43,#f4692c);
+  border: 2px solid #fff; border-radius: 999px;
+  color: #fff; font-weight: 800; font-size: 11px; line-height: 1;
+  padding: 3px 7px; box-shadow: 0 2px 0 #a83c10;
+}
+
+/* spotlights behind the podium (static, two soft cones) */
+.ps-spot {
+  position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background:
+    radial-gradient(140px 260px at 22% 0%, rgba(255,232,150,.28), transparent 70%),
+    radial-gradient(140px 260px at 78% 0%, rgba(255,232,150,.28), transparent 70%);
+}
+.ps-final-line {
+  margin-top: 4px; color: #fff3dd; font-weight: 800; font-size: 13px;
+  text-shadow: 0 2px 5px rgba(60,20,0,.55);
+}
+.ps-final-sub { color: #ffd76e; font-weight: 800; font-size: 12px; margin-top: 2px; text-shadow: 0 2px 4px rgba(60,20,0,.5); }
+
+/* latin (English) player names inside RTL text — keep their own direction */
+.ps-hand-name bdi, .ps-active bdi, .ps-pod-name bdi, .ps-rest-row bdi, .ps-rank-chip bdi { unicode-bidi: isolate; }

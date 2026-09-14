@@ -70,19 +70,24 @@ export function Splash({ onDone }: { onDone: () => void }) {
       finished = true;
       doneRef.current();
     };
-    /* splash shows at least 1.7s (branding) and at most 8s (safety) */
+    /* v2.4: splash covers only the CRITICAL set (small, fast) — min
+     * 1.2s branding, max 6s safety. Chapter realms load in the
+     * background after boot (startDeferredPreload in GameApp). */
     preloadAssets((p) => {
-      const minTime = 1700;
+      const minTime = 1200;
       const elapsed = Date.now() - t0;
       if (p >= 1 && elapsed >= minTime) finish();
       else if (p >= 1) setTimeout(finish, minTime - elapsed);
       setProg(p);
     }).then(() => {
       const elapsed = Date.now() - t0;
-      if (elapsed < 1700) setTimeout(finish, 1700 - elapsed);
+      if (elapsed < 1200) setTimeout(finish, 1200 - elapsed);
       else finish();
     });
-    const cap = setTimeout(finish, 8000);
+    const cap = setTimeout(finish, 6000);
+    /* v2.4 — decode the menu theme during the splash so the home screen
+     * starts its music instantly (fetchTrack caches the AudioBuffer) */
+    Audio.preloadTrack("menu");
     return () => clearTimeout(cap);
   }, []);
   return (

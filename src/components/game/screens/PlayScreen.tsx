@@ -31,6 +31,7 @@ import { letters, faNum, canBuild, buzz } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { Save, COSTS, REWARDS } from "@/game/core/save";
 import { WinModal } from "@/components/game/modals/WinModal";
+import { CHAPTERS } from "@/game/data/chapters";
 import { PauseModal } from "@/components/game/modals/Overlays";
 
 /* celebration duration BEFORE the word applies to the board (ms).
@@ -53,7 +54,7 @@ const progressCache = new Map<string, {
 }>();
 
 export function PlayScreen({
-  ch, lv, coins, resume, onExit, onNext, onSettings, onShop, coinsBump,
+  ch, lv, coins, resume, onExit, onNext, onSettings, onShop, onProfile, coinsBump,
 }: {
   ch: number;
   lv: number;
@@ -63,6 +64,7 @@ export function PlayScreen({
   onNext: () => void;
   onSettings: () => void;
   onShop: () => void;
+  onProfile?: () => void;
   coinsBump: () => void;
 }) {
   const level = useMemo(() => getLevel(ch, lv), [ch, lv]);
@@ -305,10 +307,10 @@ export function PlayScreen({
   };
 
   return (
-    <Sheet bg="/assets/bg/play3.webp" bgDim={0.1}>
+    <Sheet bg={CHAPTERS[ch - 1]?.bg ?? "/assets/bg/play3.webp"} bgDim={0.1}>
       {/* top bar — reference HUD (avatar+plate / coins+BLUE gear)
           the blue gear opens the pause menu (resume/restart/settings/exit) */}
-      <PlayerHud coins={coins} gear="blue" onGear={() => setPaused(true)} onPlus={onShop} />
+      <PlayerHud coins={coins} gear="blue" onGear={() => setPaused(true)} onPlus={onShop} onProfile={onProfile} />
 
       {/* level banner — wooden plaque with blossom pins */}
       <div className="lvl-banner-row">
@@ -344,14 +346,14 @@ export function PlayScreen({
       {/* helper bar — shuffle bottom-LEFT, hint bottom-RIGHT (reference) */}
       <div className="helper-bar">
         <button type="button" aria-label="راهنما" className="fab-hint" onClick={doHint}>
-          <img src="/assets/img/bulb.png" alt="" draggable={false} />
+          <img src="/assets/img/bulb.webp" alt="" draggable={false} />
           <span className="cost">
             <span className="coin-ic" />
             {faNum(COSTS.hint)}
           </span>
         </button>
         <button type="button" aria-label="بر زدن" className="fab-shuffle" onClick={doShuffle}>
-          <img src="/assets/img/swap.png" alt="" draggable={false} />
+          <img src="/assets/img/swap.webp" alt="" draggable={false} />
           <b>بُر بزن</b>
         </button>
       </div>

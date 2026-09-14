@@ -256,6 +256,12 @@ class AudioEngine {
 
   /* ——— rendered studio tracks ——— */
 
+  /** v2.4 — fetch + decode a track EARLY (e.g. menu theme during the
+   * splash) so the first startMusic() starts instantly, no jank. */
+  preloadTrack(name: string): void {
+    void this.fetchTrack(name);
+  }
+
   private async fetchTrack(name: string): Promise<AudioBuffer | null> {
     const ctx = this.ctx;
     if (!ctx) return null;
@@ -764,50 +770,88 @@ class AudioEngine {
   }
 
   sfxCoin(): void {
-    this.sfxOsc({ type: "sine", f0: 1244, dur: 0.1, vol: 0.16 });
-    this.sfxOsc({ type: "sine", f0: 1661, dur: 0.22, vol: 0.16, delay: 0.06 });
+    /* v2.4 — warmer two-coin drop (glassy but soft, no 1.6kHz sting) */
+    this.sfxOsc({ type: "sine", f0: 988, dur: 0.09, vol: 0.12, filter: 4200 });
+    this.sfxOsc({ type: "sine", f0: 1319, dur: 0.18, vol: 0.12, delay: 0.055, filter: 5200 });
+    this.sfxOsc({ type: "triangle", f0: 659, dur: 0.05, vol: 0.05, filter: 2400 });
   }
 
   sfxHint(): void {
-    this.sfxOsc({ type: "sine", f0: 660, f1: 1760, dur: 0.5, vol: 0.14, curve: "exp" });
-    this.sfxNoise({ dur: 0.5, vol: 0.04, freq: 4200, q: 2 });
+    /* v2.4 — a soft "idea" bloom: warm rise + sparkle, never shrill */
+    this.sfxOsc({ type: "sine", f0: 523, f1: 1175, dur: 0.42, vol: 0.11, curve: "exp", filter: 3600 });
+    this.sfxOsc({ type: "triangle", f0: 1568, dur: 0.16, vol: 0.05, delay: 0.16, filter: 4400 });
+    this.sfxNoise({ dur: 0.4, vol: 0.028, freq: 4600, q: 2.4, delay: 0.05 });
   }
 
   /** shimmer for a letter revealed into a word slot */
   sfxReveal(): void {
-    this.note(1174.7, 0.2, 0.4);
-    this.note(1567.98, 0.18, 0.5, 0.07);
-    this.sfxNoise({ dur: 0.4, vol: 0.035, freq: 6200, q: 4, delay: 0.04 });
+    this.note(1046.5, 0.16, 0.35);
+    this.note(1318.5, 0.15, 0.45, 0.07);
+    this.sfxNoise({ dur: 0.38, vol: 0.026, freq: 6200, q: 4, delay: 0.04 });
   }
 
   /** v2.1 — soft airy WHOOSH + two wooden taps, matched to the FLIP
    * glide of the tiles (tiles fly ~0.46s; the whoosh covers them). */
   sfxShuffle(): void {
-    this.sfxNoise({ dur: 0.3, vol: 0.045, freq: 900, f1: 2600, q: 0.9, type: "bandpass" }); // rising whoosh
-    this.sfxNoise({ dur: 0.04, vol: 0.024, freq: 1300, q: 1.3, delay: 0.2 });               // wooden tap
-    this.sfxNoise({ dur: 0.04, vol: 0.02, freq: 1500, q: 1.3, delay: 0.3 });                // wooden tap
+    /* v2.4 — silkier whoosh (lower, rounder), softer taps */
+    this.sfxNoise({ dur: 0.26, vol: 0.036, freq: 700, f1: 2100, q: 0.8, type: "bandpass" });
+    this.sfxNoise({ dur: 0.035, vol: 0.018, freq: 1200, q: 1.2, delay: 0.18 });
+    this.sfxNoise({ dur: 0.035, vol: 0.015, freq: 1400, q: 1.2, delay: 0.28 });
   }
 
+  /* v2.4 — LEVEL-COMPLETE FANFARE, fully recomposed (user: «وقتی بازی
+   * تموم میشه ستاره میده صداش رو مخه»). The old 1.5kHz star dings read
+   * harsh. Now: a warm santur-style arpeggio (C-G-A-C) with soft
+   * saturation-safe levels, then one gentle glassy "ding" PER STAR,
+   * each a minor third higher — sweet, never piercing. */
   sfxLevelComplete(stars: number): void {
-    const seq = [523.25, 659.25, 783.99, 1046.5];
-    seq.forEach((f, i) => this.note(f, 0.3, 0.65, i * 0.14));
-    for (let i = 0; i < stars; i++)
-      this.note(1567.98, 0.26, 0.75, 0.7 + i * 0.24);
-    this.sfxNoise({ dur: 0.9, vol: 0.04, freq: 7000, q: 3, delay: 0.55 });
+    const seq = [523.25, 783.99, 880, 1046.5];
+    seq.forEach((f, i) => {
+      this.sfxOsc({ type: "triangle", f0: f, dur: 0.5, vol: 0.2, delay: i * 0.13, filter: 3400 });
+      this.sfxOsc({ type: "sine", f0: f * 2, dur: 0.3, vol: 0.06, delay: i * 0.13 + 0.02, filter: 6200 });
+    });
+    const starDing = [1046.5, 1318.5, 1568];
+    for (let i = 0; i < Math.min(3, stars); i++) {
+      const f = starDing[i];
+      this.sfxOsc({ type: "sine", f0: f, dur: 0.55, vol: 0.14, delay: 0.72 + i * 0.22, filter: 5200 });
+      this.sfxOsc({ type: "sine", f0: f * 2.76, dur: 0.1, vol: 0.02, delay: 0.72 + i * 0.22, filter: 8000 });
+    }
+    this.sfxNoise({ dur: 0.8, vol: 0.03, freq: 6800, q: 3, delay: 0.7 });
   }
 
   sfxChapterUnlock(): void {
-    const seq = [392, 523.25, 659.25, 783.99, 1046.5, 1318.5];
-    seq.forEach((f, i) => this.note(f, 0.26, 0.95, i * 0.13));
-    this.sfxNoise({ dur: 1.5, vol: 0.05, freq: 5000, q: 2, delay: 0.45 });
+    /* v2.4 — warm golden fanfare (softer top, added low body) */
+    const seq = [392, 523.25, 659.25, 783.99, 1046.5];
+    seq.forEach((f, i) => {
+      this.sfxOsc({ type: "triangle", f0: f, dur: 0.7, vol: 0.18, delay: i * 0.12, filter: 3600 });
+    });
+    this.sfxOsc({ type: "sine", f0: 196, dur: 0.9, vol: 0.1, delay: 0.1, filter: 1200 });
+    this.sfxNoise({ dur: 1.2, vol: 0.036, freq: 5000, q: 2, delay: 0.4 });
   }
 
   sfxPropAppear(): void {
-    this.sfxOsc({ type: "sine", f0: 860, f1: 1480, dur: 0.3, vol: 0.1 });
-    this.sfxNoise({ dur: 0.35, vol: 0.04, freq: 5800, q: 5, delay: 0.03 });
+    this.sfxOsc({ type: "sine", f0: 740, f1: 1245, dur: 0.26, vol: 0.09, filter: 3200 });
+    this.sfxNoise({ dur: 0.3, vol: 0.03, freq: 5400, q: 5, delay: 0.03 });
   }
 
-  sfxStar(): void { this.note(1318.5, 0.26, 0.65); }
+  /** v2.4 — star pop (win modal) — a soft glassy "tink" with a felt
+   * attack, tuned DOWN from the old piercing 1318 lead */
+  sfxStar(): void {
+    this.sfxOsc({ type: "sine", f0: 988, dur: 0.4, vol: 0.16, filter: 4800 });
+    this.sfxOsc({ type: "sine", f0: 1976, dur: 0.12, vol: 0.035, delay: 0.02, filter: 7600 });
+    this.sfxNoise({ dur: 0.05, vol: 0.016, freq: 2200, q: 1.4 });
+  }
+
+  /** v2.4 — party finale: a short festive 6/8 riff + daf burst */
+  sfxPartyEnd(): void {
+    const riff = [587.33, 783.99, 880, 1046.5, 1174.66, 1568];
+    riff.forEach((f, i) => {
+      this.sfxOsc({ type: "triangle", f0: f, dur: 0.42, vol: 0.16, delay: i * 0.11, filter: 3800 });
+    });
+    for (let i = 0; i < 6; i++) this.dafJingle(0.55 + i * 0.07, 0.05);
+    this.sfxOsc({ type: "sine", f0: 294, dur: 0.8, vol: 0.1, delay: 0.05, filter: 1400 });
+    this.sfxNoise({ dur: 1.1, vol: 0.045, freq: 6200, q: 2.4, delay: 0.5 });
+  }
 
   /** low boom for fireworks/finale */
   sfxBoom(): void {

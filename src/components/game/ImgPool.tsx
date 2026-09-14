@@ -1,14 +1,16 @@
 "use client";
 /* ------------------------------------------------------------------
- * ImgPool — PERMANENT in-DOM image pool (v2.3)
- * Every preloaded art asset stays mounted full-size for the whole
- * app lifetime, so the WebView keeps the DECODED bitmaps resident.
- * Navigating screens then paint their <img> instantly from the same
- * cached resource — zero re-fetch, zero re-decode, zero blue flash.
+ * ImgPool — PERMANENT in-DOM image pool (v2.4)
+ * Keeps the FIVE SCREEN BACKGROUNDS resident (home/play/library/…
+ * — the «زمینهٔ صفحه‌ها» the user switches between constantly), so
+ * navigating screens paints them instantly with zero re-decode.
+ * v2.4: chapter REALMS are NO LONGER resident — 20 full-page bitmaps
+ * pinned in memory made weak phones judder. Realms now lazy-decode
+ * as the map scrolls (see MapScreen).
  * Mounted ONCE in GameApp, outside the keyed screen remount div.
  * PERF: fully static, opacity 0, pointer-events none, behind screens.
  * ------------------------------------------------------------------ */
-import { PRELOAD_IMAGES } from "@/game/core/preload";
+import { SCREEN_BGS } from "@/game/core/preload";
 
 export function ImgPool() {
   return (
@@ -19,7 +21,7 @@ export function ImgPool() {
         pointerEvents: "none", opacity: 0, zIndex: 0,
       }}
     >
-      {PRELOAD_IMAGES.filter((s) => s.endsWith(".webp")).map((src) => (
+      {SCREEN_BGS.map((src) => (
         <img
           key={src}
           src={src}

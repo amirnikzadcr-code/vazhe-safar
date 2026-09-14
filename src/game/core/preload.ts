@@ -1,42 +1,61 @@
 /* ------------------------------------------------------------------
  *  واژه‌سفر — core/preload.ts
- *  v2.2 — TOTAL PRELOAD: every image the game will ever show is
- *  fetched + decoded during the splash screen. Screens then mount
- *  with the image ALREADY in the decode cache → no blue flash, no
- *  "صفحات دیر میاد", no popping-in art on weak phones.
+ *  v2.4 — SPLIT PRELOAD (user: «موقع لود کنده … صفحه آبی گیر میکنه چند
+ *  ثانیه و بعدش با لگ لود میشه»):
+ *   • CRITICAL_IMAGES — the small set the FIRST screens need. Preloaded
+ *     + decoded during the splash with progress; splash finishes as soon
+ *     as this set is done (fast boot on weak phones).
+ *   • DEFERRED_IMAGES — chapter realm art + character poses. Loaded in
+ *     gentle 2-at-a-time idle waves AFTER the game is interactive, so
+ *     boot is never blocked and pages still paint instantly later.
  *  isDecoded() lets <img> backgrounds paint at FULL opacity on their
  *  very first render (synchronous check, zero flash).
  * ------------------------------------------------------------------ */
 
-export const PRELOAD_IMAGES: string[] = [
-  /* screen backgrounds */
+/** screen backgrounds — resident in the in-DOM ImgPool → page switches
+ *  NEVER re-fetch or re-decode them (user: «هروقت جا ب جا میشی سریع باشن») */
+export const SCREEN_BGS: string[] = [
   "/assets/bg/home3.webp",
   "/assets/bg/play3.webp",
   "/assets/bg/home2.webp",
   "/assets/bg/map2.webp",
   "/assets/bg/sunset2.webp",
-  /* map realms (all 10 chapters) */
-  ...Array.from({ length: 10 }, (_, i) => `/assets/map/m${String(i + 1).padStart(2, "0")}.webp`),
-  /* UI icon set */
-  "/assets/img/logo_banner.png",
-  "/assets/img/grandpa.png",
-  "/assets/img/shop.png",
-  "/assets/img/mission.png",
-  "/assets/img/chest.png",
-  "/assets/img/house.png",
-  "/assets/img/books.png",
-  "/assets/img/tasks.png",
-  "/assets/img/gift.png",
-  "/assets/img/bulb.png",
-  "/assets/img/swap.png",
-  "/assets/img/star.png",
-  "/assets/img/gear.png",
-  "/assets/img/coins.png",
-  /* guide character */
+];
+
+/** everything the splash waits for: screen bgs + icons + first realms */
+export const CRITICAL_IMAGES: string[] = [
+  ...SCREEN_BGS,
+  "/assets/img/logo_banner.webp",
+  "/assets/img/coins.webp",
+  "/assets/img/gear.webp",
+  "/assets/img/shop.webp",
+  "/assets/img/mission.webp",
+  "/assets/img/books.webp",
+  "/assets/img/tasks.webp",
+  "/assets/img/bulb.webp",
+  "/assets/img/swap.webp",
+  "/assets/img/star.webp",
+  "/assets/img/gift.webp",
+  "/assets/img/grandpa.webp",
+  "/assets/map/m01.webp",
+  "/assets/map/m02.webp",
   "/assets/char/thumb.webp",
   "/assets/char/rest.webp",
   "/assets/char/seat.webp",
+  "/assets/obj/chest.webp",
 ];
+
+/** chapter realms m03..m20 + per-chapter play backdrops + poses — loaded AFTER boot */
+export const DEFERRED_IMAGES: string[] = [
+  ...Array.from({ length: 18 }, (_, i) => `/assets/map/m${String(i + 3).padStart(2, "0")}.webp`),
+  ...Array.from({ length: 20 }, (_, i) => `/assets/bg/ch${String(i + 1).padStart(2, "0")}.webp`),
+  "/assets/char/hello.webp",
+  "/assets/char/point.webp",
+  "/assets/char/cheer.webp",
+];
+
+/** every image the game may ever show (used by the resident ImgPool) */
+export const PRELOAD_IMAGES: string[] = [...SCREEN_BGS, ...CRITICAL_IMAGES.slice(SCREEN_BGS.length), ...DEFERRED_IMAGES];
 
 const decoded = new Set<string>();
 
@@ -71,15 +90,13 @@ export function preloadImage(src: string): Promise<void> {
   });
 }
 
-/** Preload everything with progress callback (0..1). Never rejects.
+/** Preload a list with progress callback (0..1). Never rejects.
  *  Loads in small parallel waves so weak phones never stall. */
-export function preloadAssets(onProgress?: (p: number) => void): Promise<void> {
-  const list = [...PRELOAD_IMAGES];
+function preloadList(list: string[], wave: number, onProgress?: (p: number) => void): Promise<void> {
   let done = 0;
   const total = list.length;
   return new Promise((resolve) => {
     if (total === 0) { onProgress?.(1); resolve(); return; }
-    const WAVE = 6;
     let head = 0;
     const pump = () => {
       if (head >= total) { if (done >= total) resolve(); return; }
@@ -91,6 +108,22 @@ export function preloadAssets(onProgress?: (p: number) => void): Promise<void> {
         else pump();
       });
     };
-    for (let i = 0; i < Math.min(WAVE, total); i++) pump();
+    for (let i = 0; i < Math.min(wave, total); i++) pump();
   });
+}
+
+/** splash preload: CRITICAL set only (fast boot) */
+export function preloadAssets(onProgress?: (p: number) => void): Promise<void> {
+  return preloadList(CRITICAL_IMAGES, 6, onProgress);
+}
+
+/** post-boot background loading — gentle 2-wide waves on idle, so it
+ *  never steals frames from gameplay. Fire-and-forget. */
+let deferredStarted = false;
+export function startDeferredPreload(): void {
+  if (deferredStarted) return;
+  deferredStarted = true;
+  const run = () => { void preloadList(DEFERRED_IMAGES, 2); };
+  if (typeof requestIdleCallback === "function") requestIdleCallback(() => run(), { timeout: 2500 });
+  else setTimeout(run, 1200);
 }
