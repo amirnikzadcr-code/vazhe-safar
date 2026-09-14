@@ -70,14 +70,16 @@ function Realm({
       data-realm={ch}
       style={{ aspectRatio: "700 / 1225", ["--acc" as string]: theme.accent }}
     >
-      {/* painted scene — first two chapters eager, rest lazy */}
+      {/* painted scene — ALL eager: every realm image is pre-decoded during
+          the splash, so eager mounting paints instantly from the memory
+          cache (lazy made scrolling pop art in late = «زمینه با تاخیر») */}
       <img
         className="realm-img"
         src={`/assets/map/m${String(ch).padStart(2, "0")}.webp`}
         alt=""
         draggable={false}
-        loading={ch <= 2 ? "eager" : "lazy"}
-        decoding={ch <= 2 ? "sync" : "async"}
+        loading="eager"
+        decoding="async"
       />
       <div className="realm-shade" />
 

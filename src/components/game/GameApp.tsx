@@ -18,7 +18,7 @@ import { Save } from "@/game/core/save";
 import { Audio } from "@/game/core/audio";
 import { CHAPTERS } from "@/game/data/chapters";
 import { ToastHost, useToast } from "@/components/game/ui/kit";
-import { HomeScreen, isGiftReady } from "@/components/game/screens/HomeScreen";
+import { HomeScreen } from "@/components/game/screens/HomeScreen";
 import { MapScreen } from "@/components/game/screens/MapScreen";
 import { PlayScreen } from "@/components/game/screens/PlayScreen";
 import { LibraryScreen } from "@/components/game/screens/LibraryScreen";
@@ -28,6 +28,9 @@ import { ChallengeScreen } from "@/components/game/screens/ChallengeScreen";
 import { DoneScreen } from "@/components/game/screens/DoneScreen";
 import { WelcomeScreen, Splash } from "@/components/game/screens/WelcomeScreen";
 import { GiftModal, SettingsModal, AboutModal, ExitConfirmModal } from "@/components/game/modals/Overlays";
+import { NameAskModal, ProfileModal } from "@/components/game/modals/ProfileModals";
+import { PartyScreen } from "@/components/game/screens/PartyScreen";
+import { ImgPool } from "@/components/game/ImgPool";
 
 type View =
   | { k: "splash" }
@@ -39,13 +42,14 @@ type View =
   | { k: "missions" }
   | { k: "shop" }
   | { k: "challenge" }
+  | { k: "party" }
   | { k: "done"; ch: number };
 
-type ModalKind = null | "settings" | "gift" | "privacy" | "about" | "exitApp" | "exitMap";
+type ModalKind = null | "settings" | "gift" | "privacy" | "about" | "exitApp" | "exitMap" | "profile" | "nameAsk";
 
 /* screen depth — used to pick the transition direction */
 const ORDER: Record<View["k"], number> = {
-  splash: 0, welcome: 1, home: 2, library: 3, missions: 3, shop: 3, challenge: 3, map: 4, play: 5, done: 6,
+  splash: 0, welcome: 1, home: 2, library: 3, missions: 3, shop: 3, challenge: 3, party: 3, map: 4, play: 5, done: 6,
 };
 
 const viewKey = (v: View) =>
@@ -142,6 +146,7 @@ export function GameApp() {
     const v = viewRef.current;
     if (v.k === "shop") { leaveShop(); return; }                     // shop → where you came from
     if (v.k === "play") { setModal("exitMap"); return; }          // ask before leaving the level
+    if (v.k === "party") { setModal("exitMap"); return; }         // ask before abandoning the party
     if (v.k === "splash" || v.k === "welcome" || v.k === "home") { setModal("exitApp"); return; } // ask before quitting
     Save.markSeen();
     setView({ k: "home" });
@@ -179,6 +184,13 @@ export function GameApp() {
   const boot = () => {
     const d = Save.data;
     const away = d.lastSeen > 0 && Date.now() - d.lastSeen > 4 * 3600_000;
+    if (!d.profile.name) {
+      /* v2.3 — first entry: ask the player's name BEFORE anything
+         (user: «اول اسمشو از کاربر بپرس ک توی پروفایلش ثبت بشه») */
+      setView({ k: "home" });
+      setModal("nameAsk");
+      return;
+    }
     if (away && d.levelsPlayed > 0 && d.welcomeShownDay !== Save.today()) {
       Save.data.welcomeShownDay = Save.today();
       Save.persist();
@@ -234,16 +246,16 @@ export function GameApp() {
         return (
           <HomeScreen
             coins={coins}
-            giftReady={isGiftReady()}
             onPlay={() => {
               const last = data.last;
               setView({ k: "map", ch: last?.ch ?? 1 });
             }}
-            onGift={() => setModal("gift")}
+            onParty={() => setView({ k: "party" })}
             onLibrary={() => setView({ k: "library" })}
             onMissions={() => setView({ k: "missions" })}
             onShop={() => setView({ k: "shop" })}
             onSettings={() => setModal("settings")}
+            onProfile={() => setModal("profile")}
           />
         );
       case "map":
@@ -281,7 +293,7 @@ export function GameApp() {
           />
         );
       case "missions":
-        return <MissionsScreen coins={coins} onBack={goHome} onChallenge={() => setView({ k: "challenge" })} />;
+        return <MissionsScreen coins={coins} onBack={goHome} onChallenge={() => setView({ k: "challenge" })} onGift={() => setModal("gift")} />;
       case "shop":
         return <ShopScreen coins={coins} onBack={leaveShop} />;
       case "challenge":
@@ -293,6 +305,8 @@ export function GameApp() {
             onStart={startChallenge}
           />
         );
+      case "party":
+        return <PartyScreen onExit={goHome} />;
       case "done":
         return (
           <DoneScreen
@@ -313,12 +327,20 @@ export function GameApp() {
   /* ----- render ----- */
   return (
     <>
+      {/* v2.3 — permanent resident image pool: keeps every decoded bitmap
+          alive so ANY screen paints its background instantly (no blue
+          flash, no «زمینه‌ها با تاخیر لود میشن»). Mounted OUTSIDE the
+          keyed remount div → never torn down. */}
+      <ImgPool />
+
       {/* the active screen — remounts with a soft cross-fade */}
       <div key={curKey} className={`page-enter ${dir}`}>
         {renderScreen(view)}
       </div>
 
       {/* global modals */}
+      {modal === "nameAsk" && <NameAskModal onDone={() => setModal(null)} />}
+      {modal === "profile" && <ProfileModal onClose={() => setModal(null)} />}
       {modal === "gift" && <GiftModal onClose={() => { setModal(null); bump(); }} />}
       {modal === "settings" && (
         <SettingsModal

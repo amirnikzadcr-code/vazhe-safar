@@ -32,6 +32,11 @@ export interface SaveData {
   challenge: { day: string; done: boolean; streak: number }; // daily challenge
   lastSeen: number;          // epoch ms of previous session end
   welcomeShownDay: string;   // welcome-back shown once per day
+  /* --- v2.3 player profile --- */
+  profile: {
+    name: string;        // "" → the name-ask modal shows on next boot
+    avatar: string;      // id from avatars.tsx (cat/fox/panda/…)
+  };
 }
 
 const KEY = "vazhe_safar_save_v1";
@@ -54,6 +59,7 @@ function fresh(): SaveData {
     challenge: { day: "", done: false, streak: 0 },
     lastSeen: 0,
     welcomeShownDay: "",
+    profile: { name: "", avatar: "cat" },
   };
 }
 
@@ -68,7 +74,12 @@ export const Save = {
         const parsed = JSON.parse(raw) as SaveData;
         if (parsed && parsed.v === 1) {
           // defensive merge with defaults for forward compatibility
-          cache = { ...fresh(), ...parsed, settings: { ...fresh().settings, ...(parsed.settings || {}) } };
+          const f = fresh();
+          cache = {
+            ...f, ...parsed,
+            settings: { ...f.settings, ...(parsed.settings || {}) },
+            profile: { ...f.profile, ...(parsed.profile || {}) },
+          };
           return cache;
         }
       }
@@ -191,6 +202,30 @@ export const Save = {
   markTutorialDone(): void {
     Save.data.tutorialDone = true;
     Save.persist();
+  },
+
+  /* ---------- v2.3 profile ---------- */
+
+  setProfile(name: string, avatar: string): void {
+    Save.data.profile = { name: name.trim().slice(0, 14) || "مسافر", avatar };
+    Save.persist();
+  },
+
+  /** lifetime XP — hidden words push it hardest (user: «هرچی کلمات
+   * پنهان پیدا کنه یا بره جلو لولش میره بالا») */
+  xpTotal(): number {
+    const d = Save.data;
+    return Save.totalStars() * 15 + d.wordsFound * 3 + d.bonusTotal * 8 + Object.keys(d.levels).length * 40;
+  },
+
+  /** level + progress inside the current level. Each level needs a bit
+   *  more XP than the previous one (260, +120 per level). */
+  levelInfo(): { lvl: number; cur: number; need: number } {
+    let xp = Save.xpTotal();
+    let lvl = 1;
+    let need = 260;
+    while (xp >= need) { xp -= need; lvl += 1; need += 120; }
+    return { lvl, cur: xp, need };
   },
 
   setLast(ch: number, lv: number): void {

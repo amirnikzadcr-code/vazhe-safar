@@ -8,6 +8,7 @@ import { CSSProperties, ReactNode, useEffect, useRef, useState } from "react";
 import {
   Gear, X, ChevronRight, Star,
 } from "@/components/game/icons";
+import { AvatarFace } from "@/components/game/avatars";
 import { faNum } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
@@ -105,36 +106,44 @@ export function CoinPill({ value, onPlus }: { value: number; onPlus?: () => void
   );
 }
 
-/* ---------- player HUD — avatar + name plate + level + XP + coins + gear.
-   Shared by home & play screens (exact reference top bars). ---------- */
+/* ---------- player HUD — REAL profile: avatar + name + level + XP.
+   v2.3: driven by Save.data.profile (name + chosen avatar); the plate
+   is tappable → opens the profile editor. Level rises with hidden
+   words + progress (user request «ارتقای لول»). ---------- */
 export function PlayerHud({
-  coins, gear, onGear, onPlus,
+  coins, gear, onGear, onPlus, onProfile,
 }: {
   coins: number;
   gear?: "bronze" | "blue";
   onGear?: () => void;
   onPlus?: () => void;
+  onProfile?: () => void;
 }) {
-  const stars = Save.totalStars();
-  const totalXp = stars * 25 + Save.data.wordsFound * 2 + Save.data.bonusTotal * 5;
-  const span = 500;
-  const lvl = Math.floor(totalXp / span) + 1;
-  const cur = totalXp % span;
+  const prof = Save.data.profile;
+  const { lvl, cur, need } = Save.levelInfo();
   return (
     <div className="hud">
-      <div className="hud-left">
-        <img className="hud-avatar" src="/assets/img/grandpa.png" alt="عمو دانا" draggable={false} />
-        <div className="plate">
-          <div className="plate-name">کاربر عزیز</div>
-          <div className="plate-row">
+      <button
+        type="button"
+        className="hud-left hud-prof-btn"
+        onClick={() => { Audio.sfxClick(); onProfile?.(); }}
+        aria-label="پروفایل بازیکن"
+      >
+        <span className="hud-avatar-wrap">
+          <AvatarFace id={prof.avatar} size={52} />
+          <span className="hud-lvl-corner">{faNum(lvl)}</span>
+        </span>
+        <span className="plate">
+          <span className="plate-name">{prof.name || "مسافر"}</span>
+          <span className="plate-row">
             <span className="lvl-badge">{faNum(lvl)}</span>
-            <div className="plate-xp">
-              <div className="plate-xpbar"><i style={{ width: `${Math.round((cur / span) * 100)}%` }} /></div>
-              <div className="plate-xpnum">{faNum(cur)}/{faNum(span)}</div>
-            </div>
-          </div>
-        </div>
-      </div>
+            <span className="plate-xp">
+              <span className="plate-xpbar"><i style={{ width: `${Math.round((cur / need) * 100)}%` }} /></span>
+              <span className="plate-xpnum">{faNum(cur)}/{faNum(need)}</span>
+            </span>
+          </span>
+        </span>
+      </button>
       <div className="hud-right">
         <CoinPill value={coins} onPlus={onPlus} />
         {onGear && (
