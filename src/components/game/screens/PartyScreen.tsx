@@ -18,9 +18,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "@/components/game/ui/kit";
 import { AVATARS, AvatarFace } from "@/components/game/avatars";
-import { LEVELS, isRealWord, ALL_DICT_WORDS } from "@/game/data/levelsIndex";
-import { letters, faNum, canBuild, buzz } from "@/game/core/utils";
-import { dehkhodaLookup } from "@/game/core/dehkhoda";
+import { LEVELS, isRealWord } from "@/game/data/levelsIndex";
+import { letters, faNum, buzz } from "@/game/core/utils";
+import { validateWord, LEXICON_WORDS } from "@/game/core/lexicon";
 import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
 
@@ -214,7 +214,7 @@ function Setup({ onStart, onExit }: { onStart: (ps: PConf[], rounds: number) => 
           }}
           aria-live="polite"
         >
-          بیش از {faNum(ALL_DICT_WORDS.length)} واژهٔ فارسی در چرخِ دورهمی!
+          بیش از {faNum(LEXICON_WORDS)} واژهٔ فارسی در چرخِ دورهمی!
         </div>
         {/* عمو دانا teaches the game (user: «عمو دانا بیاد بازی رو یاد بده») */}
         <Coach line={tip} />
@@ -337,20 +337,10 @@ function TurnGame({
 }) {
   const wheel = useMemo(() => pickWheel(usedWheelKeys.current), []);
   const levelWords = wheel.words;
-  /* how many real ≥2-letter words hide in this wheel? (friendly hint so
-     players always know there IS something to find) — v1.18: two-letter
-     words now count (user: «جمله‌های دو حرفی هم قبول باشه ثبتش») */
-  const wordCount = useMemo(() => {
-    const pool = wheel.ls.join("");
-    const set = new Set<string>();
-    /* v5: scans the FULL dictionary (۸٬۸۰۰+ واژه) — the pool the user
-       asked to enlarge for دورهمی */
-    for (const w of ALL_DICT_WORDS) {
-      if (Array.from(w).length >= 2 && canBuild(w, pool)) set.add(w);
-    }
-    for (const w of levelWords) if (Array.from(w).length >= 2) set.add(w);
-    return set.size;
-  }, [wheel]);
+  /* X-FIX — the «تعداد واژه‌های موجود» counter is GONE (user request).
+   * The FULL-dictionary scan it used to run (~۸٬۸۰۰ canBuild checks per
+   * wheel, on the render path) was also pure wasted phone CPU — a nice
+   * speedup for the very screen that complained about lag. */
   const [sel, setSel] = useState<number[]>([]);
   const selRef = useRef<number[]>([]);
   const setSelBoth = useCallback((v: number[]) => { selRef.current = v; setSel(v); }, []);
@@ -358,7 +348,7 @@ function TurnGame({
   const turnWordsRef = useRef(turnWords);
   useEffect(() => { turnWordsRef.current = turnWords; }, [turnWords]);
   const [msg, setMsg] = useState("");
-  const [checking, setChecking] = useState(false); /* Dehkhoda async check */
+  const [checking, setChecking] = useState(false); /* offline lexicon check */
   const [shake, setShake] = useState(0);
   const [pops, setPops] = useState<{ id: number; pts: number }[]>([]);
   const popId = useRef(0);
@@ -427,10 +417,11 @@ function TurnGame({
     onWord(pts, wordStr);
   };
 
-  /* v1.22 — every built word is VALIDATED (user: «لغت نامه دهخدا وارد
-   * بکن اونجا تا هر جمله ایی ساختن تأیید بشه»): the local dictionary
-   * answers instantly; a miss goes to the REAL Dehkhoda online with a
-   * graceful offline fallback (never blocks the game on the network). */
+  /* X-FIX — every built word is validated against the OFFLINE lexicon
+   * that ships inside the app (۱۵۹٬۰۰۰+ واژه — no network, no waiting,
+   * and the UI never names any dictionary; user: «اسمی لغت نامه در
+   * بازی نبر»). The curated game dictionary answers instantly; the
+   * big local file covers everything else. */
   const submitWith = async (selArr: number[]) => {
     if (endedRef.current || checkingRef.current) return;
     if (selArr.length < 2) {
@@ -448,16 +439,14 @@ function TurnGame({
     }
     checkingRef.current = true;
     setChecking(true);
-    const r = await dehkhodaLookup(wordStr);
+    const good = await validateWord(wordStr);
     checkingRef.current = false;
     if (endedRef.current) { setChecking(false); return; }
     setChecking(false);
-    if (r === "yes") {
-      accept(wordStr, selArr, "دهخدا تأیید کرد!");
-    } else if (r === "no") {
-      setMsg("دهخدا این واژه را ثبت نکرده!"); setShake((s) => s + 1); Audio.sfxWrong();
+    if (good) {
+      accept(wordStr, selArr, "واژه تأیید شد!");
     } else {
-      setMsg("واژه معتبر نیست!"); setShake((s) => s + 1); Audio.sfxWrong();
+      setMsg("این واژه پذیرفته نشد!"); setShake((s) => s + 1); Audio.sfxWrong();
     }
   };
 
@@ -567,23 +556,20 @@ function TurnGame({
           </div>
         </div>
 
-        {/* message + pops + Dehkhoda async check */}
+        {/* message + pops + the quiet offline word check */}
         <div className="ps-msgrow">
           {msg && <span key={shake} className="ps-msg shake-x">{msg}</span>}
-          {checking && <span className="ps-dk"><span className="spin" />بررسی در لغت‌نامهٔ دهخدا…</span>}
+          {checking && <span className="ps-dk"><span className="spin" />در حال بررسی واژه…</span>}
           {pops.map((x) => (
             <span key={x.id} className={`ps-pop ${golden ? "golden" : ""}`}>+{faNum(x.pts)}</span>
           ))}
         </div>
 
-        {/* actions */}
+        {/* actions — X-FIX: the drag ring IS the input (build → release
+            auto-submits; a quick tap toggles a letter), exactly like the
+            main game — the old ثبت/پاک buttons are GONE (user request).
+            Only the calm «پایان نوبت» remains. */}
         <div className="ps-actions">
-          <button type="button" className="ps-act back" onClick={() => { Audio.sfxClick(); setSelBoth(selRef.current.slice(0, -1)); }} aria-label="پاک کردن">
-            پاک
-          </button>
-          <button type="button" className="ps-act submit" disabled={sel.length < 2 || checking} onClick={() => void submitWith([...selRef.current])} aria-label="ثبت واژه">
-            ثبت واژه
-          </button>
           <button type="button" className="ps-act finish" onClick={() => { Audio.sfxClick(); endNow(turnWordsRef.current.length > 0); }}>
             پایان نوبت
           </button>
@@ -592,15 +578,11 @@ function TurnGame({
         {/* عمو دانا coaching line */}
         <Coach line={coachLine} small />
 
-        {/* words found this turn */}
+        {/* words found this turn (no counter — the count is gone) */}
         <div className="ps-turnwords">
-          {turnWords.length === 0 ? (
-            <span className="ps-tw-empty">{faNum(wordCount)} واژه در این چرخ پنهان است…</span>
-          ) : (
-            turnWords.slice(0, 6).map((x) => (
-              <span key={x.w} className="ps-tw">{x.w} <i>+{faNum(x.pts)}</i></span>
-            ))
-          )}
+          {turnWords.slice(0, 6).map((x) => (
+            <span key={x.w} className="ps-tw">{x.w} <i>+{faNum(x.pts)}</i></span>
+          ))}
         </div>
       </div>
     </div>
@@ -715,9 +697,15 @@ function Final({ ps, onRematch, onNewPlayers, onHome }: {
       <div className="ps-podium">
         {seats.map(({ p, place }) => (
           <div key={p.name + place} className="ps-pod-col">
-            <AvatarFace id={p.avatar} size={place === 1 ? 56 : 44} />
+            {/* X-FIX (user: «اسم هاشون با رتبه عددشون تداخل داره»): the
+                rank medal now sits ON THE AVATAR'S CORNER (absolute) —
+                the old negative-margin version was pulled up over the
+                name text. Name gets its own clear row below. */}
+            <div className="ps-pod-ava">
+              <AvatarFace id={p.avatar} size={place === 1 ? 60 : 48} />
+              <span className={`ps-medal g${place}`}>{faNum(place)}</span>
+            </div>
             <b className="ps-pod-name"><bdi>{p.name}</bdi></b>
-            <span className={`ps-medal g${place}`}>{faNum(place)}</span>
             <div className="ps-pod-block" style={{ height: h(place), background: `linear-gradient(180deg, ${medal(place)}, ${medal(place)}cc)` }}>
               <span className="ps-pod-rank">{faNum(p.score)}</span>
               <span className="ps-pod-score">{faNum(p.words)} واژه</span>

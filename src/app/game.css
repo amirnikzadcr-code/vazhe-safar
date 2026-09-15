@@ -458,10 +458,16 @@ button:active { transition-duration: .05s; }
   overflow: hidden;        /* v1.20: nothing ever spills out of the panel */
 }
 /* v2.4 — hard chapters have up to 10 words: the board scrolls gently
- * instead of shrinking tiles into unreadability */
+ * instead of shrinking tiles into unreadability.
+ * X-FIX — .wboard is now ABSOLUTELY positioned inside the panel
+ * (inset) so its height is fully determined by the panel box — the
+ * old max-height:100% resolved inconsistently on flex items (a
+ * uniform 6px overflow the X-audit kept catching). The solver can
+ * now measure its exact playbox: no drift, no scroll. */
 .board-box .wboard {
+  position: absolute; inset: 12px 8px 12px;
   overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
-  max-height: 100%; padding: 2px 4px;
+  padding: 2px 4px;
 }
 .board-box .wboard::-webkit-scrollbar { display: none; }
 .wboard {
@@ -699,8 +705,19 @@ button:active { transition-duration: .05s; }
     0 4px 0 rgba(217,167,78,.4),
     0 10px 16px rgba(60,35,0,.16);
   display: flex; align-items: center; justify-content: center;
-  transition: background .25s ease, outline-color .25s ease, box-shadow .25s ease;
+  /* X-PERF — the live glow is a pre-mounted ::after whose OPACITY
+   * fades in (compositor-only). The old version TRANSITIONED
+   * box-shadow + outline-color — a per-frame full repaint of this
+   * strip on weak Android GPUs, exactly when the finger is dragging
+   * (user: «یه لگ داره این حدس کلمه… روی گوشی نرم باشه»). */
 }
+.guess-strip::after {
+  content: ""; position: absolute; inset: -5px; border-radius: 24px;
+  box-shadow: 0 0 26px 3px rgba(255,205,90,.6);
+  opacity: 0; transition: opacity .22s ease;
+  pointer-events: none;
+}
+.guess-strip.live::after { opacity: 1; }
 .guess-strip.live {
   background:
     radial-gradient(circle at 14% 18%, rgba(255,255,255,.75) 0 7px, transparent 8px),
@@ -710,8 +727,7 @@ button:active { transition-duration: .05s; }
   box-shadow:
     inset 0 3px 8px rgba(150,100,10,.18),
     0 5px 0 rgba(180,119,8,.45),
-    0 12px 20px rgba(60,35,0,.24),
-    0 0 24px rgba(255,205,90,.5);
+    0 12px 20px rgba(60,35,0,.24);
 }
 .guess-hint {
   position: absolute; inset: 0;
@@ -783,9 +799,13 @@ button:active { transition-duration: .05s; }
    COMPLETE-WORD BANNER — the full word blooms over the screen then
    fades (user request: «جملهٔ کاملش زیبا ظاهر شه بعد محو شه»).
    100% composited: transform + opacity only.
+   X-FIX — it is mounted INSIDE the guess strip (see PlayScreen): the
+   old sheet-centered overlay physically COVERED the board's last rows
+   for its 2.8s hold. The ribbon may overflow the strip slightly
+   (overflow stays visible) but the board/wheel are never covered.
    ================================================================== */
 .word-banner {
-  position: absolute; inset: 0; z-index: 45; pointer-events: none;
+  position: absolute; inset: -14px -26px; z-index: 45; pointer-events: none;
   display: flex; align-items: center; justify-content: center;
 }
 .wb-ribbon {
@@ -1821,9 +1841,14 @@ button:active { transition-duration: .05s; }
   border: 2px solid #fff; color: #fff; font-weight: 800; font-size: 14px;
   border-radius: 999px; padding: 3px 16px; box-shadow: 0 2.5px 0 #2f8f1f;
 }
-.ps-podium { display: flex; align-items: flex-end; justify-content: center; gap: 10px; position: relative; z-index: 5; }
-.ps-pod-col { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 86px; }
-.ps-pod-name { font-size: 13px; font-weight: 800; color: #fff; text-shadow: 0 2px 3px rgba(20,10,40,.6); white-space: nowrap; }
+.ps-podium { display: flex; align-items: flex-end; justify-content: center; gap: 12px; position: relative; z-index: 5; }
+.ps-pod-col { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 92px; }
+/* X-FIX — the rank medal is an ABSOLUTE badge on the avatar's corner;
+   the old version used margin-top:-30px and sat ON TOP of the name
+   (user: «اسم هاشون با رتبه عددشون تداخل داره»). The name now owns its
+   own row with an ellipsis so two long names can never touch either. */
+.ps-pod-ava { position: relative; display: inline-flex; }
+.ps-pod-name { font-size: 13px; font-weight: 800; color: #fff; text-shadow: 0 2px 3px rgba(20,10,40,.6); white-space: nowrap; max-width: 100px; overflow: hidden; text-overflow: ellipsis; }
 .ps-pod-block {
   width: 100%; border: 3px solid #fff; border-radius: 14px 14px 6px 6px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
@@ -2210,6 +2235,10 @@ body { background: #5cb2ef; }
 .lowfx .wrow.new .wtile,
 .lowfx .wrow.new::after { animation: none !important; }
 .lowfx .guess-strip { transition: none !important; }
+/* X-PERF — compositor-glow + party ring polish shed on weak phones */
+.lowfx .guess-strip::after { display: none !important; }
+.lowfx .pw-tile { transition: none !important; }
+.lowfx .ps-champ-ava::before { animation: none !important; }
 
 /* ═══════════════════════════════════════════════════════════════════
    v3 SHOP — premium night-gold market (exclusive identity).
@@ -2466,10 +2495,11 @@ body { background: #5cb2ef; }
 }
 @keyframes champHalo { from { transform: scale(.98); opacity: .8; } to { transform: scale(1.07); opacity: 1; } }
 .ps-medal {
-  width: 30px; height: 30px; border-radius: 999px; flex: none;
+  position: absolute; top: -9px; left: -11px; width: 27px; height: 27px;
+  border-radius: 999px; flex: none;
   display: flex; align-items: center; justify-content: center;
   border: 2.5px solid #fff; outline: 2px solid rgba(95,58,20,.35);
-  color: #fff; font-weight: 900; font-size: 13px; margin-top: -30px; z-index: 3;
+  color: #fff; font-weight: 900; font-size: 12.5px; z-index: 3;
   box-shadow: 0 3px 0 rgba(95,58,20,.4), 0 5px 8px rgba(30,15,0,.35);
   text-shadow: 0 1.5px 0 rgba(60,30,0,.4);
 }

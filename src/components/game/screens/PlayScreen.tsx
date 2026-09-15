@@ -41,12 +41,17 @@ import { armGameplayProbe } from "@/game/core/perf";
  * 550 keeps a juicy beat but feels instant. v1.20: 480 + the wheel no
  * longer HARD-LOCKS input during the beat (a fresh drag force-ends
  * the fx) — user: «یه لگ ریز داره وقتی حدس میزنی، نرم روان بکن». */
-const CELEBRATE_MS = 480;
+const CELEBRATE_MS = 300;
 /* the complete-word banner («جملهٔ کاملش زیبا ظاهر شه بعد محو شه»):
  * golden ribbon with the FULL word, pops in → holds → fades away.
  * v1.22 (user: «کلمه یهو ظاهر میشه سریع ناپدید میشه — حداقل ۲ ثانیه
  * بمونه»): a SMOOTH pop-in (~340ms), then the word stays fully
- * readable ≈2s before the letters fly in. */
+ * readable ≈2s before it fades.
+ * X-FIX (user: «با تاخیر زیاد واژه حدس زده شده وارد کادر میشه»): the
+ * board entry used to WAIT for the whole banner (۲.۴s!) — now the
+ * banner AND the letter entry run CONCURRENTLY: the first letter
+ * lands ~0.8s after release (feels instant) while the ribbon still
+ * holds ≈2s on screen. Both requests satisfied at once. */
 const BANNER_MS = 2800;
 /* v1.21 — LETTER-BY-LETTER BOARD ENTRY («بعدش خیلی خوشگل دونه دونه
  * با افکت وارد کادر بشه»): after the banner hold, the found row's
@@ -54,8 +59,8 @@ const BANNER_MS = 2800;
  * LETTER_T0 = when the first letter starts (relative to the word
  * landing), LETTER_STEP = gap between letters. The win modal waits
  * for the last letter + a breather before it pops over the board. */
-const LETTER_T0 = 2400;
-const LETTER_STEP = 130;
+const LETTER_T0 = 800;
+const LETTER_STEP = 110;
 const WIN_EXTRA_MS = 620;
 
 /* ---- in-progress level snapshots (v1.20 session U) ----
@@ -385,22 +390,22 @@ export function PlayScreen({
         <div className="lvl-banner">مرحله {faNum(globalLevel(ch, lv))}</div>
       </div>
 
-      {/* board — v1.22: ADAPTIVE ROW PACKING. When a level carries many
-          sentences the board packs rows (hero rows + left/right pairs,
-          user: «کادرهاشون تقسیم کن ب سمت چپ و راست… بزرگشون کن
-          استاندارد بشن»). flexBasis CLAIMS the computed panel height so
-          the packing solver gets real space (a content-sized flex child
-          collapsed the board and shrank the tiles to 18px). */}
+      {/* board — X-FIX: the roomy branch emits one row PER WORD and the
+          panel claims a COMPACT budget (rows*42+22, capped 32%/36%) —
+          the solver shrinks tiles to whatever the panel really gets, so
+          nothing ever scrolls/overflows and the WHEEL keeps real space
+          (user: «هنوز دایره کلمات کوچیکه… بزرگ باشه و فاصله دار»).
+          Tile cap 36 = still standard-large. */}
       <div
         className={`board-box ${shaking ? "shake" : ""}`}
         data-skin={ch}
         onAnimationEnd={() => setShaking(false)}
         style={{
           flex: "1 1 auto",
-          flexBasis: `min(${Math.ceil(wordRows.length / (wordRows.length >= 7 ? 2 : 1)) * 50 + 28}px, ${wordRows.length >= 7 ? 46 : 40}%)`,
-          maxHeight: `min(${Math.ceil(wordRows.length / (wordRows.length >= 7 ? 2 : 1)) * 50 + 28}px, ${wordRows.length >= 7 ? 46 : 40}%)`,
-          minHeight: 110,
-          margin: "4px 12px 0",
+          flexBasis: `min(${Math.ceil(wordRows.length / (wordRows.length >= 7 ? 2 : 1)) * 42 + 22}px, ${wordRows.length >= 7 ? 36 : 32}%)`,
+          maxHeight: `min(${Math.ceil(wordRows.length / (wordRows.length >= 7 ? 2 : 1)) * 42 + 22}px, ${wordRows.length >= 7 ? 36 : 32}%)`,
+          minHeight: 96,
+          margin: "4px 10px 0",
         }}
       >
         <WordBoard
@@ -412,10 +417,28 @@ export function PlayScreen({
       </div>
 
       {/* GUESS STRIP (v1.20) — the live word-builder box; a FIXED flex
-          slot so it can never collide with the board or the wheel */}
+          slot so it can never collide with the board or the wheel.
+          X-FIX — the COMPLETE-WORD banner now lives INSIDE this slot:
+          it used to float over the SHEET CENTER and physically COVER
+          the board's last rows for its 2.8s hold (user: «کادر جملات
+          تداخل داره و از کادر خارج شده»). The strip is idle exactly
+          while the banner plays — the built word graduates in the box
+          where it was built. */}
       <div className="guess-strip" aria-hidden>
         <div ref={guessRef} className="guess-inner" />
         <span className="guess-hint">واژه‌ات را اینجا بساز…</span>
+        <div ref={bannerRef} className="word-banner" aria-hidden>
+          <span className="wb-ribbon">
+            <i className="wb-star l" />
+            <b className="wb-word" ref={bannerWordRef} />
+            <i className="wb-star r" />
+          </span>
+          <span className="wb-dust">
+            {Array.from({ length: 8 }, (_, s) => (
+              <i key={s} style={{ ["--dx" as string]: `${Math.cos((s / 8) * Math.PI * 2) * 90}px`, ["--dy" as string]: `${Math.sin((s / 8) * Math.PI * 2) * 46 - 20}px`, ["--dd" as string]: `${s * 40}ms` }} />
+            ))}
+          </span>
+        </div>
       </div>
 
       {/* wheel — v6: driven imperatively through the ref; celebrations
@@ -470,21 +493,7 @@ export function PlayScreen({
         </div>
       )}
 
-      {/* COMPLETE-WORD BANNER — pre-mounted once; idle = transparent,
-          replays via WAAPI (replayWordBanner) — zero DOM creation and
-          zero forced reflow inside the landing frame */}
-      <div ref={bannerRef} className="word-banner" aria-hidden>
-        <span className="wb-ribbon">
-          <i className="wb-star l" />
-          <b className="wb-word" ref={bannerWordRef} />
-          <i className="wb-star r" />
-        </span>
-        <span className="wb-dust">
-          {Array.from({ length: 8 }, (_, s) => (
-            <i key={s} style={{ ["--dx" as string]: `${Math.cos((s / 8) * Math.PI * 2) * 90}px`, ["--dy" as string]: `${Math.sin((s / 8) * Math.PI * 2) * 46 - 20}px`, ["--dd" as string]: `${s * 40}ms` }} />
-          ))}
-        </span>
-      </div>
+      {/* (the complete-word banner moved into the guess strip — X-FIX) */}
 
       {paused && (
         <PauseModal
@@ -554,6 +563,23 @@ const WordBoard = memo(function WordBoard({
   const lens = useMemo(() => words.map((w) => letters(w).length), [words]);
   const lensKey = useMemo(() => lens.join(","), [lens]);
 
+  /* X-SETTLE — box-model arithmetic can be off by a few px (borders,
+   * % max-height resolution) → the board scrolls a few px and hides a
+   * word. Instead of chasing constants, this self-corrects: if the
+   * rendered board overflows its clamp by >2px, shave 1px off every
+   * row's tile per frame until it fits (converges in a few frames,
+   * never oscillates — it only shrinks). */
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el || rows.length === 0) return;
+    if (el.scrollHeight - el.clientHeight > 2 && rows.some((r) => r.tile > 14)) {
+      const t = requestAnimationFrame(() => {
+        setRows((prev) => prev.map((r) => ({ ...r, tile: Math.max(14, r.tile - 1) })));
+      });
+      return () => cancelAnimationFrame(t);
+    }
+  }, [rows]);
+
   useLayoutEffect(() => {
     const el = boxRef.current;
     if (!el) return;
@@ -562,12 +588,28 @@ const WordBoard = memo(function WordBoard({
      * shrink feedback loop that spiralled tiles down to the 18px floor. */
     const host = el.parentElement;
     if (!host) return;
+    /* X-FIX — the constants below MUST mirror game.css exactly:
+     *   .wboard   column gap = 0.26 × tile      (was 0.24 → drift)
+     *   .wrow     pair gap    = 10px fixed       (was 8 → drift)
+     *   .wgroup   letter gap  = 4px
+     *   .wboard   padding 2px 4px + .board-box padding 12px 10px →
+     *             vertical reserve 28, horizontal reserve 8.
+     * v1.22 regression FIXED (user: «کادر جملات حدس زده شده تداخل داره
+     * و از کادر خارج شده»): the roomy branch used to return ONE PackRow
+     * holding ALL words → BoardRow laid them out side-by-side in a
+     * single flex line that overflowed the panel. Uniform mode now
+     * emits ONE ROW PER WORD (the classic column), and every solved
+     * tile is FLOORED (never rounded up past its fit). */
     const calc = () => {
       const cw = el.clientWidth;
       if (cw <= 0) return;
       const W = cw - 8;               /* .wboard inner padding */
-      const H = Math.max(120, host.clientHeight - 24);
-      const PAD = 8, CGAP = 8, GAP = 4, TH = 26, CAP = 40;
+      /* .wboard is absolutely positioned (inset 12px) → its clientHeight
+       * IS the exact playbox; -4 = its own 2px vertical padding pair.
+       * (Before the inset change the % max-height resolved oddly and
+       * every level scrolled exactly 6px — the X-audit's finding.) */
+      const H = Math.max(120, el.clientHeight - 4);
+      const PAD = 8, CGAP = 10, GAP = 4, TH = 26, CAP = 36, GAPF = 0.26;
       const soloT = (l: number) => (W - PAD - GAP * (l - 1)) / l;
       const pairT = (l1: number, l2: number) =>
         (W - PAD - CGAP - GAP * (l1 - 1) - GAP * (l2 - 1)) / (l1 + l2);
@@ -576,12 +618,13 @@ const WordBoard = memo(function WordBoard({
       );
       const n = sorted.length;
       const longest = n ? letters(sorted[0]).length : 3;
-      const hfAll = H / (n + 0.24 * (n - 1));
+      const hfAll = H / (n + GAPF * (n - 1));
       const uni = Math.min(soloT(longest), hfAll, CAP);
       let next: PackRow[];
-      if (uni >= TH || n < 5) {
-        /* classic uniform column — roomy enough, just BIGGER */
-        next = [{ items: sorted, tile: Math.max(22, Math.round(uni)) }];
+      if (uni >= TH) {
+        /* classic uniform column — one row PER WORD, biggest standard tile */
+        const t = Math.max(20, Math.floor(uni));
+        next = sorted.map((w) => ({ items: [w], tile: Math.min(t, Math.floor(soloT(letters(w).length))) }));
       } else {
         /* adaptive packing: hero rows + left/right pairs */
         const unplaced = [...sorted];
@@ -594,14 +637,15 @@ const WordBoard = memo(function WordBoard({
             const t = Math.min(pairT(lw, letters(unplaced[j]).length), CAP);
             if (t >= TH && t > bestT) { bestT = t; bestJ = j; }
           }
-          if (bestJ >= 0) built.push({ items: [w, unplaced.splice(bestJ, 1)[0]], tile: Math.round(bestT) });
-          else built.push({ items: [w], tile: Math.round(Math.min(soloT(lw), CAP)) });
+          if (bestJ >= 0) built.push({ items: [w, unplaced.splice(bestJ, 1)[0]], tile: Math.floor(bestT) });
+          else built.push({ items: [w], tile: Math.floor(Math.min(soloT(lw), CAP)) });
         }
-        /* height guard: shrink proportionally if the packed rows overflow */
-        const total = built.reduce((s, r) => s + r.tile * 1.24, 0);
+        /* height guard: shrink proportionally if the packed rows overflow
+         * (shrinking never breaks the width fit — smaller is narrower) */
+        const total = built.reduce((s, r) => s + r.tile * (1 + GAPF), 0);
         if (total > H) {
-          const f = Math.max(0.55, H / total);
-          for (const r of built) r.tile = Math.max(18, Math.round(r.tile * f));
+          const f = H / total;
+          for (const r of built) r.tile = Math.max(15, Math.floor(r.tile * f));
         }
         next = built;
       }
@@ -1027,7 +1071,7 @@ const Wheel = memo(forwardRef(function Wheel({
       x: (p.x / 100) * r.width,
       y: (p.y / 100) * r.height,
     }));
-    rRef.current = Math.max(30, r.width * 0.15);
+    rRef.current = Math.max(34, r.width * 0.17);
     if (!tileElsRef.current) {
       const m = new Map<number, HTMLElement>();
       wrapRef.current!.querySelectorAll<HTMLElement>("[data-tile]").forEach((el) => {
@@ -1075,10 +1119,10 @@ const Wheel = memo(forwardRef(function Wheel({
        * squeeze the wheel into meaninglessness; a compact-but-playable
        * wheel beats a vanished one (the board's packing guard absorbs
        * the rest). */
-      const s = Math.max(170, Math.floor(Math.min(w - 8, h - 4, 356)));
+      const s = Math.max(188, Math.floor(Math.min(w - 8, h - 4, 364)));
       const n = Math.max(1, ls.length);
-      const tCap = 0.27 * s;
-      const tFit = ((2 * Math.PI * (s / 2 - 5)) / n - 12) / (1 + Math.PI / n);
+      const tCap = 0.29 * s;
+      const tFit = ((2 * Math.PI * (s / 2 - 5)) / n - 10) / (1 + Math.PI / n);
       const tile = Math.max(30, Math.min(tCap, tFit));
       const wr = Math.min(43, ((s / 2 - tile / 2 - 4) / s) * 100);
       wrap.style.width = `${s}px`;
