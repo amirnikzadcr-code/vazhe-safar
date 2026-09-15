@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Save } from "@/game/core/save";
 import { Audio } from "@/game/core/audio";
 import { CHAPTERS, MENU_MUSIC, PARTY_MUSIC } from "@/game/data/chapters";
+import { lvPerCh } from "@/game/data/levelsIndex";
 import { ToastHost, useToast } from "@/components/game/ui/kit";
 import { HomeScreen } from "@/components/game/screens/HomeScreen";
 import { MapScreen } from "@/components/game/screens/MapScreen";
@@ -236,8 +237,9 @@ export function GameApp() {
     const N = CHAPTERS.length;
     let ch = 1;
     for (let c = N; c >= 1; c--) if (Save.chapterUnlocked(c)) { ch = c; break; }
+    const per = lvPerCh(ch);
     let lv = 1;
-    for (let l = 10; l >= 1; l--) if (Save.data.levels[`${ch}:${l}`]) { lv = Math.min(10, l + 1); break; }
+    for (let l = per; l >= 1; l--) if (Save.data.levels[`${ch}:${l}`]) { lv = Math.min(per, l + 1); break; }
     goPlay(ch, lv, "challenge");
   };
   const goHome = () => { Save.markSeen(); setView({ k: "home" }); };
@@ -247,7 +249,7 @@ export function GameApp() {
       const got = Save.completeChallenge();
       if (got) show(`چالش روزانه کامل شد! +${"۵۰"} سکه`);
     }
-    if (lv >= 10) {
+    if (lv >= lvPerCh(ch)) {
       setView({ k: "done", ch });
     } else {
       goPlay(ch, lv + 1, from);

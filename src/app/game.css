@@ -404,12 +404,13 @@ html, body { overscroll-behavior: none; height: 100%; }
    ================================================================== */
 .board-box {
   position: relative;
-  background: linear-gradient(180deg,#fdf6de,#f6e8c2);
-  border: 3px solid #fff; outline: 2.5px solid #e2c893;
+  background: linear-gradient(180deg, var(--panel-a,#fdf6de), var(--panel-b,#f6e8c2));
+  border: 3px solid #fff; outline: 2.5px solid var(--panel-outline,#e2c893);
   border-radius: 24px;
-  box-shadow: 0 7px 0 #d9bd85, 0 14px 22px rgba(60,35,0,.28);
+  box-shadow: 0 7px 0 var(--panel-shadow,#d9bd85), 0 14px 22px rgba(60,35,0,.28);
   padding: 12px 10px;
   display: flex; align-items: center; justify-content: center;
+  contain: layout style;   /* v6: landings never invalidate the whole page */
 }
 /* v2.4 — hard chapters have up to 10 words: the board scrolls gently
  * instead of shrinking tiles into unreadability */
@@ -429,26 +430,52 @@ html, body { overscroll-behavior: none; height: 100%; }
   width: var(--wt); height: var(--wt);
   border-radius: calc(var(--wt) * 0.3);
   display: flex; align-items: center; justify-content: center;
-  font-weight: 800; color: #5d3a12;
+  font-weight: 800; color: var(--tile-ink,#5d3a12);
 }
 .wtile.empty {
-  background: linear-gradient(180deg,#ecd9ac,#e2c98f);
+  background: linear-gradient(180deg,var(--tile-a,#ecd9ac),var(--tile-b,#e2c98f));
   box-shadow: inset 0 2.5px 4px rgba(120,80,20,.38), inset 0 -1px 0 rgba(255,255,255,.5);
 }
 .wtile.reveal {
-  background: linear-gradient(180deg,#fffdf4,#ffefc2);
-  border: 2px solid #fff; outline: 1.5px solid #e2c893;
-  box-shadow: 0 2.5px 0 #d9b87a;
+  background: linear-gradient(180deg,var(--tile-hi,#fffdf4),var(--tile-c,#ffefc2));
+  border: 2px solid #fff; outline: 1.5px solid var(--tile-edge,#e2c893);
+  box-shadow: 0 2.5px 0 var(--tile-shadow,#d9b87a);
   animation: revealIn .34s cubic-bezier(.2,1.6,.4,1) both;
 }
 .wrow.done .wtile {
-  background: linear-gradient(180deg,#fffdf4,#ffe9ae);
-  border: 2px solid #fff; outline: 1.5px solid #e8bd62;
-  box-shadow: 0 2.5px 0 #d9a94e;
+  background: linear-gradient(180deg,var(--tile-hi,#fffdf4),var(--done-b,#ffe9ae));
+  border: 2px solid #fff; outline: 1.5px solid var(--done-edge,#e8bd62);
+  box-shadow: 0 2.5px 0 var(--done-shadow,#d9a94e);
   animation: pop .45s cubic-bezier(.2,1.6,.4,1) both;
 }
 @keyframes revealIn { 0% { transform: scale(.4); } 70% { transform: scale(1.16); } 100% { transform: scale(1); } }
 @keyframes pop { 0% { transform: scale(.3) rotate(-6deg); } 62% { transform: scale(1.24) rotate(2deg); } 100% { transform: scale(1) rotate(0); } }
+
+/* ==================================================================
+   v1.18 — per-CHAPTER word-board skins (user: «یکم به تابلو کلمات
+   طرح بده هر فصل طرحش فرق کنه»). Static CSS vars only — zero runtime
+   cost; each chapter's board wears its own realm palette.
+   ================================================================== */
+.board-box[data-skin="1"]{--panel-a:#f4fbdf;--panel-b:#e6f3c8;--panel-outline:#cfe3a4;--panel-shadow:#aac37e;--tile-a:#eaf3d2;--tile-b:#d8e8b0;--tile-hi:#fdfff2;--tile-c:#f3fbcf;--tile-edge:#b7d18a;--tile-shadow:#98b86a;--done-b:#f0ffd2;--done-edge:#a7d164;--done-shadow:#84ad48;--tile-ink:#4c6b1f}
+.board-box[data-skin="2"]{--panel-a:#effbee;--panel-b:#ddf3e0;--panel-outline:#b5dfc0;--panel-shadow:#8cc29a;--tile-a:#e2f4e4;--tile-b:#cfe8d4;--tile-hi:#fdfff6;--tile-c:#ebfadb;--tile-edge:#a5d2af;--tile-shadow:#84b58f;--done-b:#f0ffe6;--done-edge:#8fce9e;--done-shadow:#6aa878;--tile-ink:#2f6b42}
+.board-box[data-skin="3"]{--panel-a:#fdf3dd;--panel-b:#f5e3b8;--panel-outline:#e0c78e;--panel-shadow:#c1a368;--tile-a:#f2e4bd;--tile-b:#e5d1a0;--tile-hi:#fffdf0;--tile-c:#fbf0cd;--tile-edge:#d3b476;--tile-shadow:#b69455;--done-b:#fff3c4;--done-edge:#e2b25e;--done-shadow:#bd8f3f;--tile-ink:#7a5416}
+.board-box[data-skin="4"]{--panel-a:#eef6ee;--panel-b:#d9ebdc;--panel-outline:#aed0b4;--panel-shadow:#86ab8d;--tile-a:#e0eee1;--tile-b:#cfe3d2;--tile-hi:#fbfffb;--tile-c:#e6f4e9;--tile-edge:#99c2a1;--tile-shadow:#77a380;--done-b:#eafff0;--done-edge:#7fbf90;--done-shadow:#5f9b70;--tile-ink:#2f5d40}
+.board-box[data-skin="5"]{--panel-a:#eef3fa;--panel-b:#dbe6f3;--panel-outline:#b3c8de;--panel-shadow:#8aa7c2;--tile-a:#e2ecf6;--tile-b:#d1e0ee;--tile-hi:#fbfdff;--tile-c:#e9f1f9;--tile-edge:#9db8d4;--tile-shadow:#7897b3;--done-b:#eaf4ff;--done-edge:#88abd0;--done-shadow:#6789ad;--tile-ink:#33567a}
+.board-box[data-skin="6"]{--panel-a:#fdf1e2;--panel-b:#f3e2c8;--panel-outline:#dcbf98;--panel-shadow:#bc9c72;--tile-a:#f4e6d0;--tile-b:#ead6b8;--tile-hi:#fffdf6;--tile-c:#fbf0da;--tile-edge:#c9a878;--tile-shadow:#a9895c;--done-b:#e6fffa;--done-edge:#7cc8c0;--done-shadow:#58a09a;--tile-ink:#7a4a1e}
+.board-box[data-skin="7"]{--panel-a:#eefafb;--panel-b:#d9f2f2;--panel-outline:#a8d8d8;--panel-shadow:#7fb4b6;--tile-a:#e0f2f2;--tile-b:#cfe8e9;--tile-hi:#fbffff;--tile-c:#e6f7f8;--tile-edge:#92c4c5;--tile-shadow:#6fa3a4;--done-b:#e8fffc;--done-edge:#66bdb8;--done-shadow:#47958f;--tile-ink:#14655e}
+.board-box[data-skin="8"]{--panel-a:#f8f1e2;--panel-b:#ecdfc8;--panel-outline:#cbb694;--panel-shadow:#a89268;--tile-a:#ede1c8;--tile-b:#e0d0b2;--tile-hi:#fffef8;--tile-c:#f7edd6;--tile-edge:#b8a276;--tile-shadow:#968250;--done-b:#effff2;--done-edge:#86c9a0;--done-shadow:#619e79;--tile-ink:#5d4218}
+.board-box[data-skin="9"]{--panel-a:#eceffc;--panel-b:#d8dcf3;--panel-outline:#aab0de;--panel-shadow:#828ac2;--tile-a:#e0e3f5;--tile-b:#ced2ec;--tile-hi:#fcfcff;--tile-c:#eceefb;--tile-edge:#8f96cc;--tile-shadow:#6d75ad;--done-b:#f0eaff;--done-edge:#9a8fd0;--done-shadow:#7569ab;--tile-ink:#33406e}
+.board-box[data-skin="10"]{--panel-a:#f3effb;--panel-b:#e4dcf3;--panel-outline:#c3b0de;--panel-shadow:#9c86bd;--tile-a:#eae2f5;--tile-b:#dbd0ec;--tile-hi:#fefcff;--tile-c:#f1e9fa;--tile-edge:#ab95cc;--tile-shadow:#8871a9;--done-b:#f5ecff;--done-edge:#b08fd9;--done-shadow:#8a67ad;--tile-ink:#5d3a7a}
+.board-box[data-skin="11"]{--panel-a:#eef8f5;--panel-b:#dbedea;--panel-outline:#abd4cb;--panel-shadow:#82b0a8;--tile-a:#e0efe9;--tile-b:#cfe5de;--tile-hi:#fbfffe;--tile-c:#e7f6f2;--tile-edge:#94c6ba;--tile-shadow:#6fa396;--done-b:#e8fff9;--done-edge:#63b8a5;--done-shadow:#428e7d;--tile-ink:#1f6b5a}
+.board-box[data-skin="12"]{--panel-a:#edf3fa;--panel-b:#d9e5f2;--panel-outline:#a9c2db;--panel-shadow:#7f9dbb;--tile-a:#e1ebf5;--tile-b:#d0dfee;--tile-hi:#fcfeff;--tile-c:#e9f2f9;--tile-edge:#95b1cd;--tile-shadow:#6f8fad;--done-b:#ecf7ff;--done-edge:#7ea6cf;--done-shadow:#5c81a8;--tile-ink:#2b4a6e}
+.board-box[data-skin="13"]{--panel-a:#f2eefb;--panel-b:#e2daf5;--panel-outline:#bbabd8;--panel-shadow:#9282b4;--tile-a:#e9e1f5;--tile-b:#dbd0ec;--tile-hi:#fefcff;--tile-c:#f0e9fa;--tile-edge:#a68fc8;--tile-shadow:#816ba5;--done-b:#f6ecff;--done-edge:#a37fd4;--done-shadow:#7d59ad;--tile-ink:#4d3a6e}
+.board-box[data-skin="14"]{--panel-a:#fdf0e2;--panel-b:#f4dfc8;--panel-outline:#ddbd96;--panel-shadow:#bd9a6e;--tile-a:#f3e2cc;--tile-b:#ead2b2;--tile-hi:#fffdf6;--tile-c:#fbeede;--tile-edge:#c9a268;--tile-shadow:#a8824c;--done-b:#fff0e0;--done-edge:#e0955e;--done-shadow:#bb713f;--tile-ink:#7a3d14}
+.board-box[data-skin="15"]{--panel-a:#edf6fd;--panel-b:#d9ebf7;--panel-outline:#a9cfe2;--panel-shadow:#7fa8be;--tile-a:#e1f0f9;--tile-b:#d0e6f2;--tile-hi:#fcfeff;--tile-c:#e9f4fb;--tile-edge:#93c0d8;--tile-shadow:#6c9db5;--done-b:#ecf9ff;--done-edge:#7bb8d9;--done-shadow:#5990b4;--tile-ink:#1e5a7a}
+.board-box[data-skin="16"]{--panel-a:#edfafa;--panel-b:#d8f1f3;--panel-outline:#a2d3da;--panel-shadow:#79adb5;--tile-a:#e0f1f3;--tile-b:#cee7ea;--tile-hi:#fbffff;--tile-c:#e6f5f7;--tile-edge:#8bc1c9;--tile-shadow:#659ea6;--done-b:#e8fcff;--done-edge:#5cb2c2;--done-shadow:#3d8b9b;--tile-ink:#0e6a7a}
+.board-box[data-skin="17"]{--panel-a:#fdf3d8;--panel-b:#f5e5b4;--panel-outline:#decb8a;--panel-shadow:#bda75f;--tile-a:#f3e6bc;--tile-b:#ead9a4;--tile-hi:#fffef4;--tile-c:#fbf1c9;--tile-edge:#c8b266;--tile-shadow:#a69046;--done-b:#fff7cc;--done-edge:#e3bd55;--done-shadow:#bd9838;--tile-ink:#6e5414}
+.board-box[data-skin="18"]{--panel-a:#edf8f2;--panel-b:#d8eee6;--panel-outline:#a4d2c2;--panel-shadow:#7ba89a;--tile-a:#e0f0e9;--tile-b:#cfe5dc;--tile-hi:#fcfffd;--tile-c:#e7f6f0;--tile-edge:#8cc0b0;--tile-shadow:#679b8b;--done-b:#e8fff4;--done-edge:#6fc2a2;--done-shadow:#4c9b7c;--tile-ink:#245a44}
+.board-box[data-skin="19"]{--panel-a:#eef7fd;--panel-b:#daf0f8;--panel-outline:#a9d2e5;--panel-shadow:#7fb0c7;--tile-a:#e1f0f8;--tile-b:#d0e7f2;--tile-hi:#fcfeff;--tile-c:#e9f5fb;--tile-edge:#93c3da;--tile-shadow:#6b9fb8;--done-b:#eefaff;--done-edge:#84bce0;--done-shadow:#5f94b8;--tile-ink:#235a7a}
+.board-box[data-skin="20"]{--panel-a:#f4effa;--panel-b:#e6dcf2;--panel-outline:#c2a8d8;--panel-shadow:#997fb2;--tile-a:#ebe2f5;--tile-b:#ddd0ea;--tile-hi:#fefcff;--tile-c:#f2eaf8;--tile-edge:#ab8dc6;--tile-shadow:#886ba3;--done-b:#fff3c4;--done-edge:#e3bd55;--done-shadow:#bd9838;--tile-ink:#553371}
 /* PERF: shine sweep = a translated gradient strip (transform only).
    The old background-position sweep repainted the whole row each frame. */
 .wrow.done::after {
@@ -479,7 +506,7 @@ html, body { overscroll-behavior: none; height: 100%; }
 /* ==================================================================
    WHEEL — carved wooden disc + cream letter tiles + golden star hub
    ================================================================== */
-.wheel-wrap { position: relative; aspect-ratio: 1; width: min(76vw, 330px); margin: 0 auto; }
+.wheel-wrap { position: relative; aspect-ratio: 1; width: min(76vw, 330px); margin: 0 auto; contain: layout style; }
 .wheel-wood {
   position: absolute; inset: 0; border-radius: 999px;
   background:
@@ -556,42 +583,28 @@ html, body { overscroll-behavior: none; height: 100%; }
   from { transform: scale(.92); opacity: .55; }
   to   { transform: scale(1.22); opacity: 1; }
 }
-.wheel-burst { position: absolute; inset: 0; pointer-events: none; z-index: 30; display: none; }
-.wheel-burst.play { display: block; }
+.wheel-burst { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
 .wb-ring {
   position: absolute; left: 50%; top: 50%; width: 70%; aspect-ratio: 1; margin: -35% 0 0 -35%;
   border-radius: 999px; border: 4px solid #ffd94e;
+  opacity: 0;                      /* idle-invisible; WAAPI replays it */
 }
-.wheel-burst.play .wb-ring { animation: wbRing .58s ease-out both; }
-@keyframes wbRing { from { transform: scale(.4); opacity: .95; } to { transform: scale(2.6); opacity: 0; } }
 .wb-flash {
   position: absolute; inset: 0; border-radius: 999px;
   background: radial-gradient(circle, rgba(255,244,180,.5), transparent 70%);
+  opacity: 0;
 }
-.wheel-burst.play .wb-flash { animation: wbFlash .4s ease-out both; }
-@keyframes wbFlash { from { opacity: 1; } to { opacity: 0; } }
 .wheel-burst i {
   position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; border-radius: 3px;
   background: var(--dc,#ffd94e);
-}
-.wheel-burst.play i { animation: wbSpark .6s ease-out var(--dd,0ms) both; }
-@keyframes wbSpark {
-  0% { transform: translate(0,0) scale(1); opacity: 1; }
-  100% { transform: translate(var(--dx),var(--dy)) scale(.2); opacity: 0; }
+  opacity: 0;
 }
 .fx-coin {
   position: absolute; left: 50%; top: 8%; transform: translateX(-50%);
-  display: none; align-items: center; gap: 5px;
+  display: flex; align-items: center; gap: 5px; opacity: 0;
   background: rgba(74,44,14,.85); border: 2px solid #ffcf6e; border-radius: 999px;
   color: #ffe08a; font-weight: 800; font-size: 14px; padding: 3px 11px;
   z-index: 31;
-}
-.fx-coin.play { display: flex; animation: fxCoin .62s ease-out both; }
-@keyframes fxCoin {
-  0% { transform: translate(-50%, 16px) scale(.6); opacity: 0; }
-  25% { transform: translate(-50%, 0) scale(1.08); opacity: 1; }
-  75% { transform: translate(-50%, -14px) scale(1); opacity: 1; }
-  100% { transform: translate(-50%, -30px) scale(.9); opacity: 0; }
 }
 
 /* ==================================================================
@@ -601,9 +614,8 @@ html, body { overscroll-behavior: none; height: 100%; }
    ================================================================== */
 .word-banner {
   position: absolute; inset: 0; z-index: 45; pointer-events: none;
-  display: none; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: center;
 }
-.word-banner.play { display: flex; }
 .wb-ribbon {
   position: relative; display: inline-flex; align-items: center; gap: 12px;
   padding: 14px 34px 16px; border-radius: 22px;
@@ -611,40 +623,24 @@ html, body { overscroll-behavior: none; height: 100%; }
   border: 3px solid #fff; outline: 3px solid #e8a93c;
   box-shadow: 0 10px 26px rgba(80,40,0,.4);
   will-change: transform, opacity;
+  opacity: 0;                      /* idle-invisible; WAAPI replays it */
 }
-.word-banner.play .wb-ribbon { animation: wbRibbon 1.5s cubic-bezier(.2,1.5,.4,1) both; }
 .wb-word {
   font-weight: 800; font-size: 40px; line-height: 1.25; color: #7a4a00;
   text-shadow: 0 2px 0 #ffe9ae;
 }
-.wb-star { width: 20px; height: 20px; flex: none; position: relative; }
+.wb-star { width: 20px; height: 20px; flex: none; position: relative; opacity: 0; }
 .wb-star::before, .wb-star::after {
   content: ""; position: absolute; left: 50%; top: 50%; width: 20px; height: 20px;
   margin: -10px 0 0 -10px; border-radius: 4px; background: #f0a92c;
 }
 .wb-star::after { transform: rotate(90deg); background: #ffd76e; }
-.word-banner.play .wb-star.l { animation: wbSpin 1.5s ease both; }
-.word-banner.play .wb-star.r { animation: wbSpinR 1.5s ease both; }
-@keyframes wbSpin { from { transform: rotate(-160deg) scale(0); } 55% { transform: rotate(20deg) scale(1.25); } to { transform: rotate(0) scale(1); } }
-@keyframes wbSpinR { from { transform: rotate(160deg) scale(0); } 55% { transform: rotate(-20deg) scale(1.25); } to { transform: rotate(0) scale(1); } }
-@keyframes wbRibbon {
-  0%   { transform: scale(.3) translateY(26px); opacity: 0; }
-  16%  { transform: scale(1.1) translateY(0); opacity: 1; }
-  26%  { transform: scale(1); }
-  72%  { transform: scale(1); opacity: 1; }
-  100% { transform: scale(.94) translateY(-34px); opacity: 0; }
-}
 .wb-dust { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
 .wb-dust i {
   position: absolute; left: 0; top: 0; width: 8px; height: 8px; border-radius: 2px;
   background: #ffd94e;
   will-change: transform, opacity;
-}
-.word-banner.play .wb-dust i { animation: wbDust 1.15s ease-out var(--dd,0ms) both; }
-@keyframes wbDust {
-  0% { transform: translate(0,0) scale(.4) rotate(0); opacity: 0; }
-  14% { opacity: 1; }
-  100% { transform: translate(var(--dx),var(--dy)) scale(1) rotate(200deg); opacity: 0; }
+  opacity: 0;                      /* idle-invisible; WAAPI replays it */
 }
 
 /* ==================================================================
@@ -695,7 +691,7 @@ html, body { overscroll-behavior: none; height: 100%; }
   display: flex; align-items: center; justify-content: center;
 }
 .fab-hint:active { transform: translateY(3px); box-shadow: 0 2px 0 #b47708; }
-.fab-hint img { width: 38px; height: 38px; }
+.fab-hint .bulb-svg { width: 40px; height: 40px; }
 .fab-hint .cost {
   position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 4px;
@@ -1606,17 +1602,18 @@ body { background: #5cb2ef; }
 }
 .next-num { margin-top: -5px; }     /* kisses the ribbon without covering it */
 
-/* ---------- hint lamp — BIG & beautiful ---------- */
+/* ---------- hint lamp — BIG, perfectly ROUND, vector-lit (v6: the old
+   86×66 button looked stretched — user: «پهن شده… ابعادش درست کن») */
 .fab-hint {
   position: relative;
-  width: 86px; height: 66px; border-radius: 999px; border: 3px solid #fff;
+  width: 76px; height: 76px; border-radius: 999px; border: 3px solid #fff;
   outline: 2.5px solid #b47708; cursor: pointer;
-  background: radial-gradient(circle at 50% 26%, #fff7d8 0%, #ffe9a8 42%, #f6c452 100%);
+  background: radial-gradient(circle at 50% 26%, #fffbe4 0%, #ffeeb4 44%, #f6c452 100%);
   box-shadow: 0 6px 0 #c98d2e, 0 10px 16px rgba(0,0,0,.3);
   display: flex; align-items: center; justify-content: center; padding: 0;
 }
 .fab-hint:active { transform: translateY(3px); box-shadow: 0 2px 0 #c98d2e, 0 5px 8px rgba(0,0,0,.25); }
-.fab-hint img { width: 52px; height: 52px; filter: drop-shadow(0 2px 3px rgba(180,119,8,.45)); }
+.fab-hint .bulb-svg { width: 48px; height: 48px; filter: drop-shadow(0 2px 3px rgba(180,119,8,.45)); }
 .fab-hint .cost {
   position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 3px;

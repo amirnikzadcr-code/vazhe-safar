@@ -18,6 +18,7 @@ import { faNum } from "@/game/core/utils";
 import { CHAPTERS } from "@/game/data/chapters";
 import { isDecoded, preloadImage } from "@/game/core/preload";
 import { Audio } from "@/game/core/audio";
+import { lvPerCh, globalLevel } from "@/game/data/levelsIndex";
 
 /* v2.4 — realm image with decode-gated fade-in: paints instantly from
  * the cache when already decoded (deferred preload got it), otherwise
@@ -43,34 +44,34 @@ function RealmImg({ src }: { src: string }) {
 }
 
 /* v2.2 SERPENTINE LAYOUT — computed zigzag that can NEVER overlap.
- * The old hand-tuned waypoints put nodes 3–5% apart → on narrow phones
- * the 54px buttons collided («دکمه‌ها تو هم تو هم شده»). Now: 5 rows ×
- * 2 columns, row spacing ≈ 15.5% of realm height (~110px on phones) —
- * more than 1.5× the node+stars height. Level 1 = bottom-right start,
- * the trail snakes upward. A dotted stone trail connects the nodes. */
-const ROW_Y = [88.5, 73, 57.5, 42, 26.5];       /* % of realm height, bottom → top */
+ * 2 columns, as many rows as the chapter needs (10 → 5 rows, 12 → 6
+ * rows in the hard tier). Row spacing scales so nodes never collide.
+ * Level 1 = bottom-right start, the trail snakes upward. */
 const COL_X = { l: 30, r: 70 };                  /* % of realm width */
 
-export function nodePos(lv: number): { x: number; y: number } {
-  const row = Math.floor((lv - 1) / 2);          /* 0..4 */
+export function nodePos(lv: number, total: number): { x: number; y: number } {
+  const rows = Math.ceil(total / 2);
+  const row = Math.floor((lv - 1) / 2);          /* 0..rows-1 */
   const second = (lv - 1) % 2 === 1;             /* second node of the row */
   const evenRow = row % 2 === 0;
   const x = evenRow ? (second ? COL_X.r : COL_X.l) : (second ? COL_X.l : COL_X.r);
-  return { x, y: ROW_Y[row] };
+  const top = 20, bottom = 90;
+  const y = rows === 1 ? bottom : bottom - ((bottom - top) * row) / (rows - 1);
+  return { x, y };
 }
 
 /* the player's CURRENT level: first unlocked-not-done spot on the journey */
 function currentLevel(): { c: number; l: number } | null {
   for (let c = 1; c <= CHAPTERS.length; c++) {
     if (!Save.chapterUnlocked(c)) continue;
-    for (let l = 1; l <= 10; l++) {
+    for (let l = 1; l <= lvPerCh(c); l++) {
       if (Save.levelUnlocked(c, l) && !Save.data.levels[`${c}:${l}`]) return { c, l };
     }
   }
   return null;
 }
 
-/* ============ one chapter = a painted scene + 10 nodes ============ */
+/* ============ one chapter = a painted scene + its level nodes ============ */
 function Realm({
   ch, onPlay, isCurHere, curLv, curRef,
 }: {
@@ -82,8 +83,11 @@ function Realm({
 }) {
   const theme = CHAPTERS[ch - 1];
   const unlockedCh = Save.chapterUnlocked(ch);
+  const n = lvPerCh(ch);
+  const g0 = globalLevel(ch, 1);
+  const g1 = globalLevel(ch, n);
   let done = 0, stars = 0;
-  for (let l = 1; l <= 10; l++) {
+  for (let l = 1; l <= n; l++) {
     const rec = Save.data.levels[`${ch}:${l}`];
     if (rec) { done++; stars += rec.stars; }
   }
@@ -92,7 +96,14 @@ function Realm({
     <section
       className="realm"
       data-realm={ch}
-      style={{ aspectRatio: "700 / 1225", ["--acc" as string]: theme.accent }}
+      style={{
+        aspectRatio: "700 / 1225",
+        ["--acc" as string]: theme.accent,
+        /* v1.18 — each realm wears its OWN chapter colors the moment it
+         * scrolls into view; the painted scene then fades in on top.
+         * (user: «پس‌زمینه فصل‌ها تغییر نمی‌کنه چرا») */
+        background: `linear-gradient(180deg, ${theme.realm.sky[0]} 0%, ${theme.realm.sky[1]} 44%, ${theme.realm.land[0]} 72%, ${theme.realm.land[1]} 100%)`,
+      }}
     >
       {/* painted scene — v2.4 LAZY + fade-in: 20 full-page bitmaps can no
           longer all sit in memory (weak phones), so realms decode as the
@@ -116,7 +127,7 @@ function Realm({
           <div className="rb-title">{theme.title}</div>
           <div className="rb-sub">{theme.subtitle}</div>
           <div className="rb-sub" style={{ fontWeight: 800, color: theme.accent }}>
-            مرحله {faNum(done)}/{faNum(10)} · <span style={{ color: "#c98d2e" }}>★ {faNum(stars)}/{faNum(30)}</span>
+            مرحله‌های {faNum(g0)} تا {faNum(g1)} · {faNum(done)}/{faNum(n)} · <span style={{ color: "#c98d2e" }}>★ {faNum(stars)}/{faNum(n * 3)}</span>
           </div>
         </div>
       </div>
@@ -124,10 +135,10 @@ function Realm({
       {/* wooden signpost removed (v2.2) — it collided with the left node
           column and duplicated the guide bubble's text */}
 
-      {/* dotted stone trail connecting level 1 → 10 (static, zero cost) */}
-      {Array.from({ length: 9 }, (_, s) => {
-        const a = nodePos(s + 1);
-        const b = nodePos(s + 2);
+      {/* dotted stone trail connecting the first → last node (static, zero cost) */}
+      {Array.from({ length: n - 1 }, (_, s) => {
+        const a = nodePos(s + 1, n);
+        const b = nodePos(s + 2, n);
         return [0.36, 0.68].map((t, ti) => (
           <span
             key={`${s}-${ti}`}
@@ -138,10 +149,12 @@ function Realm({
         ));
       })}
 
-      {/* 10 level nodes on the serpentine trail */}
-      {Array.from({ length: 10 }, (_, i) => {
+      {/* level nodes on the serpentine trail — ONE continuous number
+          across the whole journey (user: «فصل دوم قسمت ۱۱ ۱۲ ۱۳…
+          هر مرحله یک رقم برو») */}
+      {Array.from({ length: n }, (_, i) => {
         const lv = i + 1;
-        const { x, y } = nodePos(lv);
+        const { x, y } = nodePos(lv, n);
         const key = `${ch}:${lv}`;
         const rec = Save.data.levels[key];
         const unlocked = unlockedCh && Save.levelUnlocked(ch, lv);
@@ -157,10 +170,10 @@ function Realm({
               type="button"
               disabled={!unlocked}
               className={`map-node ${!unlocked ? "locked" : ""} ${isCur ? "cur" : ""}`}
-              aria-label={`مرحله ${faNum(lv)}${unlocked ? "" : " — قفل"}`}
+              aria-label={`مرحله ${faNum(globalLevel(ch, lv))}${unlocked ? "" : " — قفل"}`}
               onClick={() => { if (unlocked) { Audio.sfxClick(); onPlay(lv); } }}
             >
-              {!unlocked ? <LockChunky size={20} /> : faNum(lv)}
+              {!unlocked ? <LockChunky size={20} /> : faNum(globalLevel(ch, lv))}
             </button>
             <span className="node-stars">
               {Array.from({ length: 3 }, (_, s) => (
@@ -251,7 +264,7 @@ export function MapScreen({
                 isCurHere={cur?.c === theme.id}
                 curLv={(() => {
                   if (cur?.c !== theme.id) return -1;
-                  for (let l = 1; l <= 10; l++) {
+                  for (let l = 1; l <= lvPerCh(theme.id); l++) {
                     if (Save.levelUnlocked(theme.id, l) && !Save.data.levels[`${theme.id}:${l}`]) return l;
                   }
                   return -1;

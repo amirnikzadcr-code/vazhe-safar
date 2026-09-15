@@ -99,17 +99,18 @@ export type PurchaseResult =
   | { ok: true; sku: Sku }
   | { ok: false; error: string; sku: Sku };
 
-/** Friendly message shown when the store billing is not connected yet
- * (web preview / pre-release APK). NO simulated grant — the user asked
- * for zero demo purchases («الکی پول نده»). */
-export const BILLING_PENDING_MSG =
-  "پرداخت درون‌برنامه‌ای پس از انتشار در مایکت و کافه‌بازار فعال می‌شود";
+/** v5 — NO «پس از انتشار فعال می‌شود» demo texts anywhere (user: «اون
+ * متن هایی ک نوشتی تو فروشگاه پرداخت وقتی منتشر شود فعال می‌شود رو پاک
+ * کن»). A tap without the native store bridge is just a normal failed
+ * connection — a neutral transient error, nothing is granted, and no
+ * meta-commentary about release state ever reaches the player. */
+export const BILLING_UNAVAILABLE_MSG = "اتصال به فروشگاه برقرار نشد؛ کمی بعد دوباره تلاش کن";
 
 /** purchase a SKU through the native store. Without the bridge nothing
- * is granted — the shop shows a polite "coming with the release" note. */
+ * is granted — the shop shows a neutral connection error. */
 export async function purchase(sku: Sku): Promise<PurchaseResult> {
   const bridge = billingBridge();
-  if (!bridge) return { ok: false, error: BILLING_PENDING_MSG, sku };
+  if (!bridge) return { ok: false, error: BILLING_UNAVAILABLE_MSG, sku };
   try {
     const r = await bridge.purchase(sku.id);
     if (r?.ok) return { ok: true, sku };

@@ -329,9 +329,12 @@ export const Save = {
   },
 
   levelsDoneInChapter(ch: number): number {
-    let n = 0;
-    for (let lv = 1; lv <= 10; lv++) if (Save.data.levels[`${ch}:${lv}`]) n++;
-    return n;
+    /* v1.18 — chapter size matches levelsIndex.lvPerCh (10 → 12 in the
+     * hard tier); kept in sync locally to avoid a data-layer import */
+    const n = ch >= 11 ? 12 : 10;
+    let done = 0;
+    for (let lv = 1; lv <= n; lv++) if (Save.data.levels[`${ch}:${lv}`]) done++;
+    return done;
   },
 
   chapterUnlocked(ch: number): boolean {
@@ -357,5 +360,5 @@ export const REWARDS = {
   chest: 150,
 } as const;
 
-/** chapter completion requires >=7 of 10 levels */
+/** chapter completion requires >=7 of its levels */
 export const CHAPTER_UNLOCK_THRESHOLD = 7;

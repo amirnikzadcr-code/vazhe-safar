@@ -18,6 +18,7 @@ import { isDecoded } from "@/game/core/preload";
 import { faNum } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { CHAPTERS } from "@/game/data/chapters";
+import { lvPerCh, globalLevel, TOTAL_LEVELS } from "@/game/data/levelsIndex";
 
 export function HomeScreen({
   onPlay, onParty, onLibrary, onMissions, onShop, onSettings, onProfile,
@@ -35,11 +36,11 @@ export function HomeScreen({
   let next: { c: number; l: number } | null = null;
   for (let c = 1; c <= N && !next; c++) {
     if (!Save.chapterUnlocked(c)) continue;
-    for (let l = 1; l <= 10; l++) {
+    for (let l = 1; l <= lvPerCh(c); l++) {
       if (Save.levelUnlocked(c, l) && !Save.data.levels[`${c}:${l}`]) { next = { c, l }; break; }
     }
   }
-  const nextNo = next ? (next.c - 1) * 10 + next.l : N * 10;
+  const nextNo = next ? globalLevel(next.c, next.l) : TOTAL_LEVELS;
 
   return (
     <div className="vz-page">

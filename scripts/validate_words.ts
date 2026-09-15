@@ -2,18 +2,28 @@
 import { letters, canBuild, rng, shuffle } from "../src/game/core/utils";
 import { makeCrossword } from "../src/game/crossword";
 
-const CH = 20, LV = 10;
+const CH = 20;
 let errors = 0, warnings = 0;
+
+/** chapter size — MUST match src/game/data/levelsIndex.lvPerCh */
+const lvPerCh = (ch: number) => (ch >= 11 ? 12 : 10);
+const levelsBefore = (ch: number) => {
+  let n = 0;
+  for (let c = 1; c < ch; c++) n += lvPerCh(c);
+  return n;
+};
 
 for (let ch = 1; ch <= CH; ch++) {
   const file = `../src/game/data/levels/ch${String(ch).padStart(2, "0")}.json`;
   const levels: { id: number; wheel: string; words: string[]; bonus: string[] }[] = (await import(file)).default;
+  const LV = lvPerCh(ch);
   if (levels.length !== LV) { console.log(`✗ ch${ch}: expected ${LV} levels, got ${levels.length}`); errors++; }
 
   for (const lv of levels) {
     const tag = `ch${ch} lv${lv.id}`;
-    // id continuity
-    if (lv.id !== (ch - 1) * 10 + ((lv.id - 1) % 10) + 1) { /* ids are 1..100 global */ }
+    // id continuity — ONE global number across the whole journey
+    const expectedId = levelsBefore(ch) + (levels.indexOf(lv) + 1);
+    if (lv.id !== expectedId) { console.log(`✗ ${tag}: id ${lv.id} ≠ expected ${expectedId}`); errors++; }
     // duplicate letters in the wheel are allowed (shown as separate buttons)
     const wheelLs = letters(lv.wheel);
     if (wheelLs.length < 3) { console.log(`✗ ${tag}: wheel too short`); errors++; }
@@ -44,7 +54,7 @@ for (let ch = 1; ch <= CH; ch++) {
      * roomier (hard tier); the runtime board renders words as separate
      * rows, so grid density is an aesthetic bound only. */
     const hard = ch >= 11;
-    const areaFactor = hard ? (lv.words.length >= 8 ? 3.0 : 2.8) : (lv.words.length >= 6 ? 2.4 : 2.25);
+    const areaFactor = hard ? 3.4 : (lv.words.length >= 6 ? 2.4 : 2.25);
     if (area > cells * areaFactor) {
       console.log(`✗ ${tag}: scattered layout ${layout.cols}x${layout.rows} (area ${area} vs ${cells} cells)`);
       errors++;

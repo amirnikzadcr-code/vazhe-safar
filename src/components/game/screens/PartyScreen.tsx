@@ -333,17 +333,18 @@ function TurnGame({
 }) {
   const wheel = useMemo(() => pickWheel(usedWheelKeys.current), []);
   const levelWords = wheel.words;
-  /* how many real ≥3-letter words hide in this wheel? (friendly hint so
-     players always know there IS something to find) */
+  /* how many real ≥2-letter words hide in this wheel? (friendly hint so
+     players always know there IS something to find) — v1.18: two-letter
+     words now count (user: «جمله‌های دو حرفی هم قبول باشه ثبتش») */
   const wordCount = useMemo(() => {
     const pool = wheel.ls.join("");
     const set = new Set<string>();
-    /* v4: scans the FULL dictionary (۳۳۰۰+ واژه) — the pool the user
+    /* v5: scans the FULL dictionary (۸٬۸۰۰+ واژه) — the pool the user
        asked to enlarge for دورهمی */
     for (const w of ALL_DICT_WORDS) {
-      if (Array.from(w).length >= 3 && canBuild(w, pool)) set.add(w);
+      if (Array.from(w).length >= 2 && canBuild(w, pool)) set.add(w);
     }
-    for (const w of levelWords) if (Array.from(w).length >= 3) set.add(w);
+    for (const w of levelWords) if (Array.from(w).length >= 2) set.add(w);
     return set.size;
   }, [wheel]);
   const [sel, setSel] = useState<number[]>([]);
@@ -360,8 +361,9 @@ function TurnGame({
 
   const word = sel.map((i) => wheel.ls[i]).join("");
   const submit = () => {
-    if (endedRef.current || sel.length < 3) {
-      if (sel.length < 3) { setMsg("حداقل ۳ حرف!"); setShake((s) => s + 1); Audio.sfxWrong(); }
+    /* v1.18 — دو حرفی هم قبول است (user request) */
+    if (endedRef.current || sel.length < 2) {
+      if (sel.length < 2) { setMsg("حداقل ۲ حرف!"); setShake((s) => s + 1); Audio.sfxWrong(); }
       return;
     }
     if (usedWords.current.has(word)) {
@@ -462,7 +464,7 @@ function TurnGame({
           <button type="button" className="ps-act back" onClick={() => { Audio.sfxClick(); setSel((s) => s.slice(0, -1)); }} aria-label="پاک کردن">
             پاک
           </button>
-          <button type="button" className="ps-act submit" disabled={sel.length < 3} onClick={submit} aria-label="ثبت واژه">
+          <button type="button" className="ps-act submit" disabled={sel.length < 2} onClick={submit} aria-label="ثبت واژه">
             ثبت واژه
           </button>
           <button type="button" className="ps-act finish" onClick={() => { Audio.sfxClick(); endNow(turnWords.length > 0); }}>

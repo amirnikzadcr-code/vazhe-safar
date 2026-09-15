@@ -25,9 +25,10 @@ import ch19 from "./levels/ch19.json";
 import ch20 from "./levels/ch20.json";
 import { DICT } from "./dictionary";
 import { EXTRA_WORDS } from "./dictionary_extra";
+import { PARTY_WORDS } from "./dictionary_party";
 
 export interface LevelData {
-  id: number;         // 1..200 (global)
+  id: number;         // global 1-based level number (۱..۲۲۰)
   wheel: string;      // letter pool of the wheel (anchor word letters)
   words: string[];    // main target words (crossword)
   bonus: string[];    // precomputed hidden bonus words (from dictionary)
@@ -38,10 +39,34 @@ export const LEVELS: LevelData[][] = [
   ch11, ch12, ch13, ch14, ch15, ch16, ch17, ch18, ch19, ch20,
 ] as LevelData[][];
 
-/* v4 — FULL validity set: the generated dictionary + 1004 curated
- * everyday words (user: «دایره لغات بازی دورهمی افزایش بده ۱۰۰۰ تا لغت
- * بزار»). Used by دورهمی and bonus-word checking everywhere. */
-export const ALL_DICT_WORDS: string[] = [...DICT, ...EXTRA_WORDS];
+/* ---------- chapter geometry (v1.18 — user: «هر فصل طولانی تر باشه…
+ * مراحل هارو ۱۰ قسمت ۱۰ قسمت نکن، فصل دوم قسمت ۱۱ ۱۲ ۱۳») ----------
+ * chapters 1-10 keep 10 levels (the gentle ramp); the HARD tier
+ * chapters 11-20 grow to 12 levels each → 220 levels total, and every
+ * level carries ONE continuous global number across the whole journey. */
+export function lvPerCh(ch: number): number {
+  return ch >= 11 ? 12 : 10;
+}
+
+/** levels before chapter ch (ch is 1-based) */
+export function levelsBefore(ch: number): number {
+  let n = 0;
+  for (let c = 1; c < ch; c++) n += lvPerCh(c);
+  return n;
+}
+
+/** the ONE continuous number a level shows on the map
+ * (chapter 2 starts at ۱۱, chapter 11 starts at ۱۰۱…) */
+export function globalLevel(ch: number, lv: number): number {
+  return levelsBefore(ch) + lv;
+}
+
+export const TOTAL_LEVELS: number = levelsBefore(21);
+
+/* v5 — FULL validity set: generated dictionary + curated everyday words
+ * + the +5453-word دورهمی expansion (user: «۵۰۰۰ تا دیگ اضافه بکن و
+ * جمله‌های دو حرفی هم قبول باشه») → 8,800+ real Persian words. */
+export const ALL_DICT_WORDS: string[] = [...DICT, ...EXTRA_WORDS, ...PARTY_WORDS];
 export const FULL_DICT: Set<string> = new Set(ALL_DICT_WORDS);
 
 /** runtime bonus-word check: any real dictionary word buildable from the wheel */
@@ -51,7 +76,7 @@ export function isRealWord(word: string): boolean {
 
 export function getLevel(ch: number, lv: number): LevelData {
   const list = LEVELS[ch - 1];
-  const found = list.find((l) => l.id === (ch - 1) * 10 + lv);
+  const found = list.find((l) => l.id === globalLevel(ch, lv));
   if (!found) throw new Error(`level not found: ch${ch} lv${lv}`);
   return found;
 }

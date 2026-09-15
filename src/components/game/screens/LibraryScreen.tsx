@@ -5,6 +5,7 @@
 import { Sheet, TopBar } from "@/components/game/ui/kit";
 import { Lock, Check, StarGold } from "@/components/game/icons";
 import { CHAPTERS } from "@/game/data/chapters";
+import { lvPerCh } from "@/game/data/levelsIndex";
 import { Save } from "@/game/core/save";
 import { faNum } from "@/game/core/utils";
 
@@ -39,7 +40,7 @@ export function LibraryScreen({
           {CHAPTERS.map((c, i) => {
             const unlocked = Save.chapterUnlocked(c.id);
             const done = Save.levelsDoneInChapter(c.id);
-            const complete = done >= 10;
+            const complete = done >= lvPerCh(c.id);
             const [c1, c2] = BOOK_COLORS[i];
             return (
               <button

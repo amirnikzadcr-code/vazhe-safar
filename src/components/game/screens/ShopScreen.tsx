@@ -23,7 +23,7 @@ import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
 import {
   SKUS, Sku, ADS_ENABLED, REWARDED_COINS, REWARDED_COOLDOWN_MS,
-  purchase, hasNativeBilling,
+  purchase,
 } from "@/game/core/monetization";
 
 type Tab = "coins" | "special" | "free";
@@ -187,7 +187,6 @@ export function ShopScreen({ onBack }: { onBack: () => void }) {
 
           <p className="shop2-note">
             پرداخت امن از طریق <b>مایکت</b> و <b>کافه‌بازار</b>
-            {hasNativeBilling() ? "" : " — به‌زودی همراه انتشار بازی فعال می‌شود"}
           </p>
         </div>
       </div>

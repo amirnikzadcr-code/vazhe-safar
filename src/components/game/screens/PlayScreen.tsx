@@ -23,10 +23,10 @@
  * coins) and coming back used to wipe the board — the level is now
  * snapshotted and RESUMED exactly as it was.
  * ------------------------------------------------------------------ */
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, forwardRef } from "react";
 import { Sheet, useToast, ToastHost, PlayerHud } from "@/components/game/ui/kit";
 import { StarGold } from "@/components/game/icons";
-import { getLevel, isRealWord } from "@/game/data/levelsIndex";
+import { getLevel, isRealWord, globalLevel, lvPerCh } from "@/game/data/levelsIndex";
 import { letters, faNum, canBuild, buzz } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { Save, COSTS, REWARDS } from "@/game/core/save";
@@ -103,9 +103,23 @@ export function PlayScreen({
    *  → the celebration frame is a handful of classList toggles. */
   const bannerRef = useRef<HTMLDivElement | null>(null);
   const bannerWordRef = useRef<HTMLElement | null>(null);
-  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bannerRafRef = useRef(0);
-  const [wheelFx, setWheelFx] = useState<{ word: string; k: number } | null>(null);
+  /* v6 PERF — FINAL kill of the word-guess hitch (user 3×: «وقتی کلمه
+   * حدس میزنی یهو لگ میزنه… کامل برطرفش بکن»). What still janked in v5:
+   *   1. `void el.offsetWidth` forced-layout RESTARTS for the banner /
+   *      burst / coin → a synchronous style+layout pass of the whole
+   *      page TWO times per guess, exactly on the input frame;
+   *   2. `setWheelFx` re-rendered PlayScreen + the whole Wheel subtree
+   *      on every guess (React render on the release frame);
+   *   3. `setEarned` added a second state write on the same frame.
+   * v6 removes ALL three:
+   *   • every celebration effect is replayed with the Web Animations
+   *     API (el.animate) — zero forced reflow, zero class juggling,
+   *     transform/opacity only (compositor); pre-mounted DOM reused;
+   *   • the Wheel is driven IMPERATIVELY via a ref handle — the guess
+   *     frame causes ZERO React re-renders of PlayScreen/Wheel;
+   *   • `earned` is a plain ref (read once by the win modal). */
+  const wheelRef = useRef<WheelHandle | null>(null);
   const [shaking, setShaking] = useState(false);
   const [won, setWon] = useState<{ stars: number; coins: number } | null>(null);
   const [paused, setPaused] = useState(false);
@@ -113,21 +127,18 @@ export function PlayScreen({
   const [tutorial, setTutorial] = useState(() => !Save.data.tutorialDone && ch === 1 && lv === 1);
   const [tutFading, setTutFading] = useState(false);
   const tutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [earned, setEarned] = useState(() => resumeSnap?.earned ?? { words: 0, bonus: 0 });
+  const earnedRef = useRef(resumeSnap?.earned ?? { words: 0, bonus: 0 });
   const mistakesRef = useRef(resumeSnap?.mistakes ?? 0);
   const foundRef = useRef<Set<string>>(new Set());
   const pendingRef = useRef<Set<string>>(new Set());
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const fxKRef = useRef(0);
 
   /* keep refs in sync (effects only — never during render) */
   useEffect(() => { foundRef.current = found; }, [found]);
   const wonRef = useRef(false);
   const revealedRef = useRef(revealed);
-  const earnedRef = useRef(earned);
   useEffect(() => { wonRef.current = !!won; }, [won]);
   useEffect(() => { revealedRef.current = revealed; }, [revealed]);
-  useEffect(() => { earnedRef.current = earned; }, [earned]);
 
   /* fresh plays always start from a clean slate (kills stale snapshots) */
   useEffect(() => { if (!resume) progressCache.delete(progressKey); }, [resume, progressKey]);
@@ -177,15 +188,16 @@ export function PlayScreen({
     for (const t of timersRef.current) clearTimeout(t);
     timersRef.current = [];
     pendingRef.current.clear();
-    setWheelFx(null);
+    wheelRef.current?.endCelebrate();
   }, []);
   useEffect(() => () => clearPending(), [clearPending]);
 
   /* stage 2: the word actually lands on the board + the FULL word
    * banner blooms over the screen, then fades (user request).
-   * v5 PERF: board update and banner replay are SPLIT across frames —
-   * each gets its own frame on weak phones. The banner itself is a
-   * pre-mounted element replayed with a class toggle (no DOM mount). */
+   * v6 PERF: the board update renders in THIS task; the banner replay
+   * is deferred to the NEXT frame and is a pure WAAPI replay of the
+   * pre-mounted ribbon (no display toggle, no forced reflow) — the
+   * landing frame stays light on weak phones. */
   const commitFound = useCallback((word: string) => {
     pendingRef.current.delete(word);
     const next = new Set(foundRef.current);
@@ -196,39 +208,29 @@ export function PlayScreen({
     bannerRafRef.current = requestAnimationFrame(() => {
       bannerRafRef.current = 0;
       const el = bannerRef.current;
-      if (el) {
-        if (bannerWordRef.current) bannerWordRef.current.textContent = word;
-        el.classList.remove("play");
-        void el.offsetWidth; /* force reflow → CSS animations restart */
-        el.classList.add("play");
-      }
-      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
-      bannerTimerRef.current = setTimeout(() => {
-        bannerRef.current?.classList.remove("play");
-      }, BANNER_MS);
+      if (!el) return;
+      if (bannerWordRef.current) bannerWordRef.current.textContent = word;
+      replayWordBanner(el);
     });
   }, []);
   useEffect(() => () => {
-    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
     if (bannerRafRef.current) cancelAnimationFrame(bannerRafRef.current);
   }, []);
 
-  /* stage 1: reward + wheel celebration, then apply to the board */
+  /* stage 1: reward + wheel celebration (100% imperative — no React
+   * state writes on the release frame), then apply to the board. */
   const celebrate = useCallback((word: string, byPlayer: boolean) => {
     if (foundRef.current.has(word) || pendingRef.current.has(word)) return;
     pendingRef.current.add(word);
     Save.countWord();
     Save.addCoins(REWARDS.perWord);
-    setEarned((e) => ({ ...e, words: e.words + 1 }));
+    earnedRef.current = { ...earnedRef.current, words: earnedRef.current.words + 1 };
     Audio.sfxWordFound(foundRef.current.size + pendingRef.current.size);
     buzz([18, 30, 18], Save.data.settings.haptics);
     if (byPlayer) dismissTutorial();
-    fxKRef.current += 1;
-    const k = fxKRef.current;
-    setWheelFx({ word, k });
+    wheelRef.current?.celebrate(word);
     const t = setTimeout(() => {
-      /* only end the celebration if THIS word's fx is still showing */
-      setWheelFx((cur) => (cur && cur.k === k ? null : cur));
+      wheelRef.current?.endCelebrate();
       commitFound(word);
     }, CELEBRATE_MS);
     timersRef.current.push(t);
@@ -285,7 +287,7 @@ export function PlayScreen({
       if (Save.addBonusWord(ch, lv, str)) {
         Save.countBonus();
         Save.addCoins(REWARDS.perBonus);
-        setEarned((e) => ({ ...e, bonus: e.bonus + 1 }));
+        earnedRef.current = { ...earnedRef.current, bonus: earnedRef.current.bonus + 1 };
         Audio.sfxBonus();
         show(`واژه پنهان! +${faNum(REWARDS.perBonus)} سکه`);
       } else {
@@ -333,14 +335,17 @@ export function PlayScreen({
           the blue gear opens the pause menu (resume/restart/settings/exit) */}
       <PlayerHud gear="blue" onGear={() => setPaused(true)} onPlus={onShop} onProfile={onProfile} />
 
-      {/* level banner — wooden plaque with blossom pins */}
+      {/* level banner — wooden plaque with blossom pins. Shows the ONE
+          continuous journey number (user: «هر مرحله یک رقم برو») */}
       <div className="lvl-banner-row">
-        <div className="lvl-banner">مرحله {faNum((ch - 1) * 10 + lv)}</div>
+        <div className="lvl-banner">مرحله {faNum(globalLevel(ch, lv))}</div>
       </div>
 
-      {/* board — every word its OWN row, cream panel like the reference photo */}
+      {/* board — every word its OWN row; v1.18: per-CHAPTER skin
+          (user: «یکم به تابلو کلمات طرح بده، هر فصل طرحش فرق کنه») */}
       <div
         className={`board-box ${shaking ? "shake" : ""}`}
+        data-skin={ch}
         onAnimationEnd={() => setShaking(false)}
         style={{ flex: "1 1 auto", margin: "4px 14px 0", maxHeight: "44%", minHeight: 130 }}
       >
@@ -351,22 +356,27 @@ export function PlayScreen({
         />
       </div>
 
-      {/* wheel */}
+      {/* wheel — v6: driven imperatively through the ref; celebrations
+          never re-render PlayScreen or the Wheel */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "6px 0 2px" }}>
         <Wheel
+          ref={wheelRef}
           letters={wheelLetters}
           shuffleKey={shuffleKey}
-          fx={wheelFx}
           reward={REWARDS.perWord}
           onRelease={submit}
           onFirstDrag={dismissTutorial}
         />
       </div>
 
-      {/* helper bar — shuffle bottom-LEFT, hint bottom-RIGHT (reference) */}
+      {/* helper bar — shuffle bottom-LEFT, hint bottom-RIGHT (reference).
+          v6 — hint lamp rebuilt: crisp inline-SVG bulb (golden glass +
+          warm rays + filament) inside a perfectly ROUND button — the old
+          86×66 img button looked stretched (user: «دکمه لامپ پهن شده…
+          ابعادش درست کن») */}
       <div className="helper-bar">
         <button type="button" aria-label="راهنما" className="fab-hint" onClick={doHint}>
-          <img src="/assets/img/bulb.webp" alt="" draggable={false} />
+          <BulbSvg />
           <span className="cost">
             <span className="coin-ic" />
             {faNum(COSTS.hint)}
@@ -394,8 +404,9 @@ export function PlayScreen({
         </div>
       )}
 
-      {/* COMPLETE-WORD BANNER — pre-mounted once, replayed via class
-          toggle (zero DOM creation at guess time → no mobile hitch) */}
+      {/* COMPLETE-WORD BANNER — pre-mounted once; idle = transparent,
+          replays via WAAPI (replayWordBanner) — zero DOM creation and
+          zero forced reflow inside the landing frame */}
       <div ref={bannerRef} className="word-banner" aria-hidden>
         <span className="wb-ribbon">
           <i className="wb-star l" />
@@ -419,7 +430,7 @@ export function PlayScreen({
             setFound(new Set());
             setRevealed(new Set());
             mistakesRef.current = 0;
-            setEarned({ words: 0, bonus: 0 });
+            earnedRef.current = { words: 0, bonus: 0 };
             setShuffleKey((k) => k + 1);
           }}
           onExit={onExit}
@@ -431,9 +442,9 @@ export function PlayScreen({
         <WinModal
           stars={won.stars}
           coins={won.coins}
-          words={earned.words}
-          bonus={earned.bonus}
-          isLast={lv >= 10}
+          words={earnedRef.current.words}
+          bonus={earnedRef.current.bonus}
+          isLast={lv >= lvPerCh(ch)}
           onContinue={onNext}
           onShop={onShop}
         />
@@ -537,29 +548,99 @@ const WordRow = memo(function WordRow({
   );
 });
 
+/* ================= WAAPI celebration keyframes (v6 PERF) — every FX is
+   replayed with el.animate(): NO forced reflow (the old
+   `void el.offsetWidth` restart janked weak phones), NO class juggling,
+   transform/opacity only → fully compositor-accelerated. */
+const EASE_POP = "cubic-bezier(.2,1.5,.4,1)";
+const KF_RING: Keyframe[] = [
+  { transform: "scale(.4)", opacity: 0.95 },
+  { transform: "scale(2.6)", opacity: 0 },
+];
+const KF_FLASH: Keyframe[] = [{ opacity: 1 }, { opacity: 0 }];
+const KF_SPARK = (dx: string, dy: string): Keyframe[] => [
+  { transform: "translate(0,0) scale(1)", opacity: 1 },
+  { transform: `translate(${dx},${dy}) scale(.2)`, opacity: 0 },
+];
+const KF_COIN: Keyframe[] = [
+  { transform: "translate(-50%, 16px) scale(.6)", opacity: 0 },
+  { transform: "translate(-50%, 0) scale(1.08)", opacity: 1, offset: 0.25 },
+  { transform: "translate(-50%, -14px) scale(1)", opacity: 1, offset: 0.75 },
+  { transform: "translate(-50%, -30px) scale(.9)", opacity: 0 },
+];
+const KF_RIBBON: Keyframe[] = [
+  { transform: "scale(.3) translateY(26px)", opacity: 0, offset: 0 },
+  { transform: "scale(1.1) translateY(0)", opacity: 1, offset: 0.16 },
+  { transform: "scale(1)", offset: 0.26 },
+  { transform: "scale(1)", opacity: 1, offset: 0.72 },
+  { transform: "scale(.94) translateY(-34px)", opacity: 0 },
+];
+const KF_STAR_L: Keyframe[] = [
+  { transform: "rotate(-160deg) scale(0)" },
+  { transform: "rotate(20deg) scale(1.25)", offset: 0.55 },
+  { transform: "rotate(0deg) scale(1)" },
+];
+const KF_STAR_R: Keyframe[] = [
+  { transform: "rotate(160deg) scale(0)" },
+  { transform: "rotate(-20deg) scale(1.25)", offset: 0.55 },
+  { transform: "rotate(0deg) scale(1)" },
+];
+const KF_DUST = (dx: string, dy: string): Keyframe[] => [
+  { transform: "translate(0,0) scale(.4) rotate(0deg)", opacity: 0 },
+  { opacity: 1, offset: 0.14 },
+  { transform: `translate(${dx},${dy}) scale(1) rotate(200deg)`, opacity: 0 },
+];
+
+/** restart-safe replay of the pre-mounted complete-word banner */
+function replayWordBanner(root: HTMLElement): void {
+  if (typeof root.animate !== "function") return;
+  const ribbon = root.querySelector<HTMLElement>(".wb-ribbon");
+  const starL = root.querySelector<HTMLElement>(".wb-star.l");
+  const starR = root.querySelector<HTMLElement>(".wb-star.r");
+  for (const el of [ribbon, starL, starR]) el?.getAnimations().forEach((a) => a.cancel());
+  ribbon?.animate(KF_RIBBON, { duration: BANNER_MS, easing: EASE_POP, fill: "both" });
+  starL?.animate(KF_STAR_L, { duration: BANNER_MS, easing: "ease", fill: "both" });
+  starR?.animate(KF_STAR_R, { duration: BANNER_MS, easing: "ease", fill: "both" });
+  root.querySelectorAll<HTMLElement>(".wb-dust i").forEach((el, i) => {
+    el.getAnimations().forEach((a) => a.cancel());
+    el.animate(
+      KF_DUST(el.style.getPropertyValue("--dx"), el.style.getPropertyValue("--dy")),
+      { duration: 1150, delay: i * 40, easing: "ease-out", fill: "both" },
+    );
+  });
+}
+
 /* ================= Wheel — owns its own selection state.
    v2.0 COMMIT-ON-RELEASE: the stroke is judged ONLY in up() (pointer
    release) — dragging through a word never applies it early, and
    longer words stay reachable because strokes never end mid-drag.
-   While `fx` is set (word celebrated) the selection polyline stays
-   visible, tiles glow in a cascade and new drags are blocked.
+   While a celebration is live the selection polyline stays visible,
+   tiles glow in a cascade and new drags are blocked.
    v2.0 JUICY STROKE: 3 layered polylines (soft aura + gold core +
    bright shine) + a glowing bead that rides under the finger —
    all painted by direct DOM writes, still zero re-renders.
    v2.1 FLIP SHUFFLE (user: «کلمات با افکت جا ب جا بشن»): tiles are
    mounted ONCE — when the ring turns, every tile GLIDES from its old
    seat to the new one (WAAPI staggered spring + wobble), no more
-   remount pop. ================= */
-const Wheel = memo(function Wheel({
-  letters: ls, shuffleKey, fx, reward, onRelease, onFirstDrag,
+   remount pop.
+   v6 IMPERATIVE (user: «کامل برطرفش بکن» — the mobile word-guess
+   hitch): PlayScreen drives celebrations through a ref handle, so a
+   guess causes ZERO React re-renders of this subtree, and the burst /
+   coin FX replay via WAAPI with no forced reflow. ================= */
+export interface WheelHandle {
+  celebrate(word: string): void;
+  endCelebrate(): void;
+}
+
+const Wheel = memo(forwardRef(function Wheel({
+  letters: ls, shuffleKey, reward, onRelease, onFirstDrag,
 }: {
   letters: string[];
   shuffleKey: number;
-  fx: { word: string; k: number } | null;
   reward: number;
   onRelease: (str: string) => "new" | "known" | false;
   onFirstDrag?: () => void;
-}) {
+}, ref) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const auraRef = useRef<SVGPolylineElement | null>(null);
   const coreRef = useRef<SVGPolylineElement | null>(null);
@@ -730,30 +811,44 @@ const Wheel = memo(function Wheel({
 
   /* fx set → celebrate (class derived from fx, no state needed);
    * fx cleared (word landed) → release the selection, DOM-only.
-   * v5 PERF: the burst/coin are pre-mounted — replay via class toggle */
-  const hadFxRef = useRef(false);
-  useEffect(() => {
-    if (fx) {
-      hadFxRef.current = true;
-      const b = burstRef.current;
-      const c = coinFxRef.current;
-      if (b) b.classList.remove("play");
-      if (c) c.classList.remove("play");
-      void b?.offsetWidth; /* one shared reflow → animations restart */
-      if (b) b.classList.add("play");
-      if (c) c.classList.add("play");
-      return;
+   * v6: imperative handle — PlayScreen calls celebrate()/endCelebrate();
+   * burst + coin replay via WAAPI (no reflow, no React state). */
+  const lockRef = useRef(false);
+  const celebrate = useCallback((_: string) => {
+    lockRef.current = true;
+    wrapRef.current?.classList.add("fx");
+    const b = burstRef.current;
+    if (b && typeof b.animate === "function") {
+      const ring = b.querySelector<HTMLElement>(".wb-ring");
+      const flash = b.querySelector<HTMLElement>(".wb-flash");
+      ring?.getAnimations().forEach((a) => a.cancel());
+      flash?.getAnimations().forEach((a) => a.cancel());
+      ring?.animate(KF_RING, { duration: 580, easing: "ease-out", fill: "both" });
+      flash?.animate(KF_FLASH, { duration: 400, easing: "ease-out", fill: "both" });
+      b.querySelectorAll<HTMLElement>("i").forEach((el, i) => {
+        el.getAnimations().forEach((a) => a.cancel());
+        el.animate(
+          KF_SPARK(el.style.getPropertyValue("--dx"), el.style.getPropertyValue("--dy")),
+          { duration: 600, delay: i * 24, easing: "ease-out", fill: "both" },
+        );
+      });
     }
-    if (!hadFxRef.current) return;
-    hadFxRef.current = false;
-    burstRef.current?.classList.remove("play");
-    coinFxRef.current?.classList.remove("play");
+    const c = coinFxRef.current;
+    if (c && typeof c.animate === "function") {
+      c.getAnimations().forEach((a) => a.cancel());
+      c.animate(KF_COIN, { duration: 620, easing: "ease-out", fill: "both" });
+    }
+  }, []);
+  const endCelebrate = useCallback(() => {
+    lockRef.current = false;
+    wrapRef.current?.classList.remove("fx");
     selRef.current = [];
     tipTargetRef.current = null;
     tipCurRef.current = null;
     paintTiles();
     paintLine();
-  }, [fx]);
+  }, []);
+  useImperativeHandle(ref, () => ({ celebrate, endCelebrate }), [celebrate, endCelebrate]);
 
   const endStroke = (keepLineDuringFx: boolean) => {
     dragRef.current = false;
@@ -770,7 +865,7 @@ const Wheel = memo(function Wheel({
   };
 
   const down = (e: React.PointerEvent) => {
-    if (fx) return; /* celebrating → inputs locked for the moment */
+    if (lockRef.current) return; /* celebrating → inputs locked for the moment */
     const r = measure();
     const lx = e.clientX - r.left, ly = e.clientY - r.top;
     const i = hitTile(lx, ly);
@@ -820,7 +915,7 @@ const Wheel = memo(function Wheel({
   return (
     <div
       ref={wrapRef}
-      className={`wheel-wrap ${fx ? "fx" : ""}`}
+      className="wheel-wrap"
       onPointerDown={down}
       onPointerMove={move}
       onPointerUp={up}
@@ -883,7 +978,48 @@ const Wheel = memo(function Wheel({
       </span>
     </div>
   );
-});
+}));
+
+/* v6 hint lamp — crisp vector bulb (golden glass, filament, warm rays).
+ * Inline SVG = perfectly sharp on every density, zero extra request,
+ * drawn once, never re-rendered (no props/state). */
+function BulbSvg() {
+  return (
+    <svg className="bulb-svg" width="46" height="46" viewBox="0 0 48 48" aria-hidden>
+      <defs>
+        <radialGradient id="bulbGlass" cx="0.42" cy="0.3" r="0.95">
+          <stop offset="0" stopColor="#fffdf2" />
+          <stop offset="0.55" stopColor="#ffe9a8" />
+          <stop offset="1" stopColor="#ffc94d" />
+        </radialGradient>
+        <radialGradient id="bulbHalo">
+          <stop offset="0" stopColor="rgba(255,214,90,.6)" />
+          <stop offset="1" stopColor="rgba(255,214,90,0)" />
+        </radialGradient>
+      </defs>
+      {/* warm halo behind the glass */}
+      <circle cx="24" cy="21" r="15" fill="url(#bulbHalo)" />
+      {/* rays */}
+      <g stroke="#ffb302" strokeWidth="2.6" strokeLinecap="round">
+        <path d="M24 1.6v3.6" />
+        <path d="M9.6 6.8l2.5 2.5" />
+        <path d="M38.4 6.8l-2.5 2.5" />
+        <path d="M4.8 21h3.4" />
+        <path d="M43.2 21h-3.4" />
+      </g>
+      {/* glass bulb */}
+      <path
+        d="M24 5.6c-7.3 0-12.6 5.3-12.6 12.2 0 4.7 2.5 7.5 4.6 9.7 1.3 1.4 2.2 2.6 2.6 4.1h10.8c.4-1.5 1.3-2.7 2.6-4.1 2.1-2.2 4.6-5 4.6-9.7 0-6.9-5.3-12.2-12.6-12.2z"
+        fill="url(#bulbGlass)" stroke="#c98d1e" strokeWidth="2.2" strokeLinejoin="round"
+      />
+      {/* filament */}
+      <path d="M19.4 27l2.3-2.9 2.3 2.9 2.3-2.9 2.3 2.9" fill="none" stroke="#b47708" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      {/* screw base */}
+      <rect x="18.6" y="33.6" width="10.8" height="3.2" rx="1.6" fill="#8a5a1e" />
+      <rect x="19.6" y="37.6" width="8.8" height="3.4" rx="1.7" fill="#6e451a" />
+    </svg>
+  );
+}
 
 /* tutorial hand — performs a real drag arc (down → glide → up) */
 function HandSvg() {
