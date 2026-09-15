@@ -13,13 +13,14 @@ import { Audio } from "@/game/core/audio";
 const CONF_COLORS = ["#ff6b81", "#ffd76e", "#7ce97f", "#7cc9ff", "#e6a1ff", "#ffab6e"];
 
 export function WinModal({
-  stars, coins, words, bonus, isLast, onContinue, onShop,
+  stars, coins, words, bonus, isLast, replay, onContinue, onShop,
 }: {
   stars: number;
   coins: number;
   words: number;
   bonus: number;
   isLast: boolean;
+  replay?: boolean; /* v1.21 — level already completed once → nothing pays out */
   onContinue: () => void;
   onShop: () => void;
 }) {
@@ -88,12 +89,19 @@ export function WinModal({
             />
           </div>
 
-          {/* coin reward */}
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 4 }}>
-            <span className="chip" style={{ fontSize: 16 }}>
-              <Coin size={20} />
-              ‎+{faNum(coins)}
-            </span>
+          {/* coin reward — v1.21: replays pay nothing (user: «فقط یکبار
+           * سکه بگیره») → a gentle note instead of the +coins chip */}
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 4, minHeight: 34, alignItems: "center" }}>
+            {replay ? (
+              <span className="chip" style={{ fontSize: 12.5, color: "#8a6a3a" }}>
+                این مرحله قبلاً کامل شده — سکه فقط یک‌بار تعلق می‌گیرد
+              </span>
+            ) : (
+              <span className="chip" style={{ fontSize: 16 }}>
+                <Coin size={20} />
+                ‎+{faNum(coins)}
+              </span>
+            )}
           </div>
 
           {/* stats mini row */}

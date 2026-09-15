@@ -786,10 +786,18 @@ class AudioEngine {
     this.note(659.25, 0.13, 0.36, 0.12);                                                               // E5
   }
 
+  /** v1.21 — «یچی دلنواز باشه»: the hidden-word sting is now a WARM
+   * kalimba discovery motif — a rising G4→D5→G5 wooden arpeggio with a
+   * soft octave whisper and a gentle low shimmer tail. The old bright
+   * 1kHz bell + wideband 6.6kHz sparkle read harsh on phone speakers. */
   sfxBonus(): void {
-    this.note(784, 0.26, 0.35);
-    this.note(1046.5, 0.28, 0.6, 0.1);
-    this.sfxNoise({ dur: 0.5, vol: 0.06, freq: 6600, q: 4, delay: 0.12 });
+    const seq = [392, 587.33, 783.99];
+    seq.forEach((f, i) => {
+      this.sfxOsc({ type: "sine", f0: f, f1: f * 0.99, dur: 0.34, vol: 0.15, delay: i * 0.09, filter: 2000 });
+      this.sfxOsc({ type: "triangle", f0: f * 2, dur: 0.12, vol: 0.032, delay: i * 0.09 + 0.012, filter: 3400 });
+    });
+    this.sfxOsc({ type: "sine", f0: 196, dur: 0.4, vol: 0.05, delay: 0.02, filter: 900 }); // warm low body
+    this.sfxNoise({ dur: 0.5, vol: 0.018, freq: 4200, q: 2.2, delay: 0.22 }); // soft satin tail
   }
 
   sfxWrong(): void {
@@ -820,12 +828,15 @@ class AudioEngine {
   }
 
   /** v2.1 — soft airy WHOOSH + two wooden taps, matched to the FLIP
-   * glide of the tiles (tiles fly ~0.46s; the whoosh covers them). */
+   * glide of the tiles (tiles fly ~0.46s; the whoosh covers them).
+   * v1.21 — «یچی دلنواز نرم»: lower + rounder whoosh, a warm low
+   * bloom under it, and the taps became muted felt pats — the whole
+   * thing now breathes like a page turned in a storybook. */
   sfxShuffle(): void {
-    /* v2.4 — silkier whoosh (lower, rounder), softer taps */
-    this.sfxNoise({ dur: 0.26, vol: 0.036, freq: 700, f1: 2100, q: 0.8, type: "bandpass" });
-    this.sfxNoise({ dur: 0.035, vol: 0.018, freq: 1200, q: 1.2, delay: 0.18 });
-    this.sfxNoise({ dur: 0.035, vol: 0.015, freq: 1400, q: 1.2, delay: 0.28 });
+    this.sfxNoise({ dur: 0.32, vol: 0.03, freq: 520, f1: 1500, q: 0.7, type: "bandpass" });
+    this.sfxOsc({ type: "sine", f0: 233, f1: 185, dur: 0.24, vol: 0.055, delay: 0.03, filter: 1100 }); // low bloom
+    this.sfxNoise({ dur: 0.042, vol: 0.014, freq: 950, q: 1.1, delay: 0.2 });  // felt pat
+    this.sfxNoise({ dur: 0.042, vol: 0.012, freq: 1150, q: 1.1, delay: 0.31 }); // felt pat
   }
 
   /* v2.4 — LEVEL-COMPLETE FANFARE, fully recomposed (user: «وقتی بازی

@@ -27,7 +27,7 @@ import { ShopScreen } from "@/components/game/screens/ShopScreen";
 import { ChallengeScreen } from "@/components/game/screens/ChallengeScreen";
 import { DoneScreen } from "@/components/game/screens/DoneScreen";
 import { WelcomeScreen, Splash } from "@/components/game/screens/WelcomeScreen";
-import { GiftModal, SettingsModal, AboutModal, ExitConfirmModal } from "@/components/game/modals/Overlays";
+import { GiftModal, SettingsModal, ExitConfirmModal } from "@/components/game/modals/Overlays";
 import { NameAskModal, ProfileModal } from "@/components/game/modals/ProfileModals";
 import { PartyScreen } from "@/components/game/screens/PartyScreen";
 import { ImgPool } from "@/components/game/ImgPool";
@@ -46,7 +46,9 @@ type View =
   | { k: "party" }
   | { k: "done"; ch: number };
 
-type ModalKind = null | "settings" | "gift" | "privacy" | "about" | "exitApp" | "exitMap" | "profile" | "nameAsk";
+/* v1.21 — privacy/about removed from Settings (user request): the
+ * modal kinds "privacy" and "about" no longer exist. */
+type ModalKind = null | "settings" | "gift" | "exitApp" | "exitMap" | "profile" | "nameAsk";
 
 /* screen depth — used to pick the transition direction */
 const ORDER: Record<View["k"], number> = {
@@ -377,15 +379,7 @@ export function GameApp() {
       {modal === "nameAsk" && <NameAskModal onDone={() => setModal(null)} />}
       {modal === "profile" && <ProfileModal onClose={() => setModal(null)} />}
       {modal === "gift" && <GiftModal onClose={() => setModal(null)} />}
-      {modal === "settings" && (
-        <SettingsModal
-          onClose={() => setModal(null)}
-          onAbout={(t) => setModal(t)}
-        />
-      )}
-      {(modal === "about" || modal === "privacy") && (
-        <AboutModal tab={modal} onClose={() => setModal(null)} />
-      )}
+      {modal === "settings" && <SettingsModal onClose={() => setModal(null)} />}
       {modal === "exitApp" && (
         <ExitConfirmModal mode="app" onClose={() => setModal(null)} onConfirm={exitApp} />
       )}

@@ -39,8 +39,10 @@ function mix(a: string, b: string, t: number): string {
   return `#${((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1)}`;
 }
 
-/* v2.2 SERPENTINE LAYOUT — zigzag that can NEVER overlap (kept from
- * the scrolling map; 2 columns, rows scale with the chapter size). */
+/* v2.2 SERPENTINE LAYOUT — zigzag that can NEVER overlap.
+ * v1.21 (user: «مراحل ب ترتیب از بالا بیان ب پایین شمارش هاش») — the
+ * counting now runs TOP → BOTTOM: level 1 sits directly under the
+ * chapter plate and the last level rests at the valley bottom. */
 const COL_X = { l: 30, r: 70 };
 
 export function nodePos(lv: number, total: number): { x: number; y: number } {
@@ -50,7 +52,7 @@ export function nodePos(lv: number, total: number): { x: number; y: number } {
   const evenRow = row % 2 === 0;
   const x = evenRow ? (second ? COL_X.r : COL_X.l) : (second ? COL_X.l : COL_X.r);
   const top = 30, bottom = 93;
-  const y = rows === 1 ? bottom : bottom - ((bottom - top) * row) / (rows - 1);
+  const y = rows === 1 ? top : top + ((bottom - top) * row) / (rows - 1);
   return { x, y };
 }
 
@@ -182,6 +184,13 @@ export function MapScreen({
   const dir = ch >= lastSeenMapCh ? "fwd" : "back";
   useEffect(() => { lastSeenMapCh = ch; }, [ch]);
 
+  /* v1.21 — keep the active chapter chip visible in the rail */
+  const chipsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = chipsRef.current?.querySelector(".ch-chip.on");
+    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [ch]);
+
   /* PERF — idle-prefetch: this realm's art + the two neighbours' art,
    * next chapter's play backdrop and its music track. Arrow flips then
    * paint + start sound with ZERO decode work on the tap frame. */
@@ -226,18 +235,11 @@ export function MapScreen({
     if (dx < 0) goNext(); else goPrev();
   };
 
-  /* grandpa guide line */
-  const lines = [
-    "بیا ببینیم تا کجا می‌تونی بری!",
-    "هر مرحله یک دنیای جدید!",
-    "چای رو هم بزن، کلمه‌ها رو هم!",
-    "با هر کلمه، روستا قشنگ‌تر می‌شه!",
-  ];
+  /* grandpa guide line — v1.21: EVERY chapter carries عمو دانا's OWN
+   * sentence (user: «در هر فصل عمو دانا متن خاصی نوشته باشد») */
   const line = !unlockedCh
     ? "این فصل هنوز قفله؛ بیا فصل‌های قبل رو کامل کنیم!"
-    : cur?.c === ch
-      ? "مرحله‌ای که می‌درخشه رو بزن!"
-      : lines[(ch - 1) % lines.length];
+    : theme.guide;
 
   return (
     <div className="vz-page">
@@ -353,8 +355,12 @@ export function MapScreen({
           />
         </div>
 
-        {/* dots pager — jump to any chapter; done = gold, locked = hollow */}
-        <div className="ch-dots" aria-label="انتخاب فصل">
+        {/* chapter CHIP RAIL (v1.21 — user: «قابلیتی که راحت‌تر بین فصل‌ها
+            جا ب جا شه ب شرط اینکه باز کرده باشه»): the tiny dots became
+            big numbered chips — one tap jumps to ANY chapter; locked ones
+            still open in preview (veil) to keep the hunger alive.
+            Auto-scrolls the active chip into view. */}
+        <div className="ch-chips" ref={chipsRef} aria-label="انتخاب فصل">
           {CHAPTERS.map((c) => {
             const active = c.id === ch;
             const open = Save.chapterUnlocked(c.id);
@@ -363,16 +369,20 @@ export function MapScreen({
               <button
                 key={c.id}
                 type="button"
-                className={`ch-dot ${active ? "on" : ""} ${doneAll ? "gold" : ""} ${!open ? "locked" : ""}`}
+                className={`ch-chip ${active ? "on" : ""} ${doneAll ? "gold" : ""} ${!open ? "locked" : ""}`}
                 style={active ? { ["--acc" as string]: theme.accent } : undefined}
                 aria-label={`فصل ${faNum(c.id)}${open ? "" : " — قفل"}`}
                 onClick={() => { if (!active) { Audio.sfxClick(); onNav(c.id); } }}
-              />
+              >
+                {!open ? <LockChunky size={11} /> : faNum(c.id)}
+              </button>
             );
           })}
         </div>
 
-        {/* guide bar — grandpa + bubble + جوایز fab */}
+        {/* guide bar — grandpa + bubble (v1.21: the جوایز fab is REMOVED
+            — user: «اون دکمه جوایز حذف کن» — the shop stays reachable
+            from the top bar; the bubble is the chapter's own line) */}
         <div className="map-guide">
           <img
             className="guide-avatar"
@@ -381,11 +391,6 @@ export function MapScreen({
             draggable={false}
           />
           <div className="bubble">{line}</div>
-          <button type="button" className="fab-rewards" onClick={() => { Audio.sfxClick(); onShop(); }} aria-label="جوایز">
-            <img src="/assets/img/star.webp" alt="" draggable={false} />
-            جوایز
-            <span className="dot" />
-          </button>
         </div>
 
         {/* mini toast */}

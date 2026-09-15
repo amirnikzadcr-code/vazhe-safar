@@ -487,6 +487,24 @@ html, body { overscroll-behavior: none; height: 100%; }
 @keyframes pop { 0% { transform: scale(.3) rotate(-6deg); } 62% { transform: scale(1.24) rotate(2deg); } 100% { transform: scale(1) rotate(0); } }
 
 /* ==================================================================
+   v1.21 — LETTER-BY-LETTER BOARD ENTRY (user: «بعدش خیلی خوشگل دونه
+   دونه با افکت وارد کادر بشه»): the just-found row's tiles hold
+   invisible until their inline delay (LETTER_T0 + i*LETTER_STEP),
+   then fly in from the banner above with a springy arc. The shine
+   sweep + sparkles fire after the LAST letter (--ld, set inline).
+   ================================================================== */
+.wrow.new .wtile {
+  animation: letterFly .52s cubic-bezier(.2,1.5,.4,1) both;
+}
+@keyframes letterFly {
+  0%   { opacity: 0; transform: translateY(-36px) scale(.45) rotate(-9deg); }
+  58%  { opacity: 1; transform: translateY(5px) scale(1.24) rotate(3deg); }
+  82%  { transform: translateY(-2px) scale(.98) rotate(-1deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+}
+.wrow.new::after { animation-delay: var(--ld, 1.9s); }
+
+/* ==================================================================
    v1.18 — per-CHAPTER word-board skins (user: «یکم به تابلو کلمات
    طرح بده هر فصل طرحش فرق کنه»). Static CSS vars only — zero runtime
    cost; each chapter's board wears its own realm palette.
@@ -541,7 +559,7 @@ html, body { overscroll-behavior: none; height: 100%; }
 /* ==================================================================
    WHEEL — carved wooden disc + cream letter tiles + golden star hub
    ================================================================== */
-.wheel-wrap { position: relative; aspect-ratio: 1; width: min(76vw, 330px); margin: 0 auto; contain: layout style; }
+.wheel-wrap { position: relative; aspect-ratio: 1; width: min(76vw, 344px); margin: 0 auto; contain: layout style; }
 .wheel-wood {
   position: absolute; inset: 0; border-radius: 999px;
   background:
@@ -583,7 +601,7 @@ html, body { overscroll-behavior: none; height: 100%; }
   border: 3px solid #fff; outline: 2.5px solid #d9b87a;
   box-shadow: 0 4px 0 #c9a35e, 0 8px 10px rgba(95,58,20,.4);
   display: flex; align-items: center; justify-content: center;
-  font-weight: 800; color: #5d3a12; font-size: clamp(20px, 6.4vw, 27px);
+  font-weight: 800; color: #5d3a12; font-size: clamp(20px, 6.6vw, 29px);
   z-index: 2; touch-action: none;
 }
 .tile.sel {
@@ -620,53 +638,69 @@ html, body { overscroll-behavior: none; height: 100%; }
 }
 
 /* ==================================================================
-   v1.20 — GUESS STRIP («ی کادر درست بکن بدون تداخل جمله… کلمه‌ای که
-   کاربر می‌سازه دیده بشه»): a dedicated word-builder box in its own
-   fixed flex slot between the board and the wheel — it can NEVER
-   collide with either. RTL flow: the first letter appears rightmost.
-   Written imperatively by the Wheel during drags (zero re-renders).
+   v1.21 — GUESS STRIP, BIGGER & GRAPHICAL (user: «کادر خیلی کوچیک
+   شد… یکم بزرگتر بکن، تداخل نداشته باشه، گرافیگش افزایش بده» + «جمله
+   ساخته بشه چسبیده و درست و دقیق»): a taller parchment-and-gold box
+   in its own fixed flex slot (can never collide); the word being
+   dragged is ONE connected text node (proper Persian cursive joining,
+   no more separate letter tiles) with a live golden glow.
    ================================================================== */
 .guess-strip {
   position: relative;
   flex: 0 0 auto;
-  height: 46px;
-  margin: 7px 34px 0;
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255,251,235,.55), rgba(255,244,214,.38));
-  border: 2px dashed rgba(255,255,255,.65);
-  box-shadow: inset 0 2px 6px rgba(95,58,20,.18), 0 3px 8px rgba(60,35,0,.14);
+  height: 64px;
+  margin: 8px 24px 0;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(255,255,255,.5) 0 7px, transparent 8px),
+    radial-gradient(circle at 86% 82%, rgba(255,255,255,.4) 0 6px, transparent 7px),
+    linear-gradient(180deg, rgba(255,251,235,.62), rgba(255,240,200,.44));
+  border: 2.5px solid rgba(255,255,255,.85);
+  outline: 2px solid rgba(226,178,94,.55);
+  box-shadow:
+    inset 0 3px 8px rgba(95,58,20,.16),
+    inset 0 -2px 0 rgba(255,255,255,.5),
+    0 4px 0 rgba(217,167,78,.4),
+    0 10px 16px rgba(60,35,0,.16);
   display: flex; align-items: center; justify-content: center;
-  transition: background .25s ease, border-color .25s ease;
+  transition: background .25s ease, outline-color .25s ease, box-shadow .25s ease;
 }
 .guess-strip.live {
-  background: linear-gradient(180deg, rgba(255,243,190,.92), rgba(255,228,148,.85));
-  border: 2px solid #fff;
-  outline: 2px solid rgba(240,169,44,.55);
-  box-shadow: 0 4px 0 rgba(180,119,8,.35), 0 8px 14px rgba(60,35,0,.22);
+  background:
+    radial-gradient(circle at 14% 18%, rgba(255,255,255,.75) 0 7px, transparent 8px),
+    radial-gradient(circle at 86% 82%, rgba(255,255,255,.6) 0 6px, transparent 7px),
+    linear-gradient(180deg, #fff3c2, #ffe3a0);
+  outline-color: #f0a92c;
+  box-shadow:
+    inset 0 3px 8px rgba(150,100,10,.18),
+    0 5px 0 rgba(180,119,8,.45),
+    0 12px 20px rgba(60,35,0,.24),
+    0 0 24px rgba(255,205,90,.5);
 }
 .guess-hint {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 12.5px; font-weight: 700; color: rgba(122,84,22,.5);
+  font-size: 13.5px; font-weight: 700; color: rgba(122,84,22,.5);
   pointer-events: none; transition: opacity .2s ease;
 }
 .guess-strip.live .guess-hint { opacity: 0; }
+/* the CONNECTED word — one text node = true Persian cursive joining */
 .guess-inner {
-  display: flex; align-items: center; gap: 5px;
-  max-width: 100%; overflow: hidden; padding: 0 8px;
+  max-width: 96%; overflow: hidden;
+  padding: 0 10px;
+  font-weight: 900;
+  font-size: 30px;
+  line-height: 1.25;
+  color: #5d3a12;
+  text-shadow:
+    0 1.5px 0 #fff,
+    0 3px 6px rgba(122,74,0,.35);
+  white-space: nowrap;
+  will-change: transform;
 }
-.guess-inner b {
-  flex: 0 0 auto;
-  min-width: 30px; height: 32px; padding: 0 5px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #fffdf4, #ffe9ae);
-  border: 2px solid #fff; outline: 1.5px solid #e2b25e;
-  box-shadow: 0 3px 0 #d9a94e;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 17px; color: #5d3a12;
-  animation: gPop .2s cubic-bezier(.2,1.6,.4,1) both;
+.guess-strip.live .guess-inner {
+  color: #4a2c0a;
 }
-@keyframes gPop { 0% { transform: scale(.4); } 70% { transform: scale(1.18); } 100% { transform: scale(1); } }
 
 /* wheel celebration FX (bounded one-shot).
    PERF: glow = composited ::after halo (transform+opacity), NOT an
@@ -782,7 +816,15 @@ html, body { overscroll-behavior: none; height: 100%; }
   color: #fff;
 }
 .fab-shuffle:active { transform: translateY(3px); box-shadow: 0 2px 0 #2f8f1f; }
-.fab-shuffle img { width: 26px; height: 26px; }
+/* v1.21 — crisp vector shuffle icon; it SPINS while the shuffle plays
+ * (the :active spin + a JS-triggered .spinning class on the wrapper) */
+.fab-shuffle .shuffle-svg {
+  width: 30px; height: 30px;
+  filter: drop-shadow(0 2px 2px rgba(30,80,10,.4));
+  transition: transform .38s cubic-bezier(.3,.6,.3,1);
+}
+.fab-shuffle:active .shuffle-svg { transform: rotate(-150deg); }
+.fab-shuffle.spinning .shuffle-svg { transform: rotate(360deg); }
 .fab-shuffle b { font-size: 10px; font-weight: 800; margin-top: -2px; }
 .fab-hint {
   position: relative;
@@ -895,24 +937,45 @@ html, body { overscroll-behavior: none; height: 100%; }
   80% { transform: translateY(-50%) rotate(-5deg); }
 }
 
-/* dots pager — 20 chapters at a glance: done = gold, current = accent pill */
-.ch-dots {
-  flex: none; display: flex; justify-content: center; align-items: center;
-  gap: 4.5px; padding: 9px 8px 0; position: relative; z-index: 22; flex-wrap: wrap;
+/* ==================================================================
+   v1.21 — CHAPTER CHIP RAIL (user: «قابلیتی که راحت‌تر بین فصل‌ها جا ب
+   جا شه ب شرط اینکه باز کرده باشه»): the 20 tiny dots became a
+   horizontally scrollable rail of big numbered chips — one tap jumps
+   to any chapter; locked chapters show a padlock (still previewable);
+   done-all chips turn gold; the active chip wears the chapter accent
+   and auto-scrolls into view. ================================================================== */
+.ch-chips {
+  flex: none; display: flex; align-items: center;
+  gap: 7px; padding: 9px 14px 3px; position: relative; z-index: 22;
+  overflow-x: auto; scrollbar-width: none;
+  mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
 }
-.ch-dot {
-  width: 9px; height: 9px; border-radius: 999px; padding: 0; cursor: pointer;
-  background: rgba(255,255,255,.55); border: 1.5px solid rgba(95,58,20,.5);
-  box-shadow: 0 1.5px 0 rgba(95,58,20,.35);
-  transition: width .25s cubic-bezier(.22,.9,.36,1), background .25s ease;
+.ch-chips::-webkit-scrollbar { display: none; }
+.ch-chip {
+  flex: none; min-width: 38px; height: 38px; padding: 0 8px; border-radius: 13px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  background: linear-gradient(180deg, rgba(255,252,240,.92), rgba(255,242,208,.82));
+  border: 2px solid #fff; outline: 2px solid rgba(95,58,20,.35);
+  color: #6b4a1e; font-family: inherit; font-weight: 800; font-size: 15px;
+  box-shadow: 0 3px 0 rgba(95,58,20,.35), 0 6px 10px rgba(30,20,0,.18);
+  transition: transform .18s cubic-bezier(.2,1.4,.4,1), box-shadow .18s ease, background .2s ease;
 }
-.ch-dot.gold { background: radial-gradient(circle at 36% 30%, #fff3b8, #ffd76e 60%, #f0a92c); border-color: #fff; }
-.ch-dot.locked { opacity: .5; background: rgba(70,80,95,.4); }
-.ch-dot.on {
-  width: 24px;
-  background: linear-gradient(90deg, var(--acc-lt, #a8e08b), var(--acc, #58b64b));
-  border-color: #fff;
-  box-shadow: 0 2px 0 rgba(95,58,20,.4), 0 0 0 2.5px rgba(255,255,255,.65);
+.ch-chip:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(95,58,20,.35); }
+.ch-chip.gold {
+  background: radial-gradient(circle at 36% 30%, #fff3b8, #ffd76e 60%, #f0a92c);
+  color: #7a4a00; outline-color: rgba(255,232,150,.9);
+}
+.ch-chip.locked {
+  background: rgba(52,64,80,.5); color: rgba(255,255,255,.85);
+  border-color: rgba(255,255,255,.5); outline-color: rgba(20,30,42,.5);
+  box-shadow: 0 3px 0 rgba(20,30,42,.45);
+}
+.ch-chip.on {
+  background: linear-gradient(180deg, var(--acc-lt, #a8e08b), var(--acc, #58b64b));
+  color: #fff; border-color: #fff; outline-color: rgba(255,255,255,.8);
+  box-shadow: 0 3px 0 rgba(40,80,30,.5), 0 0 0 3px rgba(255,255,255,.6), 0 8px 14px rgba(30,60,20,.3);
+  transform: translateY(-2px);
 }
 
 /* locked-chapter veil — the realm is PREVIEWABLE (hook for what's next) */
@@ -1049,11 +1112,11 @@ html, body { overscroll-behavior: none; height: 100%; }
 }
 
 .bubble {
-  position: relative; flex: 1; margin-bottom: 10px;
+  position: relative; flex: 1; margin-bottom: 12px;
   background: linear-gradient(180deg,#fffdf4,#f7e9c8);
   border: 2.5px solid #fff; outline: 2px solid #d9b87a;
-  border-radius: 16px; padding: 8px 13px;
-  color: #6b4a1e; font-weight: 700; font-size: 13px; line-height: 1.6;
+  border-radius: 15px; padding: 7px 12px;
+  color: #6b4a1e; font-weight: 700; font-size: 12.5px; line-height: 1.65;
   box-shadow: 0 4px 0 #d9b87a, 0 8px 14px rgba(0,0,0,.25);
 }
 .bubble::after {
@@ -2022,11 +2085,14 @@ body { background: #5cb2ef; }
 .lowfx .ch-scene.in-back { animation: none !important; }
 .lowfx .unlock-go { animation: celebPop .5s cubic-bezier(.34,1.56,.64,1) 2.35s both !important; }
 .lowfx .unlock-lock .ul-body { animation: none !important; }
-.lowfx .ch-dot { transition: none !important; }
-/* v1.20 — new play-screen pieces shed cleanly on weak phones */
+.lowfx .ch-chip { transition: none !important; }
+/* v1.20 — new play-screen pieces shed cleanly on weak phones.
+ * v1.21 — the connected guess text + the letter-entry also shed:
+ * animation:none shows the tiles/text in their final state at once. */
 .lowfx .wheel-wrap.shuffling .wheel-wood,
 .lowfx .wheel-wrap.shuffling .wheel-hub,
-.lowfx .guess-inner b { animation: none !important; }
+.lowfx .wrow.new .wtile,
+.lowfx .wrow.new::after { animation: none !important; }
 .lowfx .guess-strip { transition: none !important; }
 
 /* ═══════════════════════════════════════════════════════════════════

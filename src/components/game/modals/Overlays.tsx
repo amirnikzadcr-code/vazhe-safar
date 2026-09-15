@@ -2,7 +2,7 @@
 /* Pause / Settings / Daily Gift / About modals */
 import { useEffect, useState } from "react";
 import { Modal, Btn } from "@/components/game/ui/kit";
-import { Music, Volume2, Vibrate, ShieldCheck, Info, Gift as GiftIc } from "@/components/game/icons";
+import { Music, Volume2, Vibrate, Gift as GiftIc } from "@/components/game/icons";
 import { faNum } from "@/game/core/utils";
 import { Save } from "@/game/core/save";
 import { Audio } from "@/game/core/audio";
@@ -102,8 +102,10 @@ function SetRow({ icon, title, children }: { icon: React.ReactNode; title: strin
   );
 }
 
-/* ---------------- Settings ---------------- */
-export function SettingsModal({ onClose, onAbout }: { onClose: () => void; onAbout: (tab: "privacy" | "about") => void }) {
+/* ---------------- Settings ----------------
+ * v1.21 (user: «در بخش تنظیمات حریم خصوصی و درباره بازی رو حذف کن») —
+ * the modal is now JUST the three functional toggles. */
+export function SettingsModal({ onClose }: { onClose: () => void }) {
   const s = Save.data.settings;
   const [tick, setTick] = useState(0);
   const refresh = () => { bumpSave(); setTick((t) => t + 1); };
@@ -127,12 +129,6 @@ export function SettingsModal({ onClose, onAbout }: { onClose: () => void; onAbo
         </SetRow>
         <SetRow icon={<Vibrate size={20} />} title="لرزش">
           <Toggle label="لرزش" on={s.haptics} onChange={(v) => { Save.setSetting("haptics", v); refresh(); }} />
-        </SetRow>
-        <SetRow icon={<ShieldCheck size={20} />} title="حریم خصوصی">
-          <Btn color="blue" onClick={() => onAbout("privacy")} style={{ fontSize: 14, padding: ".45em 1.1em" }}>مشاهده</Btn>
-        </SetRow>
-        <SetRow icon={<Info size={20} />} title="درباره بازی">
-          <Btn color="teal" onClick={() => onAbout("about")} style={{ fontSize: 14, padding: ".45em 1.1em" }}>مشاهده</Btn>
         </SetRow>
       </div>
     </Modal>
@@ -200,7 +196,8 @@ export function GiftModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* ---------------- About / Privacy ---------------- */
+/* ---------------- About / Privacy (kept for store-review builds —
+ * no longer linked from Settings, v1.21) ---------------- */
 export function AboutModal({ tab, onClose }: { tab: "privacy" | "about"; onClose: () => void }) {
   return (
     <Modal title={tab === "privacy" ? "حریم خصوصی" : "درباره بازی"} onClose={onClose}>

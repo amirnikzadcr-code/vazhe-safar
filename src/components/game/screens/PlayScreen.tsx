@@ -43,8 +43,19 @@ import { armGameplayProbe } from "@/game/core/perf";
  * the fx) — user: «یه لگ ریز داره وقتی حدس میزنی، نرم روان بکن». */
 const CELEBRATE_MS = 480;
 /* the complete-word banner («جملهٔ کاملش زیبا ظاهر شه بعد محو شه»):
- * golden ribbon with the FULL word, pops in → holds → fades away. */
-const BANNER_MS = 1500;
+ * golden ribbon with the FULL word, pops in → holds → fades away.
+ * v1.21 (user: «کلمه وقتی نمایش داده میشه ۲ ثانیه باشه با افکت») —
+ * the word now holds a full TWO seconds before the letters fly in. */
+const BANNER_MS = 2000;
+/* v1.21 — LETTER-BY-LETTER BOARD ENTRY («بعدش خیلی خوشگل دونه دونه
+ * با افکت وارد کادر بشه»): after the banner hold, the found row's
+ * letters fly into their tiles ONE BY ONE (staggered, springy arc).
+ * LETTER_T0 = when the first letter starts (relative to the word
+ * landing), LETTER_STEP = gap between letters. The win modal waits
+ * for the last letter + a breather before it pops over the board. */
+const LETTER_T0 = 1250;
+const LETTER_STEP = 130;
+const WIN_EXTRA_MS = 620;
 
 /* ---- in-progress level snapshots (v1.20 session U) ----
  * OLD: a memory-only Map — a shop round-trip survived, but closing the
@@ -83,6 +94,15 @@ export function PlayScreen({
   const resumeSnap = useMemo(() => getProgress(progressKey), [progressKey]);
   const wasCompleted = useMemo(() => !!Save.data.levels[progressKey], [progressKey]);
   const resumedDoneRef = useRef(resume === true && wasCompleted && !resumeSnap);
+  /* v1.21 — REPLAY = entering an ALREADY-COMPLETED level again (from
+   * the map, or resuming a half-played replay). The user: «اگر شخص
+   * مرحله‌ای رو انجام داده بعد دوباره میاد انجام میده بابت حدس سکه
+   * نده — فقط یکبار سکه بگیره». On a replay the level still plays in
+   * full (words, hints, fun) but NOTHING pays out: no per-word coins,
+   * no per-bonus coins (the bonusAll ledger already refuses repeats),
+   * no star coins — and the win modal shows a gentle replay note
+   * instead of the +coins chip. */
+  const replayRef = useRef(wasCompleted);
 
   const [found, setFound] = useState<Set<string>>(
     () => new Set(resumeSnap?.found ?? (resume && wasCompleted ? wordRows : [])),
@@ -124,8 +144,13 @@ export function PlayScreen({
    * که کاربر می‌سازه دیده بشه»). Written IMPERATIVELY by the Wheel
    * (zero re-renders during drags — same pattern as the stroke). */
   const guessRef = useRef<HTMLDivElement | null>(null);
+  const shuffleBtnRef = useRef<HTMLButtonElement | null>(null);
+  /* v1.21 — the row currently playing its letter-by-letter entry */
+  const [justFound, setJustFound] = useState<string | null>(null);
   const [shaking, setShaking] = useState(false);
   const [won, setWon] = useState<{ stars: number; coins: number } | null>(null);
+  /* v1.21 — the win modal waits for the completing word's letter entry */
+  const winDelayRef = useRef(340);
   const [paused, setPaused] = useState(false);
   const [shuffleKey, setShuffleKey] = useState(0);
   const [tutorial, setTutorial] = useState(() => !Save.data.tutorialDone && ch === 1 && lv === 1);
@@ -193,17 +218,22 @@ export function PlayScreen({
 
   /* stage 2: the word actually lands on the board + the FULL word
    * banner blooms over the screen, then fades (user request).
-   * v6 PERF: the board update renders in THIS task; the banner replay
-   * is deferred to the NEXT frame and is a pure WAAPI replay of the
-   * pre-mounted ribbon (no display toggle, no forced reflow) — the
-   * landing frame stays light on weak phones. */
+   * v1.21 TIMING (user: «کلمه ۲ ثانیه با افکت نمایش داده بشه بعد
+   * دونه دونه وارد کادر بشه»): the banner holds ~2s while the row's
+   * letters fly in one-by-one starting at LETTER_T0. If THIS word
+   * completes the level, the win modal holds back until the last
+   * letter has landed (winDelayRef) so nothing covers the entry. */
   const commitFound = useCallback((word: string) => {
     pendingRef.current.delete(word);
     const next = new Set(foundRef.current);
     next.add(word);
     foundRef.current = next;
     setFound(next);
+    setJustFound(word);
     Audio.sfxSettle();
+    if (wordRows.length > 0 && next.size >= wordRows.length) {
+      winDelayRef.current = LETTER_T0 + letters(word).length * LETTER_STEP + WIN_EXTRA_MS;
+    }
     bannerRafRef.current = requestAnimationFrame(() => {
       bannerRafRef.current = 0;
       const el = bannerRef.current;
@@ -211,23 +241,27 @@ export function PlayScreen({
       if (bannerWordRef.current) bannerWordRef.current.textContent = word;
       replayWordBanner(el);
     });
-  }, []);
+  }, [wordRows.length]);
   useEffect(() => () => {
     if (bannerRafRef.current) cancelAnimationFrame(bannerRafRef.current);
   }, []);
 
   /* stage 1: reward + wheel celebration (100% imperative — no React
-   * state writes on the release frame), then apply to the board. */
+   * state writes on the release frame), then apply to the board.
+   * v1.21 — REPLAYS PAY NOTHING (user: «فقط یکبار سکه بگیره»): the
+   * word still counts and the celebration still plays, but the +۵
+   * coin award and its fx are skipped on replays. */
   const celebrate = useCallback((word: string, byPlayer: boolean) => {
     if (foundRef.current.has(word) || pendingRef.current.has(word)) return;
     pendingRef.current.add(word);
     Save.countWord();
-    Save.addCoins(REWARDS.perWord);
+    const pays = !replayRef.current;
+    if (pays) Save.addCoins(REWARDS.perWord);
     earnedRef.current = { ...earnedRef.current, words: earnedRef.current.words + 1 };
     Audio.sfxWordFound(foundRef.current.size + pendingRef.current.size);
     buzz([18, 30, 18], Save.data.settings.haptics);
     if (byPlayer) dismissTutorial();
-    wheelRef.current?.celebrate(word);
+    wheelRef.current?.celebrate(word, pays);
     const t = setTimeout(() => {
       wheelRef.current?.endCelebrate();
       commitFound(word);
@@ -249,19 +283,24 @@ export function PlayScreen({
   }, [revealed, found, wordRows, celebrate]);
 
   /* all words done → finish. Resumed-already-complete levels (shop
-   * visited from the win modal) re-show the modal WITHOUT re-awarding */
+   * visited from the win modal) re-show the modal WITHOUT re-awarding.
+   * v1.21: replays award ZERO star coins, and the modal waits for the
+   * letter-by-letter entry of the completing word (winDelayRef) so the
+   * last word is fully SEEN before the modal covers the board. */
   useEffect(() => {
     if (won || wordRows.length === 0) return;
     if (found.size >= wordRows.length) {
       const stars = mistakesRef.current === 0 ? 3 : mistakesRef.current <= 2 ? 2 : 1;
+      const pays = !replayRef.current;
       if (!resumedDoneRef.current) {
-        const total = REWARDS.perStar * stars;
-        Save.addCoins(total);
+        if (pays) Save.addCoins(REWARDS.perStar * stars);
         Save.completeLevel(ch, lv, stars, mistakesRef.current);
         Audio.sfxLevelComplete(stars);
         clearProgress(progressKey);
       }
-      const t = setTimeout(() => setWon({ stars, coins: REWARDS.perStar * stars }), 340);
+      const delay = winDelayRef.current;
+      winDelayRef.current = 340;
+      const t = setTimeout(() => setWon({ stars, coins: pays ? REWARDS.perStar * stars : 0 }), delay);
       return () => clearTimeout(t);
     }
   }, [found, wordRows, won, ch, lv, progressKey]);
@@ -326,6 +365,11 @@ export function PlayScreen({
   const doShuffle = () => {
     setShuffleKey((k) => k + 1);
     Audio.sfxShuffle();
+    /* v1.21 — the new vector icon does a full graceful spin per press */
+    shuffleBtnRef.current?.querySelector(".shuffle-svg")?.animate?.(
+      [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }],
+      { duration: 440, easing: "cubic-bezier(.3,.6,.3,1)" },
+    );
   };
 
   return (
@@ -361,6 +405,7 @@ export function PlayScreen({
           words={wordRows}
           found={found}
           revealed={revealed}
+          justFound={justFound}
         />
       </div>
 
@@ -401,8 +446,8 @@ export function PlayScreen({
             {faNum(COSTS.hint)}
           </span>
         </button>
-        <button type="button" aria-label="بر زدن" className="fab-shuffle" onClick={doShuffle}>
-          <img src="/assets/img/swap.webp" alt="" draggable={false} />
+        <button ref={shuffleBtnRef} type="button" aria-label="بر زدن" className="fab-shuffle" onClick={doShuffle}>
+          <ShuffleSvg />
           <b>بُر بزن</b>
         </button>
       </div>
@@ -464,6 +509,7 @@ export function PlayScreen({
           words={earnedRef.current.words}
           bonus={earnedRef.current.bonus}
           isLast={lv >= lvPerCh(ch)}
+          replay={replayRef.current}
           onContinue={onNext}
           onShop={onShop}
         />
@@ -481,13 +527,18 @@ export function PlayScreen({
    mathematically guaranteed to fit: overlap is impossible.
    v5 PERF (mobile word-guess hitch): each ROW is a memo component with
    primitive props — when a word is found only THAT row re-renders;
-   the other rows bail out of reconciliation entirely. ================= */
+   the other rows bail out of reconciliation entirely.
+   v1.21 — LETTER-BY-LETTER ENTRY: the just-found row plays the
+   staggered fly-in (letters arrive one by one after the 2s banner
+   hold); older rows render in their settled state, and restored
+   snapshots (justFound = null) never replay the long animation. ================= */
 const WordBoard = memo(function WordBoard({
-  words, found, revealed,
+  words, found, revealed, justFound,
 }: {
   words: string[];
   found: Set<string>;
   revealed: Set<string>;
+  justFound: string | null;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [tile, setTile] = useState(30);
@@ -529,7 +580,7 @@ const WordBoard = memo(function WordBoard({
         const mask = isF
           ? LETTER_MASKS[letters(w).length] ?? "1".repeat(letters(w).length)
           : maskOf(w, revealed);
-        return <WordRow key={w} word={w} isF={isF} mask={mask} tile={tile} />;
+        return <WordRow key={w} word={w} isF={isF} isNew={isF && w === justFound} mask={mask} tile={tile} />;
       })}
     </div>
   );
@@ -546,23 +597,36 @@ function maskOf(word: string, revealed: Set<string>): string {
 }
 
 const WordRow = memo(function WordRow({
-  word, isF, mask, tile,
+  word, isF, isNew, mask, tile,
 }: {
   word: string;
   isF: boolean;
+  isNew: boolean;
   mask: string;
   tile: number;
 }) {
   const ls = letters(word);
+  /* v1.21 — a NEWLY-found row: every letter waits for its slot in the
+   * stagger, then flies in (CSS `.wrow.new .wtile` + inline delays);
+   * sparkles + shine sweep fire after the LAST letter (--ld var). */
+  const tailMs = LETTER_T0 + ls.length * LETTER_STEP;
   return (
-    <div className={`wrow ${isF ? "done" : ""}`}>
+    <div
+      className={`wrow ${isF ? "done" : ""} ${isNew ? "new" : ""}`}
+      style={isNew ? { ["--ld" as string]: `${tailMs}ms` } : undefined}
+    >
       {ls.map((ch, i) => {
         const shown = isF || mask[i] === "1";
         return (
           <span
             key={i}
             className={`wtile ${isF ? "fill" : shown ? "reveal" : "empty"}`}
-            style={{ animationDelay: isF ? `${i * 45}ms` : shown ? "0ms" : undefined, fontSize: Math.round(tile * 0.6) }}
+            style={{
+              animationDelay: isNew
+                ? `${LETTER_T0 + i * LETTER_STEP}ms`
+                : isF ? `${i * 45}ms` : shown ? "0ms" : undefined,
+              fontSize: Math.round(tile * 0.6),
+            }}
           >
             {shown ? ch : ""}
           </span>
@@ -571,7 +635,11 @@ const WordRow = memo(function WordRow({
       {isF && (
         <span className="wsparkles" aria-hidden>
           {Array.from({ length: 6 }, (_, s) => (
-            <i key={s} style={{ ["--dx" as string]: `${(s - 2.5) * 26}px`, ["--dy" as string]: `${-18 - (s % 3) * 14}px`, ["--dd" as string]: `${s * 45}ms` }} />
+            <i key={s} style={{
+              ["--dx" as string]: `${(s - 2.5) * 26}px`,
+              ["--dy" as string]: `${-18 - (s % 3) * 14}px`,
+              ["--dd" as string]: isNew ? `${tailMs + s * 55}ms` : `${s * 45}ms`,
+            }} />
           ))}
         </span>
       )}
@@ -659,7 +727,7 @@ function replayWordBanner(root: HTMLElement): void {
    guess causes ZERO React re-renders of this subtree, and the burst /
    coin FX replay via WAAPI with no forced reflow. ================= */
 export interface WheelHandle {
-  celebrate(word: string): void;
+  celebrate(word: string, showCoin?: boolean): void;
   endCelebrate(): void;
 }
 
@@ -772,21 +840,31 @@ const Wheel = memo(forwardRef(function Wheel({
 
   /* selection lives ONLY in refs — tiles + line are painted by direct
    * DOM writes. A drag causes ZERO React re-renders. */
-  /* v1.20 — the GUESS STRIP writer: spells the in-progress word into
-   * the dedicated box between board and wheel. Direct DOM (tiny), so
-   * drags still never re-render React. */
+  /* v1.21 — the GUESS STRIP writer, CONNECTED («رو جدا جدا نمایش میده
+   * من میخام جمله ساخته بشه چسبیده و درست و دقیق»): the word is one
+   * single text node so the Persian letters JOIN properly (separate
+   * <b> tiles broke the cursive joining between letters). Direct DOM
+   * (tiny) — drags still never re-render React. */
   const paintGuess = () => {
     const g = guessRef?.current;
     if (!g) return;
     const sel = selRef.current;
     if (sel.length === 0) {
-      if (g.innerHTML !== "") g.innerHTML = "";
+      if (g.textContent !== "") g.textContent = "";
       g.parentElement?.classList.remove("live");
       return;
     }
-    let html = "";
-    for (const i of sel) html += `<b>${ls[i]}</b>`;
-    if (g.innerHTML !== html) g.innerHTML = html;
+    const word = sel.map((i) => ls[i]).join("");
+    if (g.textContent !== word) {
+      g.textContent = word;
+      /* tiny pulse on every caught letter — compositor only */
+      if (typeof g.animate === "function") {
+        g.animate(
+          [{ transform: "scale(1.08)" }, { transform: "scale(1)" }],
+          { duration: 140, easing: "cubic-bezier(.2,1.6,.4,1)" },
+        );
+      }
+    }
     g.parentElement?.classList.add("live");
   };
 
@@ -836,9 +914,9 @@ const Wheel = memo(forwardRef(function Wheel({
     const tipT = tipTargetRef.current;
     const tipC = tipCurRef.current;
     if (tipT && tipC) {
-      tipC.x += (tipT.x - tipC.x) * 0.38;
-      tipC.y += (tipT.y - tipC.y) * 0.38;
-      if (Math.abs(tipT.x - tipC.x) < 0.7 && Math.abs(tipT.y - tipC.y) < 0.7) {
+      tipC.x += (tipT.x - tipC.x) * 0.3;
+      tipC.y += (tipT.y - tipC.y) * 0.3;
+      if (Math.abs(tipT.x - tipC.x) < 0.5 && Math.abs(tipT.y - tipC.y) < 0.5) {
         tipC.x = tipT.x; tipC.y = tipT.y;
       }
     }
@@ -898,7 +976,7 @@ const Wheel = memo(forwardRef(function Wheel({
       const w = host.clientWidth;
       const h = host.clientHeight;
       if (w <= 0 || h <= 0) return;
-      const s = Math.floor(Math.min(w - 8, h - 4, 330));
+      const s = Math.floor(Math.min(w - 8, h - 4, 346));
       wrap.style.width = `${s}px`;
       wrap.style.height = `${s}px`;
     };
@@ -924,9 +1002,11 @@ const Wheel = memo(forwardRef(function Wheel({
   /* fx set → celebrate (class derived from fx, no state needed);
    * fx cleared (word landed) → release the selection, DOM-only.
    * v6: imperative handle — PlayScreen calls celebrate()/endCelebrate();
-   * burst + coin replay via WAAPI (no reflow, no React state). */
+   * burst + coin replay via WAAPI (no reflow, no React state).
+   * v1.21 — showCoin=false on REPLAYS (no +۵ chip for a level that
+   * already paid out once). */
   const lockRef = useRef(false);
-  const celebrate = useCallback((_: string) => {
+  const celebrate = useCallback((_: string, showCoin = true) => {
     lockRef.current = true;
     wrapRef.current?.classList.add("fx");
     const b = burstRef.current;
@@ -946,7 +1026,7 @@ const Wheel = memo(forwardRef(function Wheel({
       });
     }
     const c = coinFxRef.current;
-    if (c && typeof c.animate === "function") {
+    if (c && showCoin && typeof c.animate === "function") {
       c.getAnimations().forEach((a) => a.cancel());
       c.animate(KF_COIN, { duration: 620, easing: "ease-out", fill: "both" });
     }
@@ -1014,6 +1094,18 @@ const Wheel = memo(forwardRef(function Wheel({
        * NO auto-commit here anymore (v2.0): the word is judged on release */
       const c = centersRef.current.find((c) => c.idx === i)!;
       tipCurRef.current = { x: c.x, y: c.y };
+      /* v1.21 — juicy CATCH POP on the tile + a soft ring pulse
+       * («یکم نرم‌تر و گرافیکی‌تر»): WAAPI, compositor-only. */
+      const el = tileElsRef.current?.get(i);
+      if (el && typeof el.animate === "function") {
+        el.animate(
+          [
+            { transform: "translate(-50%,-50%) scale(1.28)" },
+            { transform: "translate(-50%,-50%) scale(1.1)" },
+          ],
+          { duration: 200, easing: "cubic-bezier(.2,1.6,.4,1)" },
+        );
+      }
     }
     ensureRaf();
   };
@@ -1047,14 +1139,15 @@ const Wheel = memo(forwardRef(function Wheel({
         <StarGold size={26} />
       </div>
       <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible" }} aria-hidden>
-        {/* 3-layer juicy stroke: soft aura → gold core → bright shine */}
-        <polyline ref={auraRef} points="" fill="none" stroke="rgba(255,187,56,.32)" strokeWidth={21} strokeLinecap="round" strokeLinejoin="round" />
-        <polyline ref={coreRef} points="" fill="none" stroke="#ffc93c" strokeWidth={10.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
-        <polyline ref={shineRef} points="" fill="none" stroke="rgba(255,252,232,.9)" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" />
+        {/* 3-layer juicy stroke: soft aura → gold core → bright shine
+            (v1.21 — slightly fatter + softer for a silkier feel) */}
+        <polyline ref={auraRef} points="" fill="none" stroke="rgba(255,187,56,.30)" strokeWidth={24} strokeLinecap="round" strokeLinejoin="round" />
+        <polyline ref={coreRef} points="" fill="none" stroke="#ffc93c" strokeWidth={11.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
+        <polyline ref={shineRef} points="" fill="none" stroke="rgba(255,252,232,.9)" strokeWidth={3.8} strokeLinecap="round" strokeLinejoin="round" />
         {/* glowing bead riding under the finger (Wordscapes-style) */}
         <g ref={beadRef} opacity="0">
-          <circle r={11} fill="rgba(255,220,110,.30)" />
-          <circle r={5.2} fill="#fff6d8" stroke="#ffb302" strokeWidth="2" />
+          <circle r={13} fill="rgba(255,220,110,.30)" />
+          <circle r={6} fill="#fff6d8" stroke="#ffb302" strokeWidth="2" />
         </g>
       </svg>
       <div style={{ position: "absolute", inset: 0 }}>
@@ -1096,6 +1189,37 @@ const Wheel = memo(forwardRef(function Wheel({
     </div>
   );
 }));
+
+/* v1.21 — SHUFFLE ICON, redrawn as a crisp vector (user: «آیکون بر
+ * زدن دقیق‌تر و یچی خوشگلتر بکن»): two curved arrows chasing each
+ * other around the ring + a tiny sparkle, carved-wood gradient and a
+ * white rim — pixel-perfect on every density, and it SPINS on press
+ * (CSS .fab-shuffle:active svg). */
+function ShuffleSvg() {
+  return (
+    <svg className="shuffle-svg" width="34" height="34" viewBox="0 0 48 48" aria-hidden>
+      <defs>
+        <linearGradient id="shfGold" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff7dd" />
+          <stop offset="0.55" stopColor="#ffd76e" />
+          <stop offset="1" stopColor="#f0a92c" />
+        </linearGradient>
+      </defs>
+      {/* soft halo behind the arrows */}
+      <circle cx="24" cy="24" r="15.5" fill="rgba(255,236,170,.28)" />
+      {/* two chasing arc arrows (top arc: cw → right, bottom arc: ccw → left) */}
+      <g fill="none" stroke="url(#shfGold)" strokeWidth="4.6" strokeLinecap="round">
+        <path d="M13.5 17.5 A 13.2 13.2 0 0 1 36.2 19.6" />
+        <path d="M34.5 30.5 A 13.2 13.2 0 0 1 11.8 28.4" />
+      </g>
+      {/* arrowheads */}
+      <path d="M36.9 12.9 L38 21.3 L29.9 19.4 Z" fill="#ffd76e" stroke="#fff" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M11.1 35.1 L10 26.7 L18.1 28.6 Z" fill="#ffd76e" stroke="#fff" strokeWidth="1.4" strokeLinejoin="round" />
+      {/* center sparkle */}
+      <path d="M24 19.4 L25.5 22.5 L28.6 24 L25.5 25.5 L24 28.6 L22.5 25.5 L19.4 24 L22.5 22.5 Z" fill="#fffdf4" stroke="#e8a52a" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 /* v6 hint lamp — crisp vector bulb (golden glass, filament, warm rays).
  * Inline SVG = perfectly sharp on every density, zero extra request,
