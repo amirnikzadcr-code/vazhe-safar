@@ -44,16 +44,17 @@ import { armGameplayProbe } from "@/game/core/perf";
 const CELEBRATE_MS = 480;
 /* the complete-word banner («جملهٔ کاملش زیبا ظاهر شه بعد محو شه»):
  * golden ribbon with the FULL word, pops in → holds → fades away.
- * v1.21 (user: «کلمه وقتی نمایش داده میشه ۲ ثانیه باشه با افکت») —
- * the word now holds a full TWO seconds before the letters fly in. */
-const BANNER_MS = 2000;
+ * v1.22 (user: «کلمه یهو ظاهر میشه سریع ناپدید میشه — حداقل ۲ ثانیه
+ * بمونه»): a SMOOTH pop-in (~340ms), then the word stays fully
+ * readable ≈2s before the letters fly in. */
+const BANNER_MS = 2800;
 /* v1.21 — LETTER-BY-LETTER BOARD ENTRY («بعدش خیلی خوشگل دونه دونه
  * با افکت وارد کادر بشه»): after the banner hold, the found row's
  * letters fly into their tiles ONE BY ONE (staggered, springy arc).
  * LETTER_T0 = when the first letter starts (relative to the word
  * landing), LETTER_STEP = gap between letters. The win modal waits
  * for the last letter + a breather before it pops over the board. */
-const LETTER_T0 = 1250;
+const LETTER_T0 = 2400;
 const LETTER_STEP = 130;
 const WIN_EXTRA_MS = 620;
 
@@ -384,21 +385,22 @@ export function PlayScreen({
         <div className="lvl-banner">مرحله {faNum(globalLevel(ch, lv))}</div>
       </div>
 
-      {/* board — every word its OWN row; v1.18: per-CHAPTER skin
-          (user: «یکم به تابلو کلمات طرح بده، هر فصل طرحش فرق کنه»)
-          v1.20: the panel's cap is ROW-AWARE (min(rows*46+40px, 40%)) —
-          a 5-row board no longer swallows 40% of the screen and starves
-          the wheel (it shrank to ~205px); a 10-row board still caps at
-          40% and the height-fit shrinks the tiles into it */}
+      {/* board — v1.22: ADAPTIVE ROW PACKING. When a level carries many
+          sentences the board packs rows (hero rows + left/right pairs,
+          user: «کادرهاشون تقسیم کن ب سمت چپ و راست… بزرگشون کن
+          استاندارد بشن»). flexBasis CLAIMS the computed panel height so
+          the packing solver gets real space (a content-sized flex child
+          collapsed the board and shrank the tiles to 18px). */}
       <div
         className={`board-box ${shaking ? "shake" : ""}`}
         data-skin={ch}
         onAnimationEnd={() => setShaking(false)}
         style={{
           flex: "1 1 auto",
-          margin: "4px 14px 0",
-          maxHeight: `min(${wordRows.length * 46 + 38}px, 40%)`,
+          flexBasis: `min(${Math.ceil(wordRows.length / (wordRows.length >= 7 ? 2 : 1)) * 50 + 28}px, ${wordRows.length >= 7 ? 46 : 40}%)`,
+          maxHeight: `min(${Math.ceil(wordRows.length / (wordRows.length >= 7 ? 2 : 1)) * 50 + 28}px, ${wordRows.length >= 7 ? 46 : 40}%)`,
           minHeight: 110,
+          margin: "4px 12px 0",
         }}
       >
         <WordBoard
@@ -522,16 +524,23 @@ export function PlayScreen({
 
 /* (MenuLines removed — the reference pause entry is the blue HUD gear) */
 
-/* ================= WordBoard — each word = its own separate row.
-   Uniform tile size measured from the longest word → smaller tiles,
-   mathematically guaranteed to fit: overlap is impossible.
-   v5 PERF (mobile word-guess hitch): each ROW is a memo component with
-   primitive props — when a word is found only THAT row re-renders;
-   the other rows bail out of reconciliation entirely.
-   v1.21 — LETTER-BY-LETTER ENTRY: the just-found row plays the
-   staggered fly-in (letters arrive one by one after the 2s banner
-   hold); older rows render in their settled state, and restored
-   snapshots (justFound = null) never replay the long animation. ================= */
+/* ================= WordBoard — v1.22: ADAPTIVE ROW PACKING.
+   The user's idea: «کادرهاشون تقسیم کن ب سمت چپ و راست اینطوری مشکل
+   تداخل پیش نمیاد و همشون جا میشن ولی بزرگشون کن استاندارد بشن».
+   For crowded levels (۸–۱۰ جمله) the board now PACKS rows:
+   • a long word that can't pair at a standard size gets its own
+     full-width hero row,
+   • shorter words pair up LEFT+RIGHT in one row (uniform tile size
+     inside the row, mathematically guaranteed to fit — no overlap),
+   • every row keeps the biggest STANDARD tile (≥26px) possible;
+   quiet levels (≤5 words / roomy fits) keep the classic uniform
+   single column, just bigger (tiles up to 40px).
+   v5 PERF: each row/group is a memo component with primitive props.
+   v1.22 ENTRY FIX (user: «کادرها غیب میشن بعد کلمات وارد میشن»): the
+   tile BOXES never vanish — only the LETTER GLYPH (<b.wl>) flies into
+   its already-visible box. Restored snapshots never replay it. ================= */
+interface PackRow { items: string[]; tile: number }
+
 const WordBoard = memo(function WordBoard({
   words, found, revealed, justFound,
 }: {
@@ -541,47 +550,78 @@ const WordBoard = memo(function WordBoard({
   justFound: string | null;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
-  const [tile, setTile] = useState(30);
-  const longest = useMemo(() => Math.max(3, ...words.map((w) => letters(w).length)), [words]);
+  const [rows, setRows] = useState<PackRow[]>(() => [{ items: words, tile: 32 }]);
+  const lens = useMemo(() => words.map((w) => letters(w).length), [words]);
+  const lensKey = useMemo(() => lens.join(","), [lens]);
 
   useLayoutEffect(() => {
     const el = boxRef.current;
     if (!el) return;
+    /* v1.22 — measure the PANEL (parent), not this content element:
+     * .wboard shrinks to its content, so measuring itself creates a
+     * shrink feedback loop that spiralled tiles down to the 18px floor. */
+    const host = el.parentElement;
+    if (!host) return;
     const calc = () => {
-      const w = el.clientWidth;
-      if (w <= 0) return;
-      /* width for longest word: tile*len + inner gaps(4px)*(len-1) + row padding */
-      const c = Math.floor((w - 28 - 4 * (longest - 1)) / longest);
-      /* v1.20 (user: «جمله‌هاشون زیاده و از کادر خارج میشه میره زیر
-       * دایره») — fit the HEIGHT too: rows = one per word; a row is
-       * tile + 0.24*tile gap. The tile now shrinks so ALL rows fit the
-       * panel — the board can never spill under the wheel. */
-      const rows = words.length;
-      const h = el.clientHeight;
-      let r = c;
-      if (rows > 0 && h > 40) {
-        const avail = h - 26; /* panel padding + slack */
-        const tileH = Math.floor(avail / (rows + 0.24 * (rows - 1)));
-        r = Math.min(c, tileH);
+      const cw = el.clientWidth;
+      if (cw <= 0) return;
+      const W = cw - 8;               /* .wboard inner padding */
+      const H = Math.max(120, host.clientHeight - 24);
+      const PAD = 8, CGAP = 8, GAP = 4, TH = 26, CAP = 40;
+      const soloT = (l: number) => (W - PAD - GAP * (l - 1)) / l;
+      const pairT = (l1: number, l2: number) =>
+        (W - PAD - CGAP - GAP * (l1 - 1) - GAP * (l2 - 1)) / (l1 + l2);
+      const sorted = [...words].sort(
+        (a, b) => letters(b).length - letters(a).length || (a < b ? -1 : 1),
+      );
+      const n = sorted.length;
+      const longest = n ? letters(sorted[0]).length : 3;
+      const hfAll = H / (n + 0.24 * (n - 1));
+      const uni = Math.min(soloT(longest), hfAll, CAP);
+      let next: PackRow[];
+      if (uni >= TH || n < 5) {
+        /* classic uniform column — roomy enough, just BIGGER */
+        next = [{ items: sorted, tile: Math.max(22, Math.round(uni)) }];
+      } else {
+        /* adaptive packing: hero rows + left/right pairs */
+        const unplaced = [...sorted];
+        const built: PackRow[] = [];
+        while (unplaced.length > 0) {
+          const w = unplaced.shift()!;
+          const lw = letters(w).length;
+          let bestJ = -1, bestT = 0;
+          for (let j = 0; j < unplaced.length; j++) {
+            const t = Math.min(pairT(lw, letters(unplaced[j]).length), CAP);
+            if (t >= TH && t > bestT) { bestT = t; bestJ = j; }
+          }
+          if (bestJ >= 0) built.push({ items: [w, unplaced.splice(bestJ, 1)[0]], tile: Math.round(bestT) });
+          else built.push({ items: [w], tile: Math.round(Math.min(soloT(lw), CAP)) });
+        }
+        /* height guard: shrink proportionally if the packed rows overflow */
+        const total = built.reduce((s, r) => s + r.tile * 1.24, 0);
+        if (total > H) {
+          const f = Math.max(0.55, H / total);
+          for (const r of built) r.tile = Math.max(18, Math.round(r.tile * f));
+        }
+        next = built;
       }
-      setTile(Math.max(16, Math.min(36, r)));
+      setRows((prev) =>
+        prev.length === next.length &&
+        prev.every((r, i) => r.items.join("|") === next[i].items.join("|") && r.tile === next[i].tile)
+          ? prev : next,
+      );
     };
     calc();
     const ro = new ResizeObserver(calc);
-    ro.observe(el);
+    ro.observe(host);
     return () => ro.disconnect();
-  }, [longest, words]);
+  }, [words, lensKey]);
 
   return (
-    <div ref={boxRef} className="wboard" style={{ ["--wt" as string]: `${tile}px` }}>
-      {words.map((w) => {
-        const isF = found.has(w);
-        /* shown-mask: "1" → letter visible (found rows show everything) */
-        const mask = isF
-          ? LETTER_MASKS[letters(w).length] ?? "1".repeat(letters(w).length)
-          : maskOf(w, revealed);
-        return <WordRow key={w} word={w} isF={isF} isNew={isF && w === justFound} mask={mask} tile={tile} />;
-      })}
+    <div ref={boxRef} className="wboard" style={{ ["--wt" as string]: `${rows.length ? Math.min(...rows.map((r) => r.tile)) : 32}px` }}>
+      {rows.map((r) => (
+        <BoardRow key={r.items.join("|")} items={r.items} tile={r.tile} found={found} revealed={revealed} justFound={justFound} />
+      ))}
     </div>
   );
 });
@@ -596,7 +636,44 @@ function maskOf(word: string, revealed: Set<string>): string {
   return m;
 }
 
-const WordRow = memo(function WordRow({
+/* one BOARD ROW = one or two words sharing the row (left/right pair).
+   The row owns its own --wt so letter gaps always match its tile size;
+   the row-wide shine sweep + the letter-stagger are driven by --ld. */
+const BoardRow = memo(function BoardRow({
+  items, tile, found, revealed, justFound,
+}: {
+  items: string[];
+  tile: number;
+  found: Set<string>;
+  revealed: Set<string>;
+  justFound: string | null;
+}) {
+  const newWord = justFound !== null && items.includes(justFound) ? justFound : null;
+  const tailMs = newWord ? LETTER_T0 + letters(newWord).length * LETTER_STEP : 0;
+  return (
+    <div
+      className={`wrow ${newWord ? "new" : ""}`}
+      style={{ ["--wt" as string]: `${tile}px`, ...(newWord ? { ["--ld" as string]: `${tailMs}ms` } : {}) }}
+    >
+      {items.map((w) => {
+        const isF = found.has(w);
+        /* shown-mask: "1" → letter visible (found words show everything) */
+        const mask = isF
+          ? LETTER_MASKS[letters(w).length] ?? "1".repeat(letters(w).length)
+          : maskOf(w, revealed);
+        return <WordGroup key={w} word={w} isF={isF} isNew={w === newWord} mask={mask} tile={tile} />;
+      })}
+    </div>
+  );
+});
+
+/* one WORD inside a row: its parchment boxes + letter glyphs.
+   v1.22 — NEWLY-found word: the tile BOXES render instantly (a found
+   parchment slot waiting for its letter) and each LETTER GLYPH sits in
+   an inner <b class=wl> that flies in one-by-one on its inline delay —
+   the box never disappears anymore (user: «کادرها غیب میشن بعد کلمات
+   وارد میشن»). Sparkles + shine sweep fire after the LAST letter. */
+const WordGroup = memo(function WordGroup({
   word, isF, isNew, mask, tile,
 }: {
   word: string;
@@ -606,15 +683,9 @@ const WordRow = memo(function WordRow({
   tile: number;
 }) {
   const ls = letters(word);
-  /* v1.21 — a NEWLY-found row: every letter waits for its slot in the
-   * stagger, then flies in (CSS `.wrow.new .wtile` + inline delays);
-   * sparkles + shine sweep fire after the LAST letter (--ld var). */
   const tailMs = LETTER_T0 + ls.length * LETTER_STEP;
   return (
-    <div
-      className={`wrow ${isF ? "done" : ""} ${isNew ? "new" : ""}`}
-      style={isNew ? { ["--ld" as string]: `${tailMs}ms` } : undefined}
-    >
+    <div className={`wgroup ${isF ? "done" : ""} ${isNew ? "new" : ""}`}>
       {ls.map((ch, i) => {
         const shown = isF || mask[i] === "1";
         return (
@@ -622,13 +693,13 @@ const WordRow = memo(function WordRow({
             key={i}
             className={`wtile ${isF ? "fill" : shown ? "reveal" : "empty"}`}
             style={{
-              animationDelay: isNew
-                ? `${LETTER_T0 + i * LETTER_STEP}ms`
-                : isF ? `${i * 45}ms` : shown ? "0ms" : undefined,
-              fontSize: Math.round(tile * 0.6),
+              animationDelay: !isNew && isF ? `${i * 45}ms` : undefined,
+              fontSize: Math.round(tile * 0.62),
             }}
           >
-            {shown ? ch : ""}
+            <b className="wl" style={isNew ? { animationDelay: `${LETTER_T0 + i * LETTER_STEP}ms` } : undefined}>
+              {shown ? ch : ""}
+            </b>
           </span>
         );
       })}
@@ -651,7 +722,6 @@ const WordRow = memo(function WordRow({
    replayed with el.animate(): NO forced reflow (the old
    `void el.offsetWidth` restart janked weak phones), NO class juggling,
    transform/opacity only → fully compositor-accelerated. */
-const EASE_POP = "cubic-bezier(.2,1.5,.4,1)";
 const KF_RING: Keyframe[] = [
   { transform: "scale(.4)", opacity: 0.95 },
   { transform: "scale(2.6)", opacity: 0 },
@@ -667,27 +737,38 @@ const KF_COIN: Keyframe[] = [
   { transform: "translate(-50%, -14px) scale(1)", opacity: 1, offset: 0.75 },
   { transform: "translate(-50%, -30px) scale(.9)", opacity: 0 },
 ];
+/* v1.22 — smooth pop (≈340ms) → FULL hold ≈2s → graceful fade: the
+   word is never a flash anymore (user: «حداقل ۲ ثانیه بمونه»).
+   ⚠ TWO WAAPI rules learned the hard way:
+   1. a keyframe that OMITS a property gets the element's UNDERLYING
+      value (idle ribbon = opacity 0 → a hidden dip mid-hold) — every
+      keyframe states opacity explicitly;
+   2. an OVERSHOOT bezier (y₁>1) as the TOP-LEVEL easing warps the
+      whole timeline (eased time reaches 1 at ~35% → the track jumps to
+      its final keyframe and HOLDS it = the «یهو ظاهر میشه سریع ناپدید
+      میشه» flash). Overshoot curves are only safe PER-KEYFRAME as
+      value easing — the spring lives on the pop segment only. */
 const KF_RIBBON: Keyframe[] = [
-  { transform: "scale(.3) translateY(26px)", opacity: 0, offset: 0 },
-  { transform: "scale(1.1) translateY(0)", opacity: 1, offset: 0.16 },
-  { transform: "scale(1)", offset: 0.26 },
-  { transform: "scale(1)", opacity: 1, offset: 0.72 },
-  { transform: "scale(.94) translateY(-34px)", opacity: 0 },
+  { transform: "scale(.5) translateY(30px)", opacity: 0, offset: 0, easing: "cubic-bezier(.2,1.2,.4,1)" },
+  { transform: "scale(1.06) translateY(0)", opacity: 1, offset: 0.12, easing: "ease-out" },
+  { transform: "scale(1)", opacity: 1, offset: 0.2, easing: "linear" },
+  { transform: "scale(1)", opacity: 1, offset: 0.82, easing: "ease-in" },
+  { transform: "scale(.95) translateY(-26px)", opacity: 0, offset: 1 },
 ];
 const KF_STAR_L: Keyframe[] = [
-  { transform: "rotate(-160deg) scale(0)" },
-  { transform: "rotate(20deg) scale(1.25)", offset: 0.55 },
-  { transform: "rotate(0deg) scale(1)" },
+  { transform: "rotate(-160deg) scale(0)", opacity: 0, offset: 0, easing: "cubic-bezier(.2,1.3,.4,1)" },
+  { transform: "rotate(20deg) scale(1.25)", opacity: 1, offset: 0.55, easing: "ease-out" },
+  { transform: "rotate(0deg) scale(1)", opacity: 1, offset: 1 },
 ];
 const KF_STAR_R: Keyframe[] = [
-  { transform: "rotate(160deg) scale(0)" },
-  { transform: "rotate(-20deg) scale(1.25)", offset: 0.55 },
-  { transform: "rotate(0deg) scale(1)" },
+  { transform: "rotate(160deg) scale(0)", opacity: 0, offset: 0, easing: "cubic-bezier(.2,1.3,.4,1)" },
+  { transform: "rotate(-20deg) scale(1.25)", opacity: 1, offset: 0.55, easing: "ease-out" },
+  { transform: "rotate(0deg) scale(1)", opacity: 1, offset: 1 },
 ];
 const KF_DUST = (dx: string, dy: string): Keyframe[] => [
-  { transform: "translate(0,0) scale(.4) rotate(0deg)", opacity: 0 },
-  { opacity: 1, offset: 0.14 },
-  { transform: `translate(${dx},${dy}) scale(1) rotate(200deg)`, opacity: 0 },
+  { transform: "translate(0,0) scale(.4) rotate(0deg)", opacity: 0, offset: 0 },
+  { transform: `translate(${parseFloat(dx) * 0.45}px, ${parseFloat(dy) * 0.45}px) scale(.8) rotate(90deg)`, opacity: 1, offset: 0.14 },
+  { transform: `translate(${dx},${dy}) scale(1) rotate(200deg)`, opacity: 0, offset: 1 },
 ];
 
 /** restart-safe replay of the pre-mounted complete-word banner */
@@ -697,14 +778,14 @@ function replayWordBanner(root: HTMLElement): void {
   const starL = root.querySelector<HTMLElement>(".wb-star.l");
   const starR = root.querySelector<HTMLElement>(".wb-star.r");
   for (const el of [ribbon, starL, starR]) el?.getAnimations().forEach((a) => a.cancel());
-  ribbon?.animate(KF_RIBBON, { duration: BANNER_MS, easing: EASE_POP, fill: "both" });
-  starL?.animate(KF_STAR_L, { duration: BANNER_MS, easing: "ease", fill: "both" });
-  starR?.animate(KF_STAR_R, { duration: BANNER_MS, easing: "ease", fill: "both" });
+  ribbon?.animate(KF_RIBBON, { duration: BANNER_MS, fill: "both" });
+  starL?.animate(KF_STAR_L, { duration: BANNER_MS, fill: "both" });
+  starR?.animate(KF_STAR_R, { duration: BANNER_MS, fill: "both" });
   root.querySelectorAll<HTMLElement>(".wb-dust i").forEach((el, i) => {
     el.getAnimations().forEach((a) => a.cancel());
     el.animate(
       KF_DUST(el.style.getPropertyValue("--dx"), el.style.getPropertyValue("--dy")),
-      { duration: 1150, delay: i * 40, easing: "ease-out", fill: "both" },
+      { duration: 1500, delay: i * 55, easing: "ease-out", fill: "both" },
     );
   });
 }
@@ -779,6 +860,10 @@ const Wheel = memo(forwardRef(function Wheel({
    * which janks the wheel on weak phones during fast drags. */
   const rectRef = useRef<DOMRect | null>(null);
 
+  /* v1.22 — ADAPTIVE SEAT GEOMETRY (set by the fit() layout effect
+   * below): tile px + seat radius %, solved per (size, letter-count). */
+  const [geom, setGeom] = useState({ tile: 0, wr: 37 });
+
   const positions = useMemo(() => {
     const n = ls.length;
     /* v1.20 RANDOM SEATS (user: «اولین حروف دقیقا از سمت راست حلقه…
@@ -789,19 +874,23 @@ const Wheel = memo(forwardRef(function Wheel({
      * ALWAYS exactly one seat (5 % (6-1) = 0), so repeated letters made
      * it look like the shuffle did nothing at all.
      * NEW: seeded Fisher–Yates — every level starts genuinely random
-     * and every shuffle press is a FULL re-mix. */
+     * and every shuffle press is a FULL re-mix.
+     * v1.22 — the seat radius comes from the measured geometry (wr)
+     * so crowded wheels (۹–۱۲ حرف) spread WIDER apart instead of
+     * crushing together (user: «دایره کشیدن کلمات تنگ کوچیک میشه»). */
     const rnd = mulberry32((seed + 1) * 0x9e3779b1 ^ (shuffleKey + 1) * 0x85ebca6b);
     const perm = Array.from({ length: n }, (_, i) => i);
     for (let i = n - 1; i > 0; i--) {
       const j = Math.floor(rnd() * (i + 1));
       const t = perm[i]; perm[i] = perm[j]; perm[j] = t;
     }
+    const wr = geom.wr;
     return perm.map((idx, i) => {
       const ang = -90 + (360 / n) * i;
       const rad = (ang * Math.PI) / 180;
-      return { idx, x: 50 + 37 * Math.cos(rad), y: 50 + 37 * Math.sin(rad) };
+      return { idx, x: 50 + wr * Math.cos(rad), y: 50 + wr * Math.sin(rad) };
     });
-  }, [ls, seed, shuffleKey]);
+  }, [ls, seed, shuffleKey, geom.wr]);
 
   /* ---- FLIP SHUFFLE ---- tiles glide from old seat → new seat.
    * Pure transform/opacity (WAAPI) → fully composited, no jank. */
@@ -825,11 +914,11 @@ const Wheel = memo(forwardRef(function Wheel({
         const wob = ((idx % 2 ? 1 : -1) * (11 + (idx % 3) * 5)).toFixed(1);
         el.animate(
           [
-            { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) rotate(0deg) scale(1)` },
-            { transform: `translate(calc(-50% + ${(dx * 0.16).toFixed(1)}px), calc(-50% + ${(dy * 0.16).toFixed(1)}px)) rotate(${wob}deg) scale(1.12)`, offset: 0.55 },
+            { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) rotate(0deg) scale(1)`, easing: "cubic-bezier(.22,1.3,.36,1)" },
+            { transform: `translate(calc(-50% + ${(dx * 0.16).toFixed(1)}px), calc(-50% + ${(dy * 0.16).toFixed(1)}px)) rotate(${wob}deg) scale(1.12)`, offset: 0.55, easing: "ease-out" },
             { transform: "translate(-50%, -50%) rotate(0deg) scale(1)" },
           ],
-          { duration: 470, delay: d * 26, easing: "cubic-bezier(.22,1.3,.36,1)" },
+          { duration: 470, delay: d * 26 },
         );
         d++;
       });
@@ -967,7 +1056,13 @@ const Wheel = memo(forwardRef(function Wheel({
    * min(76vw, 330px) square; on short screens the flex column overflowed
    * and the board slid UNDER the wheel (user: «جمله‌ها از کادر خارج
    * میشه میره زیر دایره»). Now the wrap fits BOTH axes of its flex
-   * container — one ResizeObserver, zero per-frame work. */
+   * container — one ResizeObserver, zero per-frame work.
+   * v1.22 — ADAPTIVE SEAT GEOMETRY (user: «در مراحل بالاتر که کلمات
+   * زیاد میشن دایره تنگ و کوچیک میشه — بزرگ باشه و فاصله دار»): the
+   * tile size and seat radius are SOLVED per (size, letter-count) so
+   * ۹–۱۲ letter wheels get big, evenly-spaced tiles with zero overlap:
+   *   tile = min(27% cap, closed-form max tile keeping ≥12px seat gap)
+   *   wr   = seat radius % that keeps every tile inside the wood rim. */
   useLayoutEffect(() => {
     const wrap = wrapRef.current;
     const host = wrap?.parentElement;
@@ -976,15 +1071,26 @@ const Wheel = memo(forwardRef(function Wheel({
       const w = host.clientWidth;
       const h = host.clientHeight;
       if (w <= 0 || h <= 0) return;
-      const s = Math.floor(Math.min(w - 8, h - 4, 346));
+      /* v1.22 — 170px FLOOR: on very short viewports the flex column can
+       * squeeze the wheel into meaninglessness; a compact-but-playable
+       * wheel beats a vanished one (the board's packing guard absorbs
+       * the rest). */
+      const s = Math.max(170, Math.floor(Math.min(w - 8, h - 4, 356)));
+      const n = Math.max(1, ls.length);
+      const tCap = 0.27 * s;
+      const tFit = ((2 * Math.PI * (s / 2 - 5)) / n - 12) / (1 + Math.PI / n);
+      const tile = Math.max(30, Math.min(tCap, tFit));
+      const wr = Math.min(43, ((s / 2 - tile / 2 - 4) / s) * 100);
       wrap.style.width = `${s}px`;
       wrap.style.height = `${s}px`;
+      wrap.style.setProperty("--tile", `${Math.round(tile)}px`);
+      setGeom((g) => (Math.abs(g.tile - tile) < 1 && Math.abs(g.wr - wr) < 0.25 ? g : { tile, wr }));
     };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(host);
     return () => ro.disconnect();
-  }, []);
+  }, [ls.length]);
 
   /* distance hit-test — never misses between tiles, super cheap */
   const hitTile = (lx: number, ly: number): number | null => {

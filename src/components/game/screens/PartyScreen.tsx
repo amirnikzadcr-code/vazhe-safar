@@ -20,14 +20,15 @@ import { Sheet } from "@/components/game/ui/kit";
 import { AVATARS, AvatarFace } from "@/components/game/avatars";
 import { LEVELS, isRealWord, ALL_DICT_WORDS } from "@/game/data/levelsIndex";
 import { letters, faNum, canBuild, buzz } from "@/game/core/utils";
+import { dehkhodaLookup } from "@/game/core/dehkhoda";
 import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
 
 const TURN_MS = 40_000;
-type Phase = "setup" | "handoff" | "turn" | "final";
+type Phase = "setup" | "handoff" | "turn" | "recap" | "final";
 
 interface PConf { name: string; avatar: string }
-interface PState { name: string; avatar: string; score: number; streak: number; best: number }
+interface PState { name: string; avatar: string; score: number; streak: number; best: number; words: number }
 
 /* ---------------- helpers ---------------- */
 
@@ -289,17 +290,17 @@ function Setup({ onStart, onExit }: { onStart: (ps: PConf[], rounds: number) => 
   );
 }
 
-/* ================= HANDOFF ================= */
+/* ================= HANDOFF =================
+ * v1.22 — the next player starts with a BUTTON (user: «سریع نره نفر
+ * بعدی نه — یک دکمه ظاهر شه که نوبت نفر بعدیه و شخص بزنه روی دکمه
+ * بره نفر بعد»): no more 2.3s auto-start — the phone is passed around
+ * calmly and the turn begins only when «شروع!» is pressed. */
 function Handoff({ p, round, rounds, total, onGo }: {
   p: PState; round: number; rounds: number; total: { name: string; avatar: string; score: number }[]; onGo: () => void;
 }) {
-  useEffect(() => {
-    const t = setTimeout(onGo, 2300);
-    return () => clearTimeout(t);
-  }, [onGo, p.name, round]);
   const rank = [...total].sort((a, b) => b.score - a.score);
   return (
-    <div className="vz-page ps-handoff" onClick={onGo} role="button" aria-label="ادامه">
+    <div className="vz-page ps-handoff">
       <Garland />
       <div className="ps-hand-card rise-in">
         <div className="ps-hand-round">دور {faNum(round)} از {faNum(rounds)}</div>
@@ -313,6 +314,9 @@ function Handoff({ p, round, rounds, total, onGo }: {
             </span>
           ))}
         </div>
+        <button type="button" className="ps-hand-go" onClick={() => { Audio.sfxClick(); onGo(); }}>
+          شروع!
+        </button>
       </div>
     </div>
   );
@@ -328,7 +332,7 @@ function TurnGame({
   usedWords: React.MutableRefObject<Set<string>>;
   usedWheelKeys: React.MutableRefObject<Set<string>>;
   onWord: (pts: number, word: string) => void;
-  onTurnEnd: (scored: boolean) => void;
+  onTurnEnd: (scored: boolean, words: { w: string; pts: number }[]) => void;
   onExit: () => void;
 }) {
   const wheel = useMemo(() => pickWheel(usedWheelKeys.current), []);
@@ -348,57 +352,160 @@ function TurnGame({
     return set.size;
   }, [wheel]);
   const [sel, setSel] = useState<number[]>([]);
+  const selRef = useRef<number[]>([]);
+  const setSelBoth = useCallback((v: number[]) => { selRef.current = v; setSel(v); }, []);
   const [turnWords, setTurnWords] = useState<{ w: string; pts: number }[]>([]);
+  const turnWordsRef = useRef(turnWords);
+  useEffect(() => { turnWordsRef.current = turnWords; }, [turnWords]);
   const [msg, setMsg] = useState("");
+  const [checking, setChecking] = useState(false); /* Dehkhoda async check */
   const [shake, setShake] = useState(0);
   const [pops, setPops] = useState<{ id: number; pts: number }[]>([]);
   const popId = useRef(0);
   const endedRef = useRef(false);
+  const checkingRef = useRef(false);
   const t0Ref = useRef(Date.now());
   /* عمو دانا's coaching line for THIS turn */
   const coachLine = useMemo(() => pick(COACH_TIPS.slice(1)), []);
   const cheer = useMemo(() => pick(TURN_CHEERS).replace("{n}", p.name), [p.name]);
 
+  /* v1.22 — DRAGGABLE PARTY RING (user: «اونجا هم کلمات رو کشیدنی
+   * بکن»): the same buttery pointer-stroke the main wheel uses —
+   * pointerdown starts the stroke, moving over tiles collects them
+   * in order (distance hit-test on cached centers, zero layout reads
+   * per move), and releasing with ≥2 letters auto-submits. A quick
+   * TAP still toggles one letter (old behavior) for precise edits. */
+  const ringRef = useRef<HTMLDivElement | null>(null);
+  const rectRef = useRef<DOMRect | null>(null);
+  const centersRef = useRef<{ i: number; x: number; y: number }[]>([]);
+  const dragRef = useRef(false);
+  const strokeRef = useRef({ x: 0, y: 0, t: 0, moved: false, before: [] as number[], tile: null as number | null });
+
+  const measure = () => {
+    const ring = ringRef.current!;
+    const r = ring.getBoundingClientRect();
+    rectRef.current = r;
+    const R = Math.max(30, r.width * 0.16);
+    const els = ring.querySelectorAll<HTMLElement>(".pw-tile");
+    centersRef.current = Array.from(els).map((el) => {
+      const b = el.getBoundingClientRect();
+      return { i: Number(el.dataset.i), x: b.left + b.width / 2 - r.left, y: b.top + b.height / 2 - r.top };
+    });
+    return R;
+  };
+  const hitTile = (lx: number, ly: number, R: number): number | null => {
+    let best: number | null = null;
+    let bd = R * R;
+    for (const c of centersRef.current) {
+      const dx = c.x - lx, dy = c.y - ly;
+      const d = dx * dx + dy * dy;
+      if (d <= bd) { bd = d; best = c.i; }
+    }
+    return best;
+  };
+  const addToSel = (i: number) => {
+    if (selRef.current.includes(i)) return;
+    Audio.sfxLetter(selRef.current.length % 3);
+    setSelBoth([...selRef.current, i]);
+  };
+
   const word = sel.map((i) => wheel.ls[i]).join("");
-  const submit = () => {
-    /* v1.18 — دو حرفی هم قبول است (user request) */
-    if (endedRef.current || sel.length < 2) {
-      if (sel.length < 2) { setMsg("حداقل ۲ حرف!"); setShake((s) => s + 1); Audio.sfxWrong(); }
-      return;
-    }
-    if (usedWords.current.has(word)) {
-      setMsg("این واژه قبلاً گفته شد!"); setShake((s) => s + 1); Audio.sfxWrong(); return;
-    }
-    if (!isRealWord(word) && !levelWords.has(word)) {
-      setMsg("واژه معتبر نیست!"); setShake((s) => s + 1); Audio.sfxWrong(); return;
-    }
+
+  const accept = (wordStr: string, selArr: number[], note?: string) => {
     const speed = Math.ceil(Math.max(0, TURN_MS - (Date.now() - t0Ref.current)) / 1000);
-    const pts = scoreWord(sel.length, speed, p.streak, golden);
-    usedWords.current.add(word);
-    Audio.sfxWordFound(turnWords.length + 1);
+    const pts = scoreWord(selArr.length, speed, p.streak, golden);
+    usedWords.current.add(wordStr);
+    Audio.sfxWordFound(turnWordsRef.current.length + 1);
     buzz([16, 26, 16], Save.data.settings.haptics);
-    setTurnWords((ws) => [{ w: word, pts }, ...ws]);
-    setSel([]);
-    setMsg("");
+    setTurnWords((ws) => [{ w: wordStr, pts }, ...ws]);
+    setSelBoth([]);
+    setMsg(note ?? "");
     popId.current += 1;
     const id = popId.current;
     setPops((ps) => [...ps, { id, pts }]);
     setTimeout(() => setPops((ps) => ps.filter((x) => x.id !== id)), 1100);
-    onWord(pts, word);
+    onWord(pts, wordStr);
+  };
+
+  /* v1.22 — every built word is VALIDATED (user: «لغت نامه دهخدا وارد
+   * بکن اونجا تا هر جمله ایی ساختن تأیید بشه»): the local dictionary
+   * answers instantly; a miss goes to the REAL Dehkhoda online with a
+   * graceful offline fallback (never blocks the game on the network). */
+  const submitWith = async (selArr: number[]) => {
+    if (endedRef.current || checkingRef.current) return;
+    if (selArr.length < 2) {
+      setMsg("حداقل ۲ حرف!"); setShake((s) => s + 1); Audio.sfxWrong();
+      return;
+    }
+    const wordStr = selArr.map((i) => wheel.ls[i]).join("");
+    if (usedWords.current.has(wordStr)) {
+      setMsg("این واژه قبلاً گفته شد!"); setShake((s) => s + 1); Audio.sfxWrong();
+      return;
+    }
+    if (isRealWord(wordStr) || levelWords.has(wordStr)) {
+      accept(wordStr, selArr);
+      return;
+    }
+    checkingRef.current = true;
+    setChecking(true);
+    const r = await dehkhodaLookup(wordStr);
+    checkingRef.current = false;
+    if (endedRef.current) { setChecking(false); return; }
+    setChecking(false);
+    if (r === "yes") {
+      accept(wordStr, selArr, "دهخدا تأیید کرد!");
+    } else if (r === "no") {
+      setMsg("دهخدا این واژه را ثبت نکرده!"); setShake((s) => s + 1); Audio.sfxWrong();
+    } else {
+      setMsg("واژه معتبر نیست!"); setShake((s) => s + 1); Audio.sfxWrong();
+    }
   };
 
   const endNow = (scored: boolean) => {
     if (endedRef.current) return;
     endedRef.current = true;
-    onTurnEnd(scored);
+    onTurnEnd(scored, turnWordsRef.current);
   };
 
-  const timerEnd = useCallback(() => endNow(turnWords.length > 0), [turnWords.length]);
+  /* TurnTimer stores onEnd in a ref refreshed every render, so a plain
+   * fresh closure each render is the safest (no stale first-render
+   * capture of endNow/onTurnEnd). */
+  const timerEnd = () => endNow(turnWordsRef.current.length > 0);
 
-  const tap = (i: number) => {
-    if (endedRef.current) return;
-    Audio.sfxLetter(i % 3);
-    setSel((s) => (s.includes(i) ? s.filter((x) => x !== i) : [...s, i]));
+  const ringDown = (e: React.PointerEvent) => {
+    if (endedRef.current || checkingRef.current) return;
+    const R = measure();
+    const r = rectRef.current!;
+    const lx = e.clientX - r.left, ly = e.clientY - r.top;
+    const i = hitTile(lx, ly, R);
+    strokeRef.current = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false, before: [...selRef.current], tile: i };
+    dragRef.current = true;
+    try { ringRef.current?.setPointerCapture(e.pointerId); } catch { /* noop */ }
+    if (i !== null) addToSel(i);
+  };
+  const ringMove = (e: React.PointerEvent) => {
+    if (!dragRef.current || endedRef.current) return;
+    const r = rectRef.current;
+    if (!r) return;
+    const st = strokeRef.current;
+    if (Math.hypot(e.clientX - st.x, e.clientY - st.y) > 6) st.moved = true;
+    const i = hitTile(e.clientX - r.left, e.clientY - r.top, Math.max(30, r.width * 0.16));
+    if (i !== null) addToSel(i);
+  };
+  const ringUp = () => {
+    if (!dragRef.current) return;
+    dragRef.current = false;
+    const st = strokeRef.current;
+    if (!st.moved && Date.now() - st.t < 400) {
+      /* quick tap = toggle (old behavior): a tile that was ALREADY
+       * selected is removed; a fresh tile stays for the next taps */
+      if (st.tile !== null && st.before.includes(st.tile)) {
+        setSelBoth(selRef.current.filter((x) => x !== st.tile));
+        Audio.sfxClick();
+      }
+      return; /* a single tap never auto-submits */
+    }
+    if (selRef.current.length >= 2) void submitWith([...selRef.current]);
   };
 
   return (
@@ -425,24 +532,33 @@ function TurnGame({
           <div className="pt-timer-holder">
             <TurnTimer ms={TURN_MS} onEnd={timerEnd} />
           </div>
-          <div className={`ps-ring ${golden ? "golden" : ""}`}>
+          <div
+            ref={ringRef}
+            className={`ps-ring ${golden ? "golden" : ""}`}
+            onPointerDown={ringDown}
+            onPointerMove={ringMove}
+            onPointerUp={ringUp}
+            onPointerCancel={ringUp}
+            style={{ touchAction: "none" }}
+            role="group"
+            aria-label="چرخ حروف دورهمی"
+          >
             {wheel.ls.map((ch, i) => {
               const ang = -90 + (360 / wheel.ls.length) * i;
               const rad = (ang * Math.PI) / 180;
               return (
-                <button
+                <span
                   key={i}
-                  type="button"
+                  data-i={i}
                   className={`pw-tile ${sel.includes(i) ? "sel" : ""}`}
                   style={{
                     left: `${50 + 38 * Math.cos(rad)}%`,
                     top: `${50 + 38 * Math.sin(rad)}%`,
                   }}
-                  onClick={() => tap(i)}
                   aria-label={`حرف ${ch}`}
                 >
                   {ch}
-                </button>
+                </span>
               );
             })}
             <div className="ps-hub">
@@ -451,9 +567,10 @@ function TurnGame({
           </div>
         </div>
 
-        {/* message + pops */}
+        {/* message + pops + Dehkhoda async check */}
         <div className="ps-msgrow">
           {msg && <span key={shake} className="ps-msg shake-x">{msg}</span>}
+          {checking && <span className="ps-dk"><span className="spin" />بررسی در لغت‌نامهٔ دهخدا…</span>}
           {pops.map((x) => (
             <span key={x.id} className={`ps-pop ${golden ? "golden" : ""}`}>+{faNum(x.pts)}</span>
           ))}
@@ -461,13 +578,13 @@ function TurnGame({
 
         {/* actions */}
         <div className="ps-actions">
-          <button type="button" className="ps-act back" onClick={() => { Audio.sfxClick(); setSel((s) => s.slice(0, -1)); }} aria-label="پاک کردن">
+          <button type="button" className="ps-act back" onClick={() => { Audio.sfxClick(); setSelBoth(selRef.current.slice(0, -1)); }} aria-label="پاک کردن">
             پاک
           </button>
-          <button type="button" className="ps-act submit" disabled={sel.length < 2} onClick={submit} aria-label="ثبت واژه">
+          <button type="button" className="ps-act submit" disabled={sel.length < 2 || checking} onClick={() => void submitWith([...selRef.current])} aria-label="ثبت واژه">
             ثبت واژه
           </button>
-          <button type="button" className="ps-act finish" onClick={() => { Audio.sfxClick(); endNow(turnWords.length > 0); }}>
+          <button type="button" className="ps-act finish" onClick={() => { Audio.sfxClick(); endNow(turnWordsRef.current.length > 0); }}>
             پایان نوبت
           </button>
         </div>
@@ -485,6 +602,59 @@ function TurnGame({
             ))
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= TURN-END RECAP (v1.22) =================
+ * user: «وقتی هرشخص نوبتش تموم میشه سریع نره نفره بعدی — یک دکمه
+ * ظاهر شه که نوبت نفر بعدیه و شخص بزنه روی دکمه بره نفر بعد».
+ * The turn ends into THIS calm card: the player's words + points,
+ * the live standings, and ONE big button that hands the phone over. */
+function Recap({
+  r, players, onNext,
+}: {
+  r: { pIdx: number; words: { w: string; pts: number }[]; gained: number; last: boolean };
+  players: PState[];
+  onNext: () => void;
+}) {
+  const p = players[r.pIdx];
+  const rank = useMemo(() => [...players].sort((a, b) => b.score - a.score).slice(0, 3), [players]);
+  return (
+    <div className="vz-page ps-handoff">
+      <Garland />
+      <div className="ps-recap">
+        <span className="ps-recap-round">پایان نوبت</span>
+        <AvatarFace id={p.avatar} size={72} />
+        <div className="ps-recap-name"><bdi>{p.name}</bdi></div>
+        <span className="ps-recap-pts">‎+{faNum(r.gained)} امتیاز</span>
+        {r.words.length > 0 ? (
+          <div className="ps-recap-words">
+            {r.words.map((x) => (
+              <span key={x.w} className="ps-recap-w">{x.w} <i>+{faNum(x.pts)}</i></span>
+            ))}
+          </div>
+        ) : (
+          <div className="ps-recap-none">این نوبت واژه‌ای ساخته نشد — دور بعد بهتر!</div>
+        )}
+        <div className="ps-recap-stand">
+          <div className="ps-recap-stand-t">جدول امتیازها</div>
+          {rank.map((x, i) => (
+            <div key={x.name} className="ps-recap-row">
+              <i>{faNum(i + 1)}</i>
+              <b><bdi>{x.name}</bdi></b>
+              <span className="pts">{faNum(x.score)}</span>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          className={`ps-recap-go ${r.last ? "final" : ""}`}
+          onClick={() => { Audio.sfxClick(); onNext(); }}
+        >
+          {r.last ? "دیدن برنده‌ها" : "نوبتِ نفر بعدی ←"}
+        </button>
       </div>
     </div>
   );
@@ -532,9 +702,10 @@ function Final({ ps, onRematch, onNewPlayers, onHome }: {
           <path d="M3 26 L6 8 L15 17 L23 3 L31 17 L40 8 L43 26 Z" fill="#ffd94e" stroke="#c87f06" strokeWidth="2" strokeLinejoin="round" />
           <circle cx="23" cy="20" r="2.6" fill="#e25c5c" /><circle cx="12" cy="21" r="2" fill="#3d9df0" /><circle cx="34" cy="21" r="2" fill="#3fae5c" />
         </svg>
-        <AvatarFace id={champ.avatar} size={78} />
+        {/* v1.22 — champion halo ring (graphical winners' page) */}
+        <span className="ps-champ-ava"><AvatarFace id={champ.avatar} size={78} /></span>
         <div className="ps-champ-name"><bdi>{champ.name}</bdi></div>
-        <div className="ps-champ-score">{faNum(champ.score)} امتیاز</div>
+        <div className="ps-champ-score">{faNum(champ.score)} امتیاز · {faNum(champ.words)} واژه</div>
         <div className="ps-final-line">{line}</div>
         {speedKing && speedKing.best >= 40 && speedKing.name !== champ.name && (
           <div className="ps-final-sub">سریع‌ترین واژه‌ها از <bdi>{speedKing.name}</bdi> بود!</div>
@@ -544,11 +715,12 @@ function Final({ ps, onRematch, onNewPlayers, onHome }: {
       <div className="ps-podium">
         {seats.map(({ p, place }) => (
           <div key={p.name + place} className="ps-pod-col">
-            <AvatarFace id={p.avatar} size={place === 1 ? 54 : 44} />
+            <AvatarFace id={p.avatar} size={place === 1 ? 56 : 44} />
             <b className="ps-pod-name"><bdi>{p.name}</bdi></b>
+            <span className={`ps-medal g${place}`}>{faNum(place)}</span>
             <div className="ps-pod-block" style={{ height: h(place), background: `linear-gradient(180deg, ${medal(place)}, ${medal(place)}cc)` }}>
-              <span className="ps-pod-rank">{faNum(place)}</span>
-              <span className="ps-pod-score">{faNum(p.score)}</span>
+              <span className="ps-pod-rank">{faNum(p.score)}</span>
+              <span className="ps-pod-score">{faNum(p.words)} واژه</span>
             </div>
           </div>
         ))}
@@ -584,6 +756,9 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
   const [rounds, setRounds] = useState(3);
   const [round, setRound] = useState(1);
   const [turnIdx, setTurnIdx] = useState(0);
+  /* v1.22 — the turn-end recap payload (who played, what they made,
+   * how many points, whether the whole game is over) */
+  const [recap, setRecap] = useState<{ pIdx: number; words: { w: string; pts: number }[]; gained: number; last: boolean } | null>(null);
   const usedWords = useRef<Set<string>>(new Set());
   const usedWheelKeys = useRef<Set<string>>(new Set());
 
@@ -591,30 +766,38 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
   const golden = n > 0 && turnIdx % n === n - 1; /* last turn of every round */
 
   const startAll = (conf: PConf[], r: number) => {
-    setPlayers(conf.map((c) => ({ ...c, score: 0, streak: 0, best: 0 })));
+    setPlayers(conf.map((c) => ({ ...c, score: 0, streak: 0, best: 0, words: 0 })));
     setRounds(r);
     setRound(1);
     setTurnIdx(0);
+    setRecap(null);
     usedWords.current = new Set();
     usedWheelKeys.current = new Set();
     setPhase("handoff");
   };
 
   const onWord = (pts: number) => {
-    setPlayers((ps) => ps.map((p, i) => (i === turnIdx ? { ...p, score: p.score + pts, best: Math.max(p.best, pts) } : p)));
+    const me = n > 0 ? turnIdx % n : 0;
+    setPlayers((ps) => ps.map((p, i) => (i === me ? { ...p, score: p.score + pts, best: Math.max(p.best, pts), words: p.words + 1 } : p)));
   };
 
-  const onTurnEnd = (scored: boolean) => {
-    setPlayers((ps) => ps.map((p, i) => (i === turnIdx ? { ...p, streak: scored ? p.streak + 1 : 0 } : p)));
-    const isLastOfRound = (turnIdx + 1) % n === 0;
-    if (isLastOfRound && round >= rounds) {
-      Audio.sfxPartyEnd();
-      setPhase("final");
-    } else {
+  /* v1.22 — a turn NEVER advances on its own anymore: it ends into a
+   * RECAP card (words + points + standings) with a big «نوبتِ نفر
+   * بعدی» button. turnIdx is a GLOBAL turn counter — the player index
+   * is turnIdx % n (the raw index overruns the players array and
+   * crashed the recap on the 3rd turn of a 2-player game). */
+  const onTurnEnd = (scored: boolean, words: { w: string; pts: number }[]) => {
+    const me = n > 0 ? turnIdx % n : 0;
+    setPlayers((ps) => ps.map((p, i) => (i === me ? { ...p, streak: scored ? p.streak + 1 : 0 } : p)));
+    const gained = words.reduce((s, x) => s + x.pts, 0);
+    const isLastOfRound = n > 0 && (turnIdx + 1) % n === 0;
+    const last = isLastOfRound && round >= rounds;
+    if (!last) {
       setTurnIdx((t) => t + 1);
       if (isLastOfRound) setRound((r) => r + 1);
-      setPhase("handoff");
     }
+    setRecap({ pIdx: me, words, gained, last });
+    setPhase("recap");
   };
 
   if (phase === "setup") return <Setup onStart={startAll} onExit={onExit} />;
@@ -623,14 +806,30 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
       <Final
         ps={players}
         onRematch={() => {
-          setPlayers((ps) => ps.map((p) => ({ ...p, score: 0, streak: 0, best: 0 })));
-          setRound(1); setTurnIdx(0);
+          setPlayers((ps) => ps.map((p) => ({ ...p, score: 0, streak: 0, best: 0, words: 0 })));
+          setRound(1); setTurnIdx(0); setRecap(null);
           usedWords.current = new Set(); usedWheelKeys.current = new Set();
           setPhase("handoff");
         }}
         onNewPlayers={() => setPhase("setup")}
         onHome={onExit}
       />
+    );
+  }
+  /* v1.22 — the calm turn-end card; the button decides what's next */
+  if (phase === "recap" && recap) {
+    return (
+      <Sheet bg="/assets/bg/sunset2b.webp" bgDim={0.22}>
+        <Recap
+          r={recap}
+          players={players}
+          onNext={() => {
+            if (recap.last) { Audio.sfxPartyEnd(); setPhase("final"); }
+            else setPhase("handoff");
+            setRecap(null);
+          }}
+        />
+      </Sheet>
     );
   }
   const cur = players[turnIdx % Math.max(1, n)];

@@ -79,7 +79,9 @@ function chProgress(ch: number): { n: number; done: number; stars: number } {
 }
 
 /* decode-gated realm art — paints instantly from cache, otherwise
- * fades in over the chapter gradient as soon as it decodes */
+ * fades in over the chapter gradient as soon as it decodes.
+ * v1.22: EAGER loading (loading="lazy" inside a freshly-mounted page
+ * deferred the decode and added to the flip lag the user reported). */
 function RealmImg({ src }: { src: string }) {
   const [ready, setReady] = useState(() => isDecoded(src));
   return (
@@ -88,7 +90,6 @@ function RealmImg({ src }: { src: string }) {
       src={src}
       alt=""
       draggable={false}
-      loading="lazy"
       decoding="async"
       onLoad={(e) => {
         const el = e.currentTarget;
@@ -99,6 +100,9 @@ function RealmImg({ src }: { src: string }) {
     />
   );
 }
+
+/* the realm art file for a chapter (shared by preload helpers) */
+const realmSrc = (c: number) => `/assets/map/m${String(c).padStart(2, "0")}.webp`;
 
 /* chunky side arrow — forward points LEFT (RTL), back points RIGHT */
 function ChIcon({ dir }: { dir: "next" | "prev" }) {
@@ -113,13 +117,14 @@ function ChIcon({ dir }: { dir: "next" | "prev" }) {
 }
 
 function SideArrow({
-  dir, locked, hidden, onClick, label,
+  dir, locked, hidden, onClick, label, onWarm,
 }: {
   dir: "next" | "prev";
   locked: boolean;
   hidden: boolean;
   onClick: () => void;
   label: string;
+  onWarm?: () => void;
 }) {
   if (hidden) return null;
   return (
@@ -127,6 +132,7 @@ function SideArrow({
       type="button"
       className={`ch-arrow ${dir} ${locked ? "locked" : ""}`}
       aria-label={label}
+      onPointerDown={onWarm}
       onClick={(e) => {
         if (locked) {
           /* shake feedback without a re-render (tap-frame only) */
@@ -199,15 +205,25 @@ export function MapScreen({
       if (typeof requestIdleCallback === "function") requestIdleCallback(fn, { timeout: 1200 });
       else setTimeout(fn, 300);
     };
-    const realm = (c: number) => `/assets/map/m${String(c).padStart(2, "0")}.webp`;
-    idle(() => { void preloadImage(realm(ch)); });
+    idle(() => { void preloadImage(realmSrc(ch)); });
     if (ch < CHAPTERS.length) {
-      idle(() => { void preloadImage(realm(ch + 1)); });
+      idle(() => { void preloadImage(realmSrc(ch + 1)); });
       idle(() => { void preloadImage(`/assets/bg/ch${String(ch + 1).padStart(2, "0")}.webp`); });
       idle(() => { Audio.preloadTrack(`ch${String(ch + 1).padStart(2, "0")}`); });
     }
-    if (ch > 1) idle(() => { void preloadImage(realm(ch - 1)); });
+    if (ch > 1) idle(() => { void preloadImage(realmSrc(ch - 1)); });
   }, [ch]);
+
+  /* v1.22 — FLIP SMOOTHNESS (user: «جا ب جایی بین صفحات فصل‌ها یکم
+   * لگ داره نرمش کن»): the target realm starts decoding the INSTANT
+   * the finger touches the arrow/chip (pointerdown) — by the time the
+   * click fires the art is usually already decoded, and the soft
+   * curtain covers whatever decode work remains. */
+  const warmChapter = (c: number) => {
+    if (c < 1 || c > CHAPTERS.length) return;
+    void preloadImage(realmSrc(c));
+    void preloadImage(`/assets/bg/ch${String(c).padStart(2, "0")}.webp`);
+  };
 
   /* navigation */
   const goNext = () => {
@@ -262,7 +278,7 @@ export function MapScreen({
           onPointerDown={onPointerDown}
           onPointerUp={onPointerUp}
         >
-          <RealmImg src={`/assets/map/m${String(ch).padStart(2, "0")}.webp`} />
+          <RealmImg src={realmSrc(ch)} />
           <div className="realm-shade" />
 
           {/* chapter plate + progress ribbon */}
@@ -344,6 +360,7 @@ export function MapScreen({
             hidden={ch >= CHAPTERS.length}
             locked={!Save.chapterUnlocked(ch + 1)}
             label="فصل بعد"
+            onWarm={() => warmChapter(ch + 1)}
             onClick={goNext}
           />
           <SideArrow
@@ -351,8 +368,16 @@ export function MapScreen({
             hidden={ch <= 1}
             locked={!Save.chapterUnlocked(ch - 1)}
             label="فصل قبل"
+            onWarm={() => warmChapter(ch - 1)}
             onClick={goPrev}
           />
+        </div>
+
+        {/* v1.22 — the soft filling curtain: mounts per chapter (key),
+            fills the frame while the heavy page mounts underneath, then
+            drains away. Sits ABOVE the scene (z-45), pointer-events off. */}
+        <div key={`curtain-${ch}`} className="ch-curtain" aria-hidden>
+          <span className="curtain-pill">فصل {faNum(ch)} · {theme.title}</span>
         </div>
 
         {/* chapter CHIP RAIL (v1.21 — user: «قابلیتی که راحت‌تر بین فصل‌ها
@@ -372,6 +397,7 @@ export function MapScreen({
                 className={`ch-chip ${active ? "on" : ""} ${doneAll ? "gold" : ""} ${!open ? "locked" : ""}`}
                 style={active ? { ["--acc" as string]: theme.accent } : undefined}
                 aria-label={`فصل ${faNum(c.id)}${open ? "" : " — قفل"}`}
+                onPointerDown={() => warmChapter(c.id)}
                 onClick={() => { if (!active) { Audio.sfxClick(); onNav(c.id); } }}
               >
                 {!open ? <LockChunky size={11} /> : faNum(c.id)}

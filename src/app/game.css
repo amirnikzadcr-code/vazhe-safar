@@ -34,6 +34,16 @@ html, body { overscroll-behavior: none; height: 100%; }
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
+/* ==================================================================
+   v1.22 — GLOBAL SOFT PRESS (user: «تمام دکمه‌ها رو نرم‌تر بکن و
+   روان‌تر»): every button springs down instantly on touch and eases
+   back smoothly on release. Buttons that own transforms (wheel tiles,
+   arrows) keep their own transform but inherit the silky timing.
+   ================================================================== */
+button {
+  transition: transform .18s cubic-bezier(.22,1,.36,1), box-shadow .18s ease, filter .18s ease, opacity .18s ease;
+}
+button:active { transition-duration: .05s; }
 .vz-phone {
   position: relative;
   width: 100%;
@@ -457,10 +467,27 @@ html, body { overscroll-behavior: none; height: 100%; }
 .wboard {
   width: 100%; max-height: 100%; overflow: visible;
   display: flex; flex-direction: column; align-items: center;
-  gap: calc(var(--wt, 30px) * 0.24);
+  gap: calc(var(--wt, 30px) * 0.26);
   --wt: 30px;
 }
-.wrow { position: relative; display: flex; gap: calc(var(--wt) * 0.14); }
+/* v1.22 — ADAPTIVE ROW PACKING (user: «کادرهاشون تقسیم کن ب سمت چپ
+ * و راست… بزرگشون کن استاندارد بشن»): crowded boards pack rows — a
+ * long word takes a full-width hero row, shorter words pair up
+ * RIGHT+LEFT in one row. Each row owns --wt (its own tile size) so
+ * letter gaps always match; the vertical rhythm stays even.
+ * The math in WordBoard guarantees rows never overlap. */
+.wboard {
+  width: 100%; max-height: 100%; overflow: visible;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center;
+  gap: calc(var(--wt, 30px) * 0.26);
+  --wt: 30px;
+}
+.wrow {
+  position: relative; display: flex; align-items: center;
+  justify-content: center; gap: 10px;
+}
+.wgroup { position: relative; display: flex; gap: 4px; }
 .wtile {
   width: var(--wt); height: var(--wt);
   border-radius: calc(var(--wt) * 0.3);
@@ -477,7 +504,7 @@ html, body { overscroll-behavior: none; height: 100%; }
   box-shadow: 0 2.5px 0 var(--tile-shadow,#d9b87a);
   animation: revealIn .34s cubic-bezier(.2,1.6,.4,1) both;
 }
-.wrow.done .wtile {
+.wgroup.done .wtile {
   background: linear-gradient(180deg,var(--tile-hi,#fffdf4),var(--done-b,#ffe9ae));
   border: 2px solid #fff; outline: 1.5px solid var(--done-edge,#e8bd62);
   box-shadow: 0 2.5px 0 var(--done-shadow,#d9a94e);
@@ -487,22 +514,26 @@ html, body { overscroll-behavior: none; height: 100%; }
 @keyframes pop { 0% { transform: scale(.3) rotate(-6deg); } 62% { transform: scale(1.24) rotate(2deg); } 100% { transform: scale(1) rotate(0); } }
 
 /* ==================================================================
-   v1.21 — LETTER-BY-LETTER BOARD ENTRY (user: «بعدش خیلی خوشگل دونه
-   دونه با افکت وارد کادر بشه»): the just-found row's tiles hold
-   invisible until their inline delay (LETTER_T0 + i*LETTER_STEP),
-   then fly in from the banner above with a springy arc. The shine
-   sweep + sparkles fire after the LAST letter (--ld, set inline).
+   v1.22 — LETTER-BY-LETTER BOARD ENTRY, ARTIFACT-FIXED (user:
+   «انیمیشن وارد شدن پله ایی ی مشکلی داره — کادرها غیب میشن بعد
+   کلمات وارد میشن»): the tile BOX always stays fully visible — for a
+   just-found row the boxes render instantly as found parchment slots
+   and ONLY the inner letter glyph (<b.wl>) plays the springy fly-in
+   on its staggered delay. Boxes never blink out again.
    ================================================================== */
-.wrow.new .wtile {
+.wtile .wl { display: block; line-height: 1; }
+.wrow.new .wtile { animation: none; }               /* steady boxes… */
+.wrow.new .wtile .wl {                              /* …letters fly */
+  opacity: 0;
   animation: letterFly .52s cubic-bezier(.2,1.5,.4,1) both;
 }
 @keyframes letterFly {
-  0%   { opacity: 0; transform: translateY(-36px) scale(.45) rotate(-9deg); }
-  58%  { opacity: 1; transform: translateY(5px) scale(1.24) rotate(3deg); }
+  0%   { opacity: 0; transform: translateY(-34px) scale(.45) rotate(-9deg); }
+  58%  { opacity: 1; transform: translateY(5px) scale(1.22) rotate(3deg); }
   82%  { transform: translateY(-2px) scale(.98) rotate(-1deg); }
   100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
 }
-.wrow.new::after { animation-delay: var(--ld, 1.9s); }
+.wrow.new::after { animation-delay: var(--ld, 2.4s); }
 
 /* ==================================================================
    v1.18 — per-CHAPTER word-board skins (user: «یکم به تابلو کلمات
@@ -530,8 +561,9 @@ html, body { overscroll-behavior: none; height: 100%; }
 .board-box[data-skin="19"]{--panel-a:#eef7fd;--panel-b:#daf0f8;--panel-outline:#a9d2e5;--panel-shadow:#7fb0c7;--tile-a:#e1f0f8;--tile-b:#d0e7f2;--tile-hi:#fcfeff;--tile-c:#e9f5fb;--tile-edge:#93c3da;--tile-shadow:#6b9fb8;--done-b:#eefaff;--done-edge:#84bce0;--done-shadow:#5f94b8;--tile-ink:#235a7a}
 .board-box[data-skin="20"]{--panel-a:#f4effa;--panel-b:#e6dcf2;--panel-outline:#c2a8d8;--panel-shadow:#997fb2;--tile-a:#ebe2f5;--tile-b:#ddd0ea;--tile-hi:#fefcff;--tile-c:#f2eaf8;--tile-edge:#ab8dc6;--tile-shadow:#886ba3;--done-b:#fff3c4;--done-edge:#e3bd55;--done-shadow:#bd9838;--tile-ink:#553371}
 /* PERF: shine sweep = a translated gradient strip (transform only).
-   The old background-position sweep repainted the whole row each frame. */
-.wrow.done::after {
+   The old background-position sweep repainted the whole row each frame.
+   v1.22: the sweep belongs to each found WORD group. */
+.wgroup.done::after {
   content: ""; position: absolute; top: -4px; bottom: -4px; left: -30%; width: 34%;
   border-radius: 14px;
   background: linear-gradient(100deg, transparent 12%, rgba(255,244,180,.85) 50%, transparent 88%);
@@ -539,6 +571,7 @@ html, body { overscroll-behavior: none; height: 100%; }
   will-change: transform, opacity;
 }
 @keyframes rowSweep { from { transform: translateX(0); opacity: 0; } 18% { opacity: 1; } to { transform: translateX(430%); opacity: 0; } }
+.wgroup.new::after { animation-delay: var(--ld, 2.4s); }
 .wsparkles { position: absolute; inset: -8px -12px; pointer-events: none; overflow: visible; }
 .wsparkles i {
   position: absolute; left: 50%; top: 40%; width: 7px; height: 7px; border-radius: 2px;
@@ -559,7 +592,7 @@ html, body { overscroll-behavior: none; height: 100%; }
 /* ==================================================================
    WHEEL — carved wooden disc + cream letter tiles + golden star hub
    ================================================================== */
-.wheel-wrap { position: relative; aspect-ratio: 1; width: min(76vw, 344px); margin: 0 auto; contain: layout style; }
+.wheel-wrap { position: relative; aspect-ratio: 1; width: min(78vw, 352px); margin: 0 auto; contain: layout style; }
 .wheel-wood {
   position: absolute; inset: 0; border-radius: 999px;
   background:
@@ -594,14 +627,17 @@ html, body { overscroll-behavior: none; height: 100%; }
   color: #b47708;
 }
 .tile {
-  position: absolute; width: 27%; aspect-ratio: 1;
+  position: absolute; width: var(--tile, 27%); aspect-ratio: 1;
   transform: translate(-50%,-50%);
   border-radius: 999px;
   background: radial-gradient(circle at 38% 30%, #fffdf4, #fdf3d2 52%, #f0dca8 100%);
   border: 3px solid #fff; outline: 2.5px solid #d9b87a;
   box-shadow: 0 4px 0 #c9a35e, 0 8px 10px rgba(95,58,20,.4);
   display: flex; align-items: center; justify-content: center;
-  font-weight: 800; color: #5d3a12; font-size: clamp(20px, 6.6vw, 29px);
+  font-weight: 800; color: #5d3a12;
+  /* v1.22 — the glyph scales WITH the solved tile size (adaptive
+     geometry sets --tile in px per level) */
+  font-size: calc(var(--tile, 93px) * 0.32);
   z-index: 2; touch-action: none;
 }
 .tile.sel {
@@ -869,6 +905,66 @@ html, body { overscroll-behavior: none; height: 100%; }
 .ch-scene.in-back { animation: chInBack .3s cubic-bezier(.22,.9,.36,1) both; }
 @keyframes chInFwd  { from { opacity: 0; transform: translateX(-9%); } to { opacity: 1; transform: translateX(0); } }
 @keyframes chInBack { from { opacity: 0; transform: translateX(9%);  } to { opacity: 1; transform: translateX(0); } }
+
+/* ==================================================================
+   v1.22 — CHAPTER FLIP CURTAIN (user: «جا ب جایی بین صفحات فصل‌ها
+   یکم لگ داره؛ انیمیشن لود روان برای ۲ ثانیه دیده بشه که کادر نرم
+   پر میشه»): a cream-and-gold wash softly FILLS the frame (bottom →
+   up), holds a beat with the chapter pill, then drains away upward
+   revealing the freshly-mounted page — the remount cost happens
+   UNDER the covered phase so the flip reads silky. Compositor-only
+   (transform/opacity), one-shot, remounted per chapter via key.
+   ================================================================== */
+.ch-curtain {
+  position: absolute; inset: 0; z-index: 45; pointer-events: none;
+  overflow: hidden;
+}
+.ch-curtain::before {                /* the soft filling frame-wash */
+  content: ""; position: absolute; inset: -2%;
+  background:
+    radial-gradient(120% 62% at 50% 108%, rgba(255,236,178,.98) 0%, rgba(255,222,140,.96) 46%, rgba(255,205,105,.94) 100%);
+  border-radius: 26px;
+  transform: translateY(103%);
+  animation: curtainFill 1.75s cubic-bezier(.3,.7,.25,1) both;
+  will-change: transform, opacity;
+}
+.ch-curtain::after {                 /* glowing leading edge + shimmer */
+  content: ""; position: absolute; left: -4%; right: -4%; height: 90px;
+  background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,252,238,.95) 58%, rgba(255,214,110,.65));
+  filter: blur(1px);
+  transform: translateY(103vh);
+  animation: curtainEdge 1.75s cubic-bezier(.3,.7,.25,1) both;
+  will-change: transform, opacity;
+}
+@keyframes curtainFill {
+  0%   { transform: translateY(103%); opacity: 1; }
+  34%  { transform: translateY(0); }            /* ~600ms soft fill */
+  58%  { transform: translateY(0); }            /* hold — page mounts under */
+  86%  { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-104%); opacity: .92; }  /* drains away */
+}
+@keyframes curtainEdge {
+  0%   { transform: translateY(0); bottom: -90px; }
+  34%  { bottom: 100%; }
+  58%  { bottom: 100%; opacity: 0; }
+  100% { bottom: 100%; opacity: 0; }
+}
+.ch-curtain .curtain-pill {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: rgba(122,74,0,.9); color: #ffe9c4;
+  border: 2px solid #ffcf6e; border-radius: 999px;
+  font-weight: 800; font-size: 14px; padding: 7px 20px;
+  box-shadow: 0 6px 14px rgba(60,30,0,.35);
+  animation: curtainPill 1.75s ease both;
+  white-space: nowrap;
+}
+@keyframes curtainPill {
+  0%, 30% { opacity: 0; transform: translate(-50%, -38%) scale(.85); }
+  48% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -62%) scale(.94); }
+}
+.lowfx .ch-curtain { display: none; }
 
 /* chapter plate — medal + title + range + stars + progress ribbon */
 .ch-plate {
@@ -1139,6 +1235,26 @@ html, body { overscroll-behavior: none; height: 100%; }
 @keyframes popIn { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
 .star-pop { animation: starPop .55s cubic-bezier(.2,1.8,.4,1) both; }
 @keyframes starPop { 0% { opacity: 0; transform: scale(0) rotate(-90deg); } 65% { opacity: 1; transform: scale(1.3) rotate(8deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+/* ==================================================================
+   v1.22 — WIN STAR SLOTS (user: «ستاره‌ها وقتی یک یا دو ستاره‌ست
+   ناتقارنی داره و خوشگل نیست — روان‌تر، گرافیکی‌تر»): three FIXED
+   slots; stars light from the MIDDLE outward so ۱-star = centered
+   big star, ۲-star = center + one side — always symmetric. The
+   elevation sits on the slot (static) so the pop animation on the
+   inner span can never cancel it again. Lit stars get a golden glow
+   + a one-shot ping ring; unearned ones rest as dim engraved slots.
+   ================================================================== */
+.star-slot { position: relative; display: inline-flex; }
+.star-slot.mid { transform: translateY(-9px); }
+.star-slot .ping {
+  position: absolute; inset: -6px; border-radius: 999px; pointer-events: none;
+  border: 3px solid rgba(255,214,90,.9);
+  opacity: 0;
+}
+.star-slot.lit .ping { animation: starPing .7s ease-out both; }
+@keyframes starPing { 0% { transform: scale(.55); opacity: .95; } 100% { transform: scale(1.35); opacity: 0; } }
+.star-slot.lit .star-ic { filter: drop-shadow(0 3px 5px rgba(150,90,0,.5)) drop-shadow(0 0 10px rgba(255,205,80,.65)); }
+.star-slot.dim .star-ic { filter: grayscale(1) brightness(1.05) opacity(.4); }
 .confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: inherit; }
 .confetti i {
   position: absolute; top: -4%; width: 9px; height: 14px; border-radius: 2px;
@@ -2230,3 +2346,151 @@ body { background: #5cb2ef; }
   background: none; border: none; color: #b9a8d8; font-weight: 700;
   font-size: 12px; cursor: pointer; text-decoration: underline;
 }
+
+/* ==================================================================
+   v1.22 — PARTY (دورهمی) UPGRADES
+   ================================================================== */
+/* --- handoff: the next player starts with a BUTTON (user: «سریع نره
+   نفر بعدی نه — یک دکمه ظاهر شه که نوبت نفر بعدیه و شخص بزنه») --- */
+.ps-hand-go {
+  margin-top: 12px; border: none; cursor: pointer;
+  background: linear-gradient(180deg,#8fe06a,#379c24);
+  border: 3px solid #fff; outline: 3px solid #2f8f1f;
+  color: #fff; font-family: inherit; font-weight: 900; font-size: 19px;
+  padding: 11px 38px; border-radius: 999px;
+  box-shadow: 0 6px 0 #2f8f1f, 0 12px 18px rgba(20,80,10,.4);
+  text-shadow: 0 1.5px 0 rgba(20,80,10,.5);
+  animation: riseIn .4s cubic-bezier(.2,1.4,.4,1) .15s both;
+}
+.ps-hand-go:active { transform: translateY(4px); box-shadow: 0 2px 0 #2f8f1f; }
+
+/* --- turn-end RECAP (user: «وقتی نوبت تموم میشه سریع نره نفر بعدی») --- */
+.ps-recap {
+  position: relative; z-index: 5; width: min(100%, 350px);
+  background: linear-gradient(180deg,#fffdf4,#f7e9c8);
+  border: 3px solid #fff; outline: 3px solid #d9a13c; border-radius: 24px;
+  box-shadow: 0 9px 0 #b47708, 0 18px 30px rgba(30,15,0,.45);
+  padding: 14px 16px 16px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  animation: riseIn .4s cubic-bezier(.2,1.4,.4,1) both;
+}
+.ps-recap-round {
+  align-self: center;
+  background: linear-gradient(180deg,#7cc9ff,#2a83d8);
+  border: 2px solid #fff; color: #fff; font-weight: 800; font-size: 12px;
+  border-radius: 999px; padding: 3px 14px; box-shadow: 0 2.5px 0 #1b5da0;
+}
+.ps-recap-name { font-size: 19px; font-weight: 900; color: #5d3a12; }
+.ps-recap-pts {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: linear-gradient(180deg,#8fe06a,#379c24);
+  border: 2.5px solid #fff; color: #fff; font-weight: 900; font-size: 17px;
+  border-radius: 999px; padding: 5px 20px; box-shadow: 0 3.5px 0 #2f8f1f;
+  text-shadow: 0 1.5px 0 rgba(20,80,10,.45);
+}
+.ps-recap-words {
+  display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+  max-height: 108px; overflow-y: auto; scrollbar-width: none; width: 100%;
+}
+.ps-recap-words::-webkit-scrollbar { display: none; }
+.ps-recap-w {
+  background: linear-gradient(180deg,#fffef8,#fff3d2);
+  border: 2px solid #fff; outline: 1.5px solid #e2c893;
+  color: #5d3a12; font-weight: 800; font-size: 13px;
+  border-radius: 999px; padding: 3px 11px; box-shadow: 0 2px 0 #d9bd85;
+}
+.ps-recap-w i { font-style: normal; color: #2e8450; font-size: 11px; margin-right: 4px; }
+.ps-recap-none { font-size: 12.5px; font-weight: 700; color: #a08454; }
+.ps-recap-empty-note { font-size: 12px; font-weight: 700; color: #b08a4e; }
+.ps-recap-stand {
+  width: 100%; display: flex; flex-direction: column; gap: 4px;
+  background: rgba(255,255,255,.6); border: 2px solid #fff; border-radius: 14px;
+  padding: 8px 10px;
+}
+.ps-recap-stand-t { font-size: 11px; font-weight: 800; color: #8a6a3a; }
+.ps-recap-row {
+  display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 800; color: #5d3a12;
+}
+.ps-recap-row i {
+  font-style: normal; width: 20px; height: 20px; flex: none; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 36% 30%, #fff3b8, #ffd76e 55%, #f0a92c);
+  border: 1.5px solid #fff; outline: 1.5px solid #b47708; color: #7a4a00; font-size: 10.5px;
+}
+.ps-recap-row b { flex: 1; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-recap-row .pts { color: #2e8450; }
+.ps-recap-go {
+  margin-top: 4px; width: 100%; border: none; cursor: pointer;
+  background: linear-gradient(180deg,#8fe06a,#379c24);
+  border: 3px solid #fff; outline: 3px solid #2f8f1f;
+  color: #fff; font-family: inherit; font-weight: 900; font-size: 18px;
+  padding: 11px 20px; border-radius: 999px;
+  box-shadow: 0 6px 0 #2f8f1f, 0 12px 18px rgba(20,80,10,.4);
+  text-shadow: 0 1.5px 0 rgba(20,80,10,.5);
+}
+.ps-recap-go:active { transform: translateY(4px); box-shadow: 0 2px 0 #2f8f1f; }
+.ps-recap-go.final {
+  background: linear-gradient(180deg,#ffd76e,#f09c1c);
+  outline-color: #b47708; box-shadow: 0 6px 0 #b47708, 0 12px 18px rgba(140,90,0,.4);
+}
+
+/* --- Dehkhoda async check chip --- */
+.ps-dk {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(74,44,14,.85); border: 2px solid #ffcf6e; border-radius: 999px;
+  color: #ffe9c4; font-weight: 800; font-size: 12px; padding: 4px 12px;
+}
+.ps-dk .spin {
+  width: 12px; height: 12px; border-radius: 999px; flex: none;
+  border: 2.5px solid rgba(255,233,196,.35); border-top-color: #ffe9c4;
+  animation: dkSpin .7s linear infinite;
+}
+@keyframes dkSpin { to { transform: rotate(360deg); } }
+
+/* --- FINAL podium, graphical upgrade (user: «صفحه امتیاز و برنده‌ها
+   رو گرافیگی و با طراحی دقیق و خوشگل‌تر بکن») --- */
+.ps-crown-wrap { position: relative; overflow: hidden; }
+.ps-crown-wrap::after {            /* one-shot shine sweep on the champ card */
+  content: ""; position: absolute; top: -30%; bottom: -30%; left: -34%; width: 30%;
+  background: linear-gradient(100deg, transparent 10%, rgba(255,255,255,.55) 50%, transparent 90%);
+  transform: translateX(0) rotate(12deg);
+  animation: champShine 1.5s ease .35s both; pointer-events: none;
+}
+@keyframes champShine { from { transform: translateX(0) rotate(12deg); } to { transform: translateX(620%) rotate(12deg); } }
+.ps-champ-ava { position: relative; display: inline-flex; }
+.ps-champ-ava::before {           /* golden halo ring around the champion */
+  content: ""; position: absolute; inset: -9px; border-radius: 999px;
+  border: 3.5px solid rgba(255,205,80,.85);
+  box-shadow: 0 0 18px rgba(255,205,80,.55), inset 0 0 10px rgba(255,214,110,.5);
+  animation: champHalo 2.6s ease-in-out .4s infinite alternate;
+}
+@keyframes champHalo { from { transform: scale(.98); opacity: .8; } to { transform: scale(1.07); opacity: 1; } }
+.ps-medal {
+  width: 30px; height: 30px; border-radius: 999px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  border: 2.5px solid #fff; outline: 2px solid rgba(95,58,20,.35);
+  color: #fff; font-weight: 900; font-size: 13px; margin-top: -30px; z-index: 3;
+  box-shadow: 0 3px 0 rgba(95,58,20,.4), 0 5px 8px rgba(30,15,0,.35);
+  text-shadow: 0 1.5px 0 rgba(60,30,0,.4);
+}
+.ps-medal.g1 { background: radial-gradient(circle at 36% 30%, #fff3b8, #ffd76e 55%, #f0a92c); outline-color: #b47708; }
+.ps-medal.g2 { background: radial-gradient(circle at 36% 30%, #f4f7fb, #cfd6e4 55%, #9aa6b2); outline-color: #5a6672; }
+.ps-medal.g3 { background: radial-gradient(circle at 36% 30%, #ffd9b8, #e0995c 55%, #b06a30); outline-color: #7a4a1e; }
+.ps-pod-block { position: relative; overflow: hidden; }
+.ps-pod-block::before {           /* glossy top face for a 3D read */
+  content: ""; position: absolute; left: 6%; right: 6%; top: 3px; height: 9px;
+  border-radius: 999px; background: rgba(255,255,255,.55); filter: blur(1px);
+}
+.ps-pod-block .ps-pod-rank { text-shadow: 0 1.5px 0 rgba(255,255,255,.5); }
+.ps-pod-col .ps-pod-pts {
+  display: inline-flex; align-items: center;
+  background: rgba(255,255,255,.92); border: 2px solid #fff; outline: 1.5px solid #d9b87a;
+  color: #7a4a00; font-weight: 900; font-size: 12px;
+  border-radius: 999px; padding: 2px 10px; box-shadow: 0 2px 0 #d9bd85;
+}
+.ps-rest-row { position: relative; }
+.ps-rest-row i {
+  background: radial-gradient(circle at 36% 30%, #fff3b8, #ffd76e 55%, #f0a92c);
+  border: 1.5px solid #fff; outline: 1.5px solid #b47708; color: #7a4a00;
+}
+.lowfx .ps-crown-wrap::after, .lowfx .ps-champ-ava::before { display: none; }
