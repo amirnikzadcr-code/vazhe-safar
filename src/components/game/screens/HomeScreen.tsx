@@ -1,16 +1,16 @@
 "use client";
 /* ------------------------------------------------------------------
- * HomeScreen — v2.3 (user feedback session N):
- *   • «دکمه جایزه رو پاک کن اضافیه»  → daily-gift fab REMOVED (the gift
- *     now lives in ماموریت‌ها so the feature stays reachable)
- *   • «دکمه خونه هم پاکش کن اضافیه»  → خانه + جوایز removed from the
- *     bottom nav (کتابخانه · ماموریت‌ها · تنظیمات)
- *   • «عکس اون پیرمرده ک زده سلام کلا حذف کن» → grandpa chip GONE
- *   • NEW: festive «بازی دورهمی» button right ABOVE «شروع بازی»
- *   • HUD is the real profile (name/avatar/level) — tap opens editor
+ * HomeScreen — v1.19 (user session T):
+ *   • کتابخانه removed everywhere (user: «بخش کتاب خانه حذف کن») —
+ *     the bottom dock is now فروشگاه · ماموریت‌ها · تنظیمات.
+ *   • «دکمه مرحله بعدی رو یخورده بیار پایین با اون تابلو تداخل داره»
+ *     → the next-level card left its absolute position and became a
+ *     WIDE board card in the flow BELOW the logo: it can never
+ *     overlap the wordmark again, and it's far juicier to tap.
+ *   • left fabs removed (فروشگاه/ماموریت‌ها were duplicated in the
+ *     bottom dock) → cleaner scene, more room for the buttons.
  * PERF: zero idle animations; whole scene = ONE preloaded image.
  * ------------------------------------------------------------------ */
-import { useState } from "react";
 import { PlayerHud } from "@/components/game/ui/kit";
 import { ImgIcon } from "@/components/game/icons";
 import { Save } from "@/game/core/save";
@@ -19,13 +19,13 @@ import { faNum } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { CHAPTERS } from "@/game/data/chapters";
 import { lvPerCh, globalLevel, TOTAL_LEVELS } from "@/game/data/levelsIndex";
+import { useState } from "react";
 
 export function HomeScreen({
-  onPlay, onParty, onLibrary, onMissions, onShop, onSettings, onProfile,
+  onPlay, onParty, onMissions, onShop, onSettings, onProfile,
 }: {
   onPlay: () => void;
   onParty: () => void;
-  onLibrary: () => void;
   onMissions: () => void;
   onShop: () => void;
   onSettings: () => void;
@@ -41,6 +41,8 @@ export function HomeScreen({
     }
   }
   const nextNo = next ? globalLevel(next.c, next.l) : TOTAL_LEVELS;
+  const nextTheme = CHAPTERS[(next?.c ?? 1) - 1];
+  const allDone = !next;
 
   return (
     <div className="vz-page">
@@ -56,23 +58,34 @@ export function HomeScreen({
           <span className="logo-tag">کلمه بساز؛ حالِ خوب بچین!</span>
         </div>
 
-        {/* left column fabs (جوایز روزانه removed → lives in ماموریت‌ها) */}
-        <div className="home-menu-col">
-          <button type="button" className="menu-fab" onClick={() => { Audio.sfxClick(); onShop(); }}>
-            <span className="fab-orb"><ImgIcon name="shop" size={40} /></span>
-            <span className="fab-label">فروشگاه</span>
-          </button>
-          <button type="button" className="menu-fab" onClick={() => { Audio.sfxClick(); onMissions(); }}>
-            <span className="fab-orb"><ImgIcon name="mission" size={40} /></span>
-            <span className="fab-label">ماموریت‌ها</span>
-          </button>
-        </div>
-
-        {/* right: next-level card */}
-        <button type="button" className="next-card" onClick={() => { Audio.sfxClick(); onPlay(); }} aria-label="مرحله بعدی">
-          <span className="next-head">مرحله بعدی</span>
-          <span className="next-num">{faNum(nextNo)}</span>
-          <img className="next-thumb" src="/assets/map/m01.webp" alt="" draggable={false} loading="lazy" decoding="async" onError={(e) => { e.currentTarget.src = "/assets/bg/home3.webp"; }} />
+        {/* wide next-level board — IN FLOW below the logo (no overlap) */}
+        <button
+          type="button"
+          className="next-board"
+          onClick={() => { Audio.sfxClick(); onPlay(); }}
+          aria-label="مرحله بعدی"
+        >
+          <img
+            className="nb-thumb"
+            src={`/assets/map/m${String(next?.c ?? 1).padStart(2, "0")}.webp`}
+            alt=""
+            draggable={false}
+            loading="lazy"
+            decoding="async"
+            onError={(e) => { e.currentTarget.src = "/assets/bg/home3.webp"; }}
+          />
+          <span className="nb-body">
+            <span className="nb-label">{allDone ? "همهٔ فصل‌ها کامل شد!" : "مرحله بعدی"}</span>
+            <span className="nb-num">
+              <i className="nb-medal">{faNum(nextNo)}</i>
+              <i className="nb-ch">{allDone ? "با استارها دوباره بازی کن" : `فصل ${faNum(next?.c ?? 1)} · ${nextTheme.title}`}</i>
+            </span>
+          </span>
+          <span className="nb-go" aria-hidden>
+            <svg width="26" height="26" viewBox="0 0 24 24">
+              <path d="M15.5 4.5 L8 12 L15.5 19.5" fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
         </button>
 
         {/* spacer — grandpa hello chip removed (user request) */}
@@ -102,18 +115,18 @@ export function HomeScreen({
           </button>
         </div>
 
-        {/* bottom nav — خانه/جوایز removed (redundant, user request) */}
+        {/* bottom dock — v1.19 gorgeous wood-and-gold (کتابخانه removed) */}
         <nav className="navbar2" aria-label="منوی اصلی">
-          <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onLibrary(); }}>
-            <span className="nav2-orb"><ImgIcon name="books" size={32} /></span>
-            <span className="nav2-label">کتابخانه</span>
+          <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onShop(); }}>
+            <span className="nav2-orb gold"><ImgIcon name="shop" size={32} /></span>
+            <span className="nav2-label">فروشگاه</span>
           </button>
           <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onMissions(); }}>
-            <span className="nav2-orb"><ImgIcon name="tasks" size={32} /></span>
+            <span className="nav2-orb coral"><ImgIcon name="tasks" size={32} /></span>
             <span className="nav2-label">ماموریت‌ها</span>
           </button>
           <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onSettings(); }}>
-            <span className="nav2-orb"><ImgIcon name="gear" size={32} /></span>
+            <span className="nav2-orb sky"><ImgIcon name="gear" size={32} /></span>
             <span className="nav2-label">تنظیمات</span>
           </button>
         </nav>

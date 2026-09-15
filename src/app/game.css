@@ -197,33 +197,57 @@ html, body { overscroll-behavior: none; height: 100%; }
 /* (v2.3 — عمو دانا hello chip removed from home per user request:
    «عکس اون پیر مرده ک زده سلام کلا حذف کن از صفحه اصلی») */
 
-/* next-level side card */
-.next-card {
-  position: absolute; top: 118px; right: 10px; z-index: 24;
-  width: 92px; display: flex; flex-direction: column; align-items: center;
-  background: none; border: none; padding: 0; cursor: pointer;
+/* next-level WIDE BOARD (v1.19) — in flow BELOW the logo, so it can
+   never collide with the wordmark (user: «بیار پایین، تداخل داره»).
+   A big juicy wooden board: thumb + number medal + chapter + play orb */
+.next-board {
+  display: flex; align-items: center; gap: 11px;
+  width: min(92vw, 356px); margin: 12px auto 0;
+  padding: 9px 12px; cursor: pointer; font-family: inherit;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 18%),
+    linear-gradient(180deg, #ffe9b8 0%, #f3cd85 55%, #e2ac5c 100%);
+  border: 3px solid #fff; outline: 2.5px solid #c98d2e;
+  border-radius: 20px;
+  box-shadow: 0 6px 0 #b47708, 0 12px 18px rgba(90,50,0,.32);
+  text-align: right;
 }
-.next-head {
+.next-board:active { transform: translateY(3px); box-shadow: 0 3px 0 #b47708, 0 6px 10px rgba(90,50,0,.28); }
+.next-board .nb-thumb {
+  width: 66px; height: 66px; flex: none; border-radius: 15px; object-fit: cover;
+  border: 3px solid #ffd76e; outline: 2px solid #fff;
+  box-shadow: 0 3px 0 rgba(122,74,0,.4), 0 5px 9px rgba(0,0,0,.22);
+  background: #fdf3dd;
+}
+.next-board .nb-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.next-board .nb-label {
   background: linear-gradient(180deg,#c98d4e,#8a5423);
   border: 2px solid #ffe9c4; border-radius: 10px;
-  color: #fff7e8; font-weight: 800; font-size: 11px; padding: 2px 10px;
-  box-shadow: 0 3px 0 #5f3a14; z-index: 2;
+  color: #fff7e8; font-weight: 800; font-size: 11.5px; padding: 2px 11px;
+  box-shadow: 0 2.5px 0 #5f3a14; white-space: nowrap;
 }
-.next-num {
-  width: 46px; height: 46px; margin-top: -8px; border-radius: 999px;
-  background: linear-gradient(180deg,#6fc0f5,#2a7fc9);
-  border: 3px solid #ffd76e; outline: 2px solid #fff;
-  color: #fff; font-weight: 800; font-size: 19px;
+.next-board .nb-num { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.next-board .nb-medal {
+  width: 42px; height: 42px; flex: none; border-radius: 999px; font-style: normal;
+  background: radial-gradient(circle at 36% 30%, #9ed4ff, #47a3e8 62%, #1b5da0);
+  border: 3px solid #fff; outline: 2px solid #ffd76e;
+  color: #fff; font-weight: 800; font-size: 17px; font-style: normal;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 0 #1b5da0, 0 7px 12px rgba(0,0,0,.3); z-index: 2;
+  box-shadow: 0 3.5px 0 #14497f, 0 6px 10px rgba(0,0,0,.25);
+  text-shadow: 0 1.5px 0 rgba(10,40,80,.5);
 }
-.next-thumb {
-  width: 92px; height: 108px; margin-top: -10px;
-  border-radius: 16px; border: 3px solid #ffd76e; outline: 2.5px solid #fff;
-  object-fit: cover;
-  box-shadow: 0 6px 0 rgba(95,58,20,.5), 0 10px 16px rgba(0,0,0,.3);
+.next-board .nb-ch {
+  font-style: normal; font-weight: 800; font-size: 12.5px; color: #6b4a1e;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;
 }
-.next-card:active .next-num { transform: translateY(2px); }
+.next-board .nb-go {
+  width: 46px; height: 46px; flex: none; border-radius: 999px;
+  background: radial-gradient(circle at 36% 30%, #a8ef86, #4cb532 60%, #2f8f1f);
+  border: 3px solid #fff; outline: 2.5px solid #ffd76e;
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 0 #267a15, 0 7px 11px rgba(20,80,10,.35);
+}
+.next-board .nb-go svg { margin-right: 2px; filter: drop-shadow(0 1.5px 0 rgba(20,90,10,.4)); }
 
 /* big green play — reference: glossy green, gold ring, white triangle */
 .play-big {
@@ -243,29 +267,34 @@ html, body { overscroll-behavior: none; height: 100%; }
   margin: 0 2px 0 0;
 }
 
-/* bottom nav — GRASS GROUND DOCK (v2.2): round icon podiums rise out of
-   a scalloped grass mound with tiny flowers; active = golden podium */
+/* bottom nav — v1.19 SUNSET GARDEN DOCK: richer grass, gold trim, tiny
+   flowers, and per-item colored orbs (gold/coral/sky) that squash on
+   press. Buttons live on round podiums rising out of the mound. */
 .navbar2 {
   flex: none; position: relative; z-index: 30;
-  margin: 30px 10px calc(6px + env(safe-area-inset-bottom));
+  margin: 26px 10px calc(6px + env(safe-area-inset-bottom));
   display: flex; align-items: flex-end; justify-content: space-around;
-  padding: 0 4px 7px;
+  padding: 0 6px 8px;
   background:
     /* tiny flower dots in the grass */
-    radial-gradient(circle at 12% 38%, #ff8fab 0 3px, transparent 4px),
-    radial-gradient(circle at 38% 66%, #ffd94e 0 2.6px, transparent 3.6px),
-    radial-gradient(circle at 64% 30%, #ff8fab 0 2.6px, transparent 3.6px),
-    radial-gradient(circle at 88% 62%, #fff 0 2.4px, transparent 3.4px),
-    /* grass body */
-    linear-gradient(180deg,#8ed472 0%,#63b651 42%,#3f8f36 100%);
-  border: 3px solid #fff; outline: 2.5px solid #2f7a30;
-  border-radius: 24px;
-  box-shadow: 0 7px 0 #2c6e2c, 0 14px 20px rgba(0,0,0,.3);
+    radial-gradient(circle at 10% 40%, #ff8fab 0 3px, transparent 4px),
+    radial-gradient(circle at 30% 70%, #ffd94e 0 2.6px, transparent 3.6px),
+    radial-gradient(circle at 52% 34%, #fff 0 2.4px, transparent 3.4px),
+    radial-gradient(circle at 72% 66%, #ff8fab 0 2.6px, transparent 3.6px),
+    radial-gradient(circle at 92% 38%, #ffd94e 0 2.4px, transparent 3.4px),
+    /* warm sunset grass body */
+    linear-gradient(180deg,#9bdb7e 0%,#5cb44c 46%,#3a8a33 100%);
+  border: 3px solid #fff; outline: 2.5px solid #d9a13c;
+  border-radius: 26px;
+  box-shadow:
+    inset 0 5px 0 rgba(255,255,255,.28),
+    0 7px 0 #2c6e2c,
+    0 14px 22px rgba(0,0,0,.3);
 }
 /* scalloped grass lip along the top edge */
 .navbar2::before {
   content: ""; position: absolute; left: 6px; right: 6px; top: -10px; height: 14px;
-  background: radial-gradient(circle at 14px 14px, #8ed472 10px, transparent 11px);
+  background: radial-gradient(circle at 14px 14px, #9bdb7e 10px, transparent 11px);
   background-size: 26px 14px; background-repeat: repeat-x;
   pointer-events: none;
 }
@@ -273,17 +302,22 @@ html, body { overscroll-behavior: none; height: 100%; }
   position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
   background: none; border: none; padding: 0 2px; cursor: pointer;
   font-family: inherit;
-  margin-top: -20px; /* podiums rise out of the ground */
+  margin-top: -22px; /* podiums rise out of the ground */
 }
 .nav2-item .nav2-orb {
-  width: 52px; height: 52px; border-radius: 999px; position: relative;
+  width: 56px; height: 56px; border-radius: 999px; position: relative;
   display: flex; align-items: center; justify-content: center;
   background: radial-gradient(circle at 36% 30%, #fffdf4, #ffe9ae 58%, #f3c163);
   border: 3px solid #fff; outline: 2.5px solid #d9a13c;
   box-shadow: 0 5px 0 #b9842c, 0 9px 12px rgba(0,0,0,.28);
   transition: transform .15s ease;
 }
-.nav2-item img { width: 32px; height: 32px; }
+/* v1.19 per-item orb identities */
+.nav2-item .nav2-orb.gold  { background: radial-gradient(circle at 36% 30%, #fff6d8, #ffd76e 55%, #f0a92c); outline-color: #b47708; }
+.nav2-item .nav2-orb.coral { background: radial-gradient(circle at 36% 30%, #ffe3d8, #ff9f7e 55%, #f0663c); outline-color: #b04a2a; box-shadow: 0 5px 0 #a03a1c, 0 9px 12px rgba(0,0,0,.28); }
+.nav2-item .nav2-orb.sky   { background: radial-gradient(circle at 36% 30%, #e2f4ff, #7cc9ff 55%, #3d8fd0); outline-color: #1b5da0; box-shadow: 0 5px 0 #164c8c, 0 9px 12px rgba(0,0,0,.28); }
+.nav2-item:active .nav2-orb { transform: translateY(3px) scale(.97); box-shadow: 0 2px 0 #b9842c, 0 4px 7px rgba(0,0,0,.24); }
+.nav2-item img { width: 33px; height: 33px; filter: drop-shadow(0 1.5px 0 rgba(90,50,0,.25)); }
 .nav2-item .nav2-label {
   background: rgba(255,253,244,.94); border: 1.5px solid #fff;
   border-radius: 8px; padding: 1px 8px 2px;
@@ -716,11 +750,131 @@ html, body { overscroll-behavior: none; height: 100%; }
   color: #fff; display: flex; align-items: center; justify-content: center;
 }
 .map-back:active { transform: translateY(3px); box-shadow: 0 1px 0 #6b4218; }
-.map-scroll { flex: 1; min-height: 0; position: relative; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
-.map-scroll::-webkit-scrollbar { display: none; }
-.map-world { position: relative; width: 100%; }
+/* ============ v1.19 PAGED CHAPTER SCENE — one page = one chapter ============ */
+.ch-scene {
+  position: relative; flex: 1; min-height: 0; overflow: hidden;
+  touch-action: pan-y;             /* horizontal flips are ours, vertical stays native */
+}
+.ch-scene.in-fwd  { animation: chInFwd  .3s cubic-bezier(.22,.9,.36,1) both; }
+.ch-scene.in-back { animation: chInBack .3s cubic-bezier(.22,.9,.36,1) both; }
+@keyframes chInFwd  { from { opacity: 0; transform: translateX(-9%); } to { opacity: 1; transform: translateX(0); } }
+@keyframes chInBack { from { opacity: 0; transform: translateX(9%);  } to { opacity: 1; transform: translateX(0); } }
 
-.realm { position: relative; overflow: hidden; }
+/* chapter plate — medal + title + range + stars + progress ribbon */
+.ch-plate {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  width: min(88%, 330px); z-index: 12; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,253,244,.95), rgba(248,236,208,.93));
+  border: 2.5px solid #fff; outline: 2px solid #d9b87a;
+  border-radius: 16px; padding: 7px 12px 9px;
+  box-shadow: 0 5px 0 #cfa14f, 0 10px 18px rgba(0,0,0,.3);
+}
+.ch-plate-row { display: flex; align-items: center; gap: 9px; }
+.ch-medal {
+  width: 38px; height: 38px; flex: none; border-radius: 999px;
+  background: radial-gradient(circle at 36% 30%, #fff3b8, #ffd76e 55%, #f0a92c);
+  border: 2.5px solid #fff; outline: 2px solid #b47708;
+  color: #7a4a00; font-weight: 800; font-size: 17px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 0 #b47708;
+}
+.ch-plate-t { flex: 1; min-width: 0; }
+.ch-title { font-weight: 800; font-size: 15.5px; color: #5d3a12; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-range { font-size: 10.5px; font-weight: 700; color: #8a6a3e; }
+.ch-stars {
+  flex: none; display: flex; align-items: center; gap: 3px;
+  background: linear-gradient(180deg,#fffdf4,#ffeecb); border: 2px solid #fff;
+  color: #a0690a; font-weight: 800; font-size: 11px;
+  padding: 3px 8px; border-radius: 999px;
+  box-shadow: 0 2.5px 0 #dcb87a;
+}
+.ch-progress { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.ch-pbar {
+  flex: 1; height: 10px; border-radius: 999px; overflow: hidden;
+  background: #e5d3ac; border: 1.5px solid #fff; box-shadow: inset 0 1.5px 3px rgba(95,58,20,.28);
+}
+.ch-pbar i {
+  display: block; height: 100%; width: calc(var(--p, 0) * 100%);
+  background: linear-gradient(90deg, var(--acc-lt, #a8e08b), var(--acc, #58b64b));
+  border-radius: 999px;
+  transition: width .5s cubic-bezier(.22,.9,.36,1);
+}
+.ch-plabel { flex: none; font-size: 11px; font-weight: 800; color: #7a5a2e; }
+
+/* side arrows — forward = LEFT (RTL) / back = RIGHT; locked shows a padlock */
+.ch-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 30;
+  width: 50px; height: 50px; border-radius: 999px; cursor: pointer; padding: 0;
+  border: 3px solid #fff; outline: 2.5px solid #d9a13c;
+  background: radial-gradient(circle at 36% 30%, #ffe9b8, #f3c163 58%, #d99a2e);
+  box-shadow: 0 5px 0 #b47708, 0 9px 14px rgba(60,30,0,.35);
+  color: #7a4a00; display: flex; align-items: center; justify-content: center;
+}
+.ch-arrow:active { transform: translateY(-50%) scale(.93); }
+.ch-arrow.next { left: 8px; }
+.ch-arrow.prev { right: 8px; }
+.ch-arrow.locked {
+  background: radial-gradient(circle at 36% 30%, #cfd6de, #9aa6b2 58%, #6e7a86);
+  border-color: #e8eef4; outline-color: #5a6672; color: #3a4552;
+  box-shadow: 0 5px 0 #4a5560, 0 9px 14px rgba(20,30,40,.4);
+  cursor: default;
+}
+.ch-arrow.shake { animation: chShake .4s ease; }
+@keyframes chShake {
+  0%, 100% { transform: translateY(-50%) rotate(0); }
+  25% { transform: translateY(-50%) rotate(-9deg); }
+  55% { transform: translateY(-50%) rotate(8deg); }
+  80% { transform: translateY(-50%) rotate(-5deg); }
+}
+
+/* dots pager — 20 chapters at a glance: done = gold, current = accent pill */
+.ch-dots {
+  flex: none; display: flex; justify-content: center; align-items: center;
+  gap: 4.5px; padding: 9px 8px 0; position: relative; z-index: 22; flex-wrap: wrap;
+}
+.ch-dot {
+  width: 9px; height: 9px; border-radius: 999px; padding: 0; cursor: pointer;
+  background: rgba(255,255,255,.55); border: 1.5px solid rgba(95,58,20,.5);
+  box-shadow: 0 1.5px 0 rgba(95,58,20,.35);
+  transition: width .25s cubic-bezier(.22,.9,.36,1), background .25s ease;
+}
+.ch-dot.gold { background: radial-gradient(circle at 36% 30%, #fff3b8, #ffd76e 60%, #f0a92c); border-color: #fff; }
+.ch-dot.locked { opacity: .5; background: rgba(70,80,95,.4); }
+.ch-dot.on {
+  width: 24px;
+  background: linear-gradient(90deg, var(--acc-lt, #a8e08b), var(--acc, #58b64b));
+  border-color: #fff;
+  box-shadow: 0 2px 0 rgba(95,58,20,.4), 0 0 0 2.5px rgba(255,255,255,.65);
+}
+
+/* locked-chapter veil — the realm is PREVIEWABLE (hook for what's next) */
+.ch-veil {
+  position: absolute; inset: 0; z-index: 20; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+  background: radial-gradient(circle at 50% 46%, rgba(24,36,52,.42) 0%, rgba(18,28,42,.72) 78%);
+}
+.ch-veil-lock {
+  width: 66px; height: 66px; border-radius: 999px;
+  background: radial-gradient(circle at 36% 30%, #7c8ea0, #54687a 58%, #3a4d5e 100%);
+  border: 3px solid #e8eef4; outline: 2.5px solid rgba(20,30,42,.6);
+  color: #e8eef4; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 5px 0 #2c3a48, 0 10px 16px rgba(10,20,30,.5);
+}
+.ch-veil-t { color: #fff; font-weight: 800; font-size: 17.5px; text-shadow: 0 2px 0 rgba(10,20,35,.6), 0 4px 10px rgba(10,20,35,.5); }
+.ch-veil-s { color: #ffe9c4; font-weight: 700; font-size: 12px; text-align: center; max-width: 78%; line-height: 1.7; text-shadow: 0 1.5px 0 rgba(10,20,35,.6); }
+
+/* mini toast (locked-arrow nudges) */
+.ch-note {
+  position: absolute; bottom: 92px; left: 50%; transform: translateX(-50%);
+  z-index: 45; max-width: 88%;
+  background: linear-gradient(180deg,#4a2e14,#6b4218);
+  border: 2px solid #ffd76e; color: #fff7e8;
+  font-weight: 800; font-size: 12.5px; line-height: 1.6;
+  padding: 8px 15px; border-radius: 14px; text-align: center;
+  box-shadow: 0 4px 0 rgba(40,20,0,.55), 0 9px 14px rgba(0,0,0,.35);
+  pointer-events: none;
+}
+
 .realm-img {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
 }
@@ -729,53 +883,10 @@ html, body { overscroll-behavior: none; height: 100%; }
   background: linear-gradient(180deg, rgba(30,50,20,.34) 0%, rgba(30,50,20,0) 12%, rgba(30,50,20,0) 86%, rgba(30,50,20,.3) 100%);
 }
 
-/* chapter gate — the ornamental border between chapters */
-.gate-band {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 12;
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 12px;
-  background: linear-gradient(180deg, rgba(52,32,8,.88), rgba(52,32,8,.55));
-  border-bottom: 2.5px solid #ffcf6e;
-  box-shadow: 0 4px 10px rgba(0,0,0,.35);
-}
-.gate-rope {
-  flex: 1; height: 3px; border-radius: 3px;
-  background: repeating-linear-gradient(90deg, #ffcf6e 0 9px, transparent 9px 16px);
-  opacity: .85;
-}
-.gate-rope.r { transform: scaleX(-1); }
-.gate-medal {
-  width: 34px; height: 34px; flex: none; border-radius: 999px;
-  background: radial-gradient(circle at 36% 30%, #fff3b8, #ffd76e 55%, #f0a92c);
-  border: 2.5px solid #fff; outline: 2px solid #b47708;
-  color: #7a4a00; font-weight: 800; font-size: 15px;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 3px 0 #b47708;
-}
-.gate-label { color: #ffe9c4; font-weight: 800; font-size: 13px; white-space: nowrap; text-shadow: 0 1.5px 0 rgba(0,0,0,.5); }
-
-/* chapter banner plate (on-image) */
-.realm-banner { position: absolute; top: 46px; left: 0; right: 0; display: flex; justify-content: center; z-index: 11; pointer-events: none; }
-.rb-plate {
-  background: linear-gradient(180deg, rgba(255,253,244,.94), rgba(248,236,208,.94));
-  border: 2.5px solid #fff; outline: 2px solid #d9b87a;
-  border-radius: 14px; padding: 6px 16px 8px; text-align: center;
-  box-shadow: 0 5px 0 #cfa14f, 0 10px 18px rgba(0,0,0,.3);
-  max-width: 72%;
-}
-.rb-medal {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 26px; height: 26px; padding: 0 7px; border-radius: 999px;
-  background: linear-gradient(180deg,#6fc0f5,#2a7fc9);
-  border: 2px solid #fff; color: #fff; font-weight: 800; font-size: 13px;
-  box-shadow: 0 2px 0 #1b5da0; margin-bottom: 3px;
-}
-.rb-title { font-weight: 800; font-size: 17px; color: #5d3a12; line-height: 1.35; }
-.rb-sub { font-size: 11px; font-weight: 600; color: #8a6a3e; line-height: 1.5; }
-
-/* level nodes — slate 3D buttons w/ stars (reference) */
+/* level nodes — 3D themed tiles (v1.19): locked = slate padlock,
+   open = the chapter's OWN accent, done = gold, current = green pulse */
 .map-node {
-  position: relative; display: flex; width: 54px; height: 54px; border-radius: 999px; cursor: pointer;
+  position: relative; display: flex; width: 56px; height: 56px; border-radius: 999px; cursor: pointer;
   border: 3px solid #e8eef4; outline: 2.5px solid rgba(30,42,54,.55); padding: 0;
   background: radial-gradient(circle at 38% 30%, #7c8ea0, #54687a 58%, #3a4d5e 100%);
   box-shadow: 0 5px 0 #2c3a48, 0 10px 14px rgba(10,20,30,.4);
@@ -784,14 +895,27 @@ html, body { overscroll-behavior: none; height: 100%; }
   text-shadow: 0 2px 0 rgba(10,20,30,.5);
 }
 .map-node:active { transform: scale(.93); }
-.map-node.locked { filter: saturate(.35) brightness(.72); cursor: default; }
+.map-node.locked { cursor: default; }
+/* unlocked & waiting — wears the chapter accent (per-chapter template) */
+.map-node.open {
+  background: radial-gradient(circle at 38% 30%, var(--acc-lt, #a8e08b), var(--acc, #58b64b) 60%, var(--acc-dk, #2f7a30) 100%);
+  box-shadow: 0 5px 0 var(--acc-dk, #2f7a30), 0 10px 15px rgba(10,20,30,.4);
+}
+/* done — golden trophy tile */
+.map-node.done {
+  background: radial-gradient(circle at 38% 30%, #fff3b8, #ffd76e 58%, #f0a92c 100%);
+  border-color: #fff; outline-color: rgba(180,119,8,.55);
+  color: #7a4a00; text-shadow: 0 1.5px 0 rgba(255,255,255,.55);
+  box-shadow: 0 5px 0 #b47708, 0 10px 14px rgba(140,90,0,.4);
+}
+/* current — the green «you are here» node */
 .map-node.cur {
   background: radial-gradient(circle at 38% 30%, #a8ef86, #5ec131 58%, #3c9e1f 100%);
   border-color: #fff; outline-color: rgba(30,90,10,.55);
   box-shadow: 0 5px 0 #2f8f1f, 0 0 0 4px rgba(140,230,90,.4), 0 10px 16px rgba(20,90,10,.45);
 }
 /* PERF: the pulse is a composited ::after ring (transform+opacity only)
-   — animating box-shadow repaints every frame and janks the scroll */
+   — animating box-shadow repaints every frame and janks the page */
 .map-node.cur::after {
   content: ""; position: absolute; inset: -4px; border-radius: 999px;
   border: 4px solid rgba(150,235,100,.9);
@@ -1593,14 +1717,8 @@ body { background: #5cb2ef; }
 }
 .nameask-hero svg { border-radius: 999px; background: #fdf3dd; }
 
-/* ---------- home next-card: BELOW the logo hat + label/number fix ---------- */
-.next-card { top: 214px; }
-.next-head {
-  padding: 3px 10px 5px;
-  box-shadow: 0 3px 0 #5f3a14;
-  z-index: 3;                       /* text never hides under the medal */
-}
-.next-num { margin-top: -5px; }     /* kisses the ribbon without covering it */
+/* (v1.19 — the old absolutely-positioned .next-card is gone: the new
+   .next-board lives in the layout flow and can never overlap) */
 
 /* ---------- hint lamp — BIG, perfectly ROUND, vector-lit (v6: the old
    86×66 button looked stretched — user: «پهن شده… ابعادش درست کن») */
@@ -1625,10 +1743,99 @@ body { background: #5cb2ef; }
 }
 .fab-hint .cost .coin-ic { width: 14px; height: 14px; }
 
-/* ---------- map realms: skip offscreen work (20 realms now) ---------- */
-.realm {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 700px 1225px;
+/* (v1.19 — the paged chapter scene has no 20-realm scroll anymore; the
+   old .realm content-visibility rule is obsolete) */
+
+/* ═══════════════════════════════════════════════════════════════════
+   v1.19 — CHAPTER CELEBRATION (DoneScreen)
+   «جشن خودکار با تشویق و متن‌های انیمیشینی + باز شدن قفل فصل بعد»
+   All one-shot CSS, transform/opacity only. Confetti count + the
+   bounce are stripped in .lowfx.
+   ═══════════════════════════════════════════════════════════════════ */
+.celeb-confetti i { opacity: .95; }
+
+.celeb-head {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  margin-top: 4px; position: relative; z-index: 12;
+}
+.celeb-title {
+  font-size: 42px; margin: 0; line-height: 1.2;
+  animation: celebPop .55s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes celebPop {
+  0% { opacity: 0; transform: scale(.4) rotate(-5deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+.celeb-chip {
+  font-size: 14px; animation: celebUp .45s ease .3s both;
+}
+.celeb-stats {
+  display: flex; gap: 8px; animation: celebUp .45s ease .45s both;
+}
+.celeb-stats .chip { font-size: 12.5px; }
+@keyframes celebUp {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.celeb-poem {
+  text-align: center; color: #fff3dd; font-weight: 700; font-size: 15.5px; line-height: 2;
+  margin: 2px 10px; text-shadow: 0 2px 6px rgba(40,10,0,.6);
+  animation: celebUp .5s ease .6s both; position: relative; z-index: 12;
+}
+
+/* the next chapter's padlock: pop → wiggle → SHACKLE POPS OPEN → glow */
+.unlock-zone {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  position: relative; z-index: 12; margin-top: 4px;
+}
+.unlock-lock {
+  position: relative; display: inline-flex; margin-bottom: 2px;
+  animation: celebPop .5s cubic-bezier(.34,1.56,.64,1) .75s both;
+}
+.unlock-lock svg { filter: drop-shadow(0 6px 10px rgba(60,30,0,.45)); }
+.unlock-lock .ul-shackle {
+  transform-box: fill-box; transform-origin: 50% 92%;
+  animation: ulOpen .55s cubic-bezier(.34,1.56,.64,1) 1.9s both;
+}
+@keyframes ulOpen {
+  0% { transform: translateY(0) rotate(0); }
+  100% { transform: translateY(-14px) rotate(-22deg); }
+}
+/* wiggle right before the open (two quick shakes) */
+.unlock-lock .ul-body {
+  transform-box: fill-box; transform-origin: 50% 90%;
+  animation: ulWiggle .5s ease-in-out 1.28s 2 both;
+}
+@keyframes ulWiggle {
+  0%, 100% { transform: rotate(0); }
+  30% { transform: rotate(-6deg); }
+  70% { transform: rotate(5deg); }
+}
+.ul-glow {
+  position: absolute; inset: -26px; border-radius: 999px; pointer-events: none;
+  background: radial-gradient(circle, rgba(255,222,120,.85) 0%, rgba(255,200,80,.35) 45%, rgba(255,200,80,0) 70%);
+  opacity: 0;
+  animation: ulGlow .8s ease 1.9s both;
+}
+@keyframes ulGlow {
+  0% { opacity: 0; transform: scale(.5); }
+  40% { opacity: 1; }
+  100% { opacity: .55; transform: scale(1.15); }
+}
+.unlock-text {
+  color: #fff; font-weight: 800; font-size: 19px;
+  text-shadow: 0 2px 0 rgba(90,40,0,.55), 0 5px 12px rgba(40,10,0,.5);
+  animation: celebPop .5s cubic-bezier(.34,1.56,.64,1) 2.05s both;
+}
+.unlock-sub {
+  color: #ffe9c4; font-weight: 700; font-size: 12.5px;
+  text-shadow: 0 1.5px 0 rgba(90,40,0,.55);
+  animation: celebUp .4s ease 2.2s both;
+}
+.unlock-go { animation: celebPop .5s cubic-bezier(.34,1.56,.64,1) 2.35s both, goBounce 1.7s ease-in-out 3s infinite; }
+@keyframes goBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
 }
 
 /* ==================================================================
@@ -1742,6 +1949,12 @@ body { background: #5cb2ef; }
 .lowfx .plate-xpbar > i { transition: none !important; }
 .lowfx .page-enter.fwd,
 .lowfx .page-enter.back { animation: none !important; }
+/* v1.19 — paged-map + celebration opt-outs for weak phones */
+.lowfx .ch-scene.in-fwd,
+.lowfx .ch-scene.in-back { animation: none !important; }
+.lowfx .unlock-go { animation: celebPop .5s cubic-bezier(.34,1.56,.64,1) 2.35s both !important; }
+.lowfx .unlock-lock .ul-body { animation: none !important; }
+.lowfx .ch-dot { transition: none !important; }
 
 /* ═══════════════════════════════════════════════════════════════════
    v3 SHOP — premium night-gold market (exclusive identity).

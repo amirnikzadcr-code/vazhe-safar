@@ -879,6 +879,31 @@ class AudioEngine {
     this.sfxNoise({ dur: 0.75, vol: 0.1, freq: 850, q: 0.6, type: "lowpass" });
     this.sfxNoise({ dur: 0.95, vol: 0.05, freq: 5800, q: 2, delay: 0.05 });
   }
+
+  /** v1.19 — chapter-complete CELEBRATION (user: «با تشویق جشن گرفته
+   * بشه»): a warm synthesized crowd APPLAUSE — a flurry of soft claps
+   * with human-ish timing — plus a rising swell and two bright hooray
+   * chirps. Pure WebAudio, nothing to load. */
+  sfxCheer(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    /* ~18 claps spread over ~1.15s (deterministic human-ish jitter) */
+    for (let i = 0; i < 18; i++) {
+      const t = ((i * 173) % 1100) / 1000;
+      this.sfxNoise({
+        dur: 0.05,
+        vol: 0.042 + (i % 3) * 0.011,
+        freq: 1350 + (i % 5) * 430 + (i % 7) * 90,
+        q: 1.05,
+        delay: t,
+        type: "bandpass",
+      });
+    }
+    /* rising crowd swell underneath */
+    this.sfxNoise({ dur: 1.5, vol: 0.045, freq: 950, q: 0.7, delay: 0.04, type: "lowpass" });
+    /* two bright hooray chirps */
+    this.sfxOsc({ type: "triangle", f0: 620, f1: 990, dur: 0.32, vol: 0.085, delay: 0.34, filter: 2600 });
+    this.sfxOsc({ type: "triangle", f0: 770, f1: 1190, dur: 0.42, vol: 0.075, delay: 0.68, filter: 3000 });
+  }
 }
 
 export const Audio = new AudioEngine();

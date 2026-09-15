@@ -21,7 +21,6 @@ import { ToastHost, useToast } from "@/components/game/ui/kit";
 import { HomeScreen } from "@/components/game/screens/HomeScreen";
 import { MapScreen } from "@/components/game/screens/MapScreen";
 import { PlayScreen } from "@/components/game/screens/PlayScreen";
-import { LibraryScreen } from "@/components/game/screens/LibraryScreen";
 import { MissionsScreen } from "@/components/game/screens/MissionsScreen";
 import { ShopScreen } from "@/components/game/screens/ShopScreen";
 import { ChallengeScreen } from "@/components/game/screens/ChallengeScreen";
@@ -40,7 +39,6 @@ type View =
   | { k: "home" }
   | { k: "map"; ch: number }
   | { k: "play"; ch: number; lv: number; from: "map" | "challenge"; resume?: boolean }
-  | { k: "library" }
   | { k: "missions" }
   | { k: "shop" }
   | { k: "challenge" }
@@ -51,7 +49,7 @@ type ModalKind = null | "settings" | "gift" | "privacy" | "about" | "exitApp" | 
 
 /* screen depth — used to pick the transition direction */
 const ORDER: Record<View["k"], number> = {
-  splash: 0, welcome: 1, home: 2, library: 3, missions: 3, shop: 3, challenge: 3, party: 3, map: 4, play: 5, done: 6,
+  splash: 0, welcome: 1, home: 2, missions: 3, shop: 3, challenge: 3, party: 3, map: 4, play: 5, done: 6,
 };
 
 const viewKey = (v: View) =>
@@ -73,7 +71,7 @@ export function GameApp() {
   const musicRef = useRef<string>("");
   const viewRef = useRef<View>(view);
   const modalRef = useRef<ModalKind>(modal);
-  /* v2.0 — where to go back when leaving the shop (play / map / library
+  /* v2.0 — where to go back when leaving the shop (play / map
    * / challenge / home). Fixes: hint w/o coins → shop → back dumped the
    * player on the home screen instead of the level. */
   const shopReturnRef = useRef<View>({ k: "home" });
@@ -244,6 +242,12 @@ export function GameApp() {
   };
   const goHome = () => { Save.markSeen(); setView({ k: "home" }); };
 
+  /* v1.19 (user session T): «وقتی هر مرحله رو تموم می‌کنه و ستاره
+   * جایزش می‌گیره و روی ادامه میزنه انتقالش بده به صفحه مرحله و
+   * مرحله جدید انتخاب کنه» — the continue button now lands on the
+   * chapter's level-select page (next level glowing), NOT an
+   * auto-launched level. Finishing the chapter's last level still
+   * opens the big celebration screen. */
   const afterWin = (ch: number, lv: number, from: "map" | "challenge") => {
     if (from === "challenge" && !Save.challengeDoneToday()) {
       const got = Save.completeChallenge();
@@ -252,7 +256,7 @@ export function GameApp() {
     if (lv >= lvPerCh(ch)) {
       setView({ k: "done", ch });
     } else {
-      goPlay(ch, lv + 1, from);
+      setView({ k: "map", ch });
     }
   };
 
@@ -279,7 +283,6 @@ export function GameApp() {
               setView({ k: "map", ch: last?.ch ?? 1 });
             }}
             onParty={() => setView({ k: "party" })}
-            onLibrary={() => setView({ k: "library" })}
             onMissions={() => setView({ k: "missions" })}
             onShop={() => setView({ k: "shop" })}
             onSettings={() => setModal("settings")}
@@ -292,7 +295,12 @@ export function GameApp() {
             ch={v.ch}
             onBack={goHome}
             onShop={() => setView({ k: "shop" })}
-            onPlay={(lv) => goPlay(v.ch, lv, "map")}
+            /* v1.19 — every node carries its OWN chapter (the old map
+             * used the map's chapter for every realm → tapping a high
+             * realm's node opened chapter-1's level in the unlocked
+             * build) */
+            onPlay={(c, lv) => goPlay(c, lv, "map")}
+            onNav={(c) => setView({ k: "map", ch: c })}
           />
         );
       case "play":
@@ -307,14 +315,6 @@ export function GameApp() {
             onSettings={() => setModal("settings")}
             onShop={() => setView({ k: "shop" })}
             onProfile={() => setModal("profile")}
-          />
-        );
-      case "library":
-        return (
-          <LibraryScreen
-            onBack={goHome}
-            onShop={() => setView({ k: "shop" })}
-            onOpen={(ch) => setView({ k: "map", ch })}
           />
         );
       case "missions":
@@ -335,7 +335,6 @@ export function GameApp() {
         return (
           <DoneScreen
             ch={v.ch}
-            onLibrary={() => setView({ k: "library" })}
             onNext={() => {
               if (v.ch < CHAPTERS.length) setView({ k: "map", ch: v.ch + 1 });
               else goHome();
