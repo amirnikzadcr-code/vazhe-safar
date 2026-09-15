@@ -2,6 +2,10 @@
  *  واژه‌سفر — core/save.ts
  *  Versioned localStorage persistence. No external backend required.
  * ------------------------------------------------------------------ */
+/* v1.20 — in-level snapshot store lives in its own module (no cycle:
+ * progress.ts never imports save.ts) */
+import { clearAllProgress } from "@/game/core/progress";
+
 export interface LevelRecord {
   stars: number;          // 0..3 best achieved
   bonus: string[];        // bonus words found
@@ -40,6 +44,11 @@ export interface SaveData {
   /* --- v3 monetization (Myket / Bazaar readiness) --- */
   adsRemoved: boolean;   // «حذف تبلیغات» purchased (or granted)
   lastRewardedAd: number; // epoch ms of the last rewarded-ad payout (cooldown)
+  /* --- v1.20 (session U): GLOBAL bonus-word ledger — a hidden word
+   * found in ANY level is never re-awarded in a later level
+   * (user: «واژه‌های پنهان رو اگر در مرحله‌های قبل پیدا شده و در
+   * مرحله‌های بعد پیدا کرد تکراری حساب بشه») --- */
+  bonusAll: string[];
 }
 
 const KEY = "vazhe_safar_save_v1";
@@ -73,6 +82,7 @@ function fresh(): SaveData {
     profile: { name: "", avatar: "cat" },
     adsRemoved: false,
     lastRewardedAd: 0,
+    bonusAll: [],
   };
 }
 
@@ -236,11 +246,16 @@ export const Save = {
 
   addBonusWord(ch: number, lv: number, word: string): boolean {
     const d = Save.data;
+    /* v1.20 — DUPLICATE ACROSS LEVELS: the word was already cashed in
+     * ANY earlier level → count it as duplicate, no reward
+     * (PlayScreen shows the «قبلاً یافتی» toast) */
+    if (d.bonusAll.includes(word)) return false;
     const key = `${ch}:${lv}`;
     const rec = d.levels[key] ?? { stars: 0, bonus: [] };
     if (rec.bonus.includes(word)) return false;
     rec.bonus.push(word);
     d.levels[key] = rec;
+    d.bonusAll.push(word);   // lifetime ledger (tiny strings)
     Save.persist();
     return true;
   },
@@ -312,6 +327,8 @@ export const Save = {
   reset(): void {
     cache = fresh();
     Save.persist();
+    /* v1.20 — a full reset also wipes every in-level progress snapshot */
+    clearAllProgress();
   },
 
   /* ---------- derived stats ---------- */

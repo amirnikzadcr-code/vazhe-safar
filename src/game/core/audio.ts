@@ -154,7 +154,16 @@ class AudioEngine {
 
       this.musicBus = this.ctx.createGain();
       this.musicBus.gain.value = this.musicOn ? this.musicVol : 0;
-      this.musicBus.connect(this.master);
+      /* v1.20 (user: «سعی کن موزیک‌ها تیز نباشن») — a gentle TONE SHELF
+       * on the music bus only: a soft lowpass (5.2 kHz) plus a -4.5 dB
+       * high-shelf above 2.4 kHz removes the piercing/bright edge of
+       * the santur/kamancheh synths while keeping the warmth. SFX stay
+       * crisp. Both are native BiquadFilters → zero CPU concern. */
+      const mLP = this.ctx.createBiquadFilter();
+      mLP.type = "lowpass"; mLP.frequency.value = 5200; mLP.Q.value = 0.5;
+      const mHS = this.ctx.createBiquadFilter();
+      mHS.type = "highshelf"; mHS.frequency.value = 2400; mHS.gain.value = -4.5;
+      this.musicBus.connect(mLP).connect(mHS).connect(this.master);
 
       // v3 PERF: NO convolver — rendered tracks are pre-reverbed and a
       // live convolution chain costs constant CPU + device heat.

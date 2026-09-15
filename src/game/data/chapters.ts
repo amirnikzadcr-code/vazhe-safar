@@ -83,9 +83,14 @@ export const CHAPTERS: ChapterTheme[] = [
     bg: "/assets/bg/ch05.webp",
     accent: "#5e83ad", accent2: "#ffd98a",
     realm: { sky: ["#a8ccff", "#e8f2ff"], land: ["#9ab4cc", "#708aa4"], gate: ["#5e83ad", "#41638a"] },
-    music: { track: "ch05", scale: "chahargah", root: 293.66, cents: [], bpm: 100, meter: 4, perc: "daf", lead: "kamancheh", octave: 1, drone: 0.5,
-      motif: [[0,0.5],[1,0.5],[2,1],[3,1],[2,0.5],[1,0.5],[4,1],[5,1],[-1,0.5],[4,1],[3,1],[2,1],[3,1],[2,1],[1,1],[0,2]],
-      motifB: [[5,0.5],[4,0.5],[3,1],[2,1],[1,1],[0,1.5],[-1,0.5],[2,1],[0,2.5]],
+    /* v1.20 — ch05 was «ب شدت رو مخ» (user): chahargah @ bpm100,
+     * kamancheh, octave+1 = the sharpest, most piercing combo in the
+     * game. Replaced with a GENTLE dawn piece: low E abuata, ney lead,
+     * slow 64 bpm, soft tombak, deep drone. A brand-new calm track is
+     * rendered for ch05.ogg. */
+    music: { track: "ch05", scale: "abuata", root: 164.81, cents: [], bpm: 64, meter: 4, perc: "tombak", lead: "ney", octave: 0, drone: 0.72,
+      motif: [[0,1],[1,0.5],[2,1],[1,1],[0,1.5],[-1,0.5],[3,1],[2,0.5],[1,1],[2,1],[1,0.5],[0,2]],
+      motifB: [[2,0.5],[1,0.5],[0,1.5],[-1,0.5],[1,1],[0,2]],
       },
     finaleText: "خورشید از پشت قله برآمد و برف‌ها طلایی شدند.",
   },

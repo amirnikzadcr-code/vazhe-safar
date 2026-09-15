@@ -30,6 +30,7 @@ import { getLevel, isRealWord, globalLevel, lvPerCh } from "@/game/data/levelsIn
 import { letters, faNum, canBuild, buzz } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { Save, COSTS, REWARDS } from "@/game/core/save";
+import { getProgress, setProgress, clearProgress } from "@/game/core/progress";
 import { WinModal } from "@/components/game/modals/WinModal";
 import { CHAPTERS } from "@/game/data/chapters";
 import { PauseModal } from "@/components/game/modals/Overlays";
@@ -37,22 +38,21 @@ import { armGameplayProbe } from "@/game/core/perf";
 
 /* celebration duration BEFORE the word applies to the board (ms).
  * v2.1: was 1150 — the player read it as “the word applies too late”.
- * 550 keeps a juicy beat but feels instant. */
-const CELEBRATE_MS = 550;
+ * 550 keeps a juicy beat but feels instant. v1.20: 480 + the wheel no
+ * longer HARD-LOCKS input during the beat (a fresh drag force-ends
+ * the fx) — user: «یه لگ ریز داره وقتی حدس میزنی، نرم روان بکن». */
+const CELEBRATE_MS = 480;
 /* the complete-word banner («جملهٔ کاملش زیبا ظاهر شه بعد محو شه»):
  * golden ribbon with the FULL word, pops in → holds → fades away. */
 const BANNER_MS = 1500;
 
-/* ---- in-progress level snapshots (shop round-trip) ----
- * Leaving a level to visit the shop unmounts PlayScreen; this cache
- * lets us restore found/revealed/mistakes exactly when the player
- * comes back. Memory-only → a fresh app start starts clean. */
-const progressCache = new Map<string, {
-  found: string[];
-  revealed: string[];
-  mistakes: number;
-  earned: { words: number; bonus: number };
-}>();
+/* ---- in-progress level snapshots (v1.20 session U) ----
+ * OLD: a memory-only Map — a shop round-trip survived, but closing the
+ * app mid-level wiped every guessed word (user: «وقتی کاربر وسط بازی
+ * میاد بیرون و دوباره میره بازی تا اونجایی کلمه حدس زده میپره»).
+ * NEW: src/game/core/progress.ts keeps the snapshot in memory AND
+ * localStorage, so re-entering a level resumes EXACTLY where the
+ * player left off — across app restarts, not just shop visits. */
 
 export function PlayScreen({
   ch, lv, resume, onExit, onNext, onSettings, onShop, onProfile,
@@ -77,12 +77,10 @@ export function PlayScreen({
   );
   const wheelLetters = useMemo(() => letters(level.wheel), [level]);
 
-  /* -------- resume support (shop round-trip) -------- */
+  /* -------- resume support (v1.20: ALWAYS restores — app restarts
+   * included, not just the shop round-trip) -------- */
   const progressKey = `${ch}:${lv}`;
-  const resumeSnap = useMemo(
-    () => (resume ? progressCache.get(progressKey) : undefined),
-    [resume, progressKey],
-  );
+  const resumeSnap = useMemo(() => getProgress(progressKey), [progressKey]);
   const wasCompleted = useMemo(() => !!Save.data.levels[progressKey], [progressKey]);
   const resumedDoneRef = useRef(resume === true && wasCompleted && !resumeSnap);
 
@@ -120,6 +118,12 @@ export function PlayScreen({
    *     frame causes ZERO React re-renders of PlayScreen/Wheel;
    *   • `earned` is a plain ref (read once by the win modal). */
   const wheelRef = useRef<WheelHandle | null>(null);
+  /* v1.20 — GUESS STRIP: the dedicated «کادر ساخت واژه» — a fixed slot
+   * between the board and the wheel where the word being dragged is
+   * spelled out live (user: «ی کادر درست بکن بدون تداخل جمله… کلمه‌ای
+   * که کاربر می‌سازه دیده بشه»). Written IMPERATIVELY by the Wheel
+   * (zero re-renders during drags — same pattern as the stroke). */
+  const guessRef = useRef<HTMLDivElement | null>(null);
   const [shaking, setShaking] = useState(false);
   const [won, setWon] = useState<{ stars: number; coins: number } | null>(null);
   const [paused, setPaused] = useState(false);
@@ -140,24 +144,19 @@ export function PlayScreen({
   useEffect(() => { wonRef.current = !!won; }, [won]);
   useEffect(() => { revealedRef.current = revealed; }, [revealed]);
 
-  /* fresh plays always start from a clean slate (kills stale snapshots) */
-  useEffect(() => { if (!resume) progressCache.delete(progressKey); }, [resume, progressKey]);
-
-  /* leaving the level mid-progress → snapshot it for the shop round-trip.
-   * v2.1 BUGFIX (user: hint letters vanished after the shop): the old
-   * guard only kept the snapshot when a word had been FOUND — a hint
-   * pressed before the first word (found=0, revealed>0) threw the
-   * snapshot away. Keep it whenever ANY progress exists. */
+  /* leaving the level mid-progress → snapshot it for the next visit
+   * (shop round-trip, pause-exit AND full app restart — all covered).
+   * Winning or an empty board clears the snapshot. */
   useEffect(() => () => {
-    if (wonRef.current) { progressCache.delete(progressKey); return; }
+    if (wonRef.current) { clearProgress(progressKey); return; }
     const f = foundRef.current;
     const r = revealedRef.current;
     const e = earnedRef.current;
     if (f.size === 0 && r.size === 0 && e.words === 0 && e.bonus === 0) {
-      progressCache.delete(progressKey);
+      clearProgress(progressKey);
       return;
     }
-    progressCache.set(progressKey, {
+    setProgress(progressKey, {
       found: [...f],
       revealed: [...r],
       mistakes: mistakesRef.current,
@@ -260,7 +259,7 @@ export function PlayScreen({
         Save.addCoins(total);
         Save.completeLevel(ch, lv, stars, mistakesRef.current);
         Audio.sfxLevelComplete(stars);
-        progressCache.delete(progressKey);
+        clearProgress(progressKey);
       }
       const t = setTimeout(() => setWon({ stars, coins: REWARDS.perStar * stars }), 340);
       return () => clearTimeout(t);
@@ -342,12 +341,21 @@ export function PlayScreen({
       </div>
 
       {/* board — every word its OWN row; v1.18: per-CHAPTER skin
-          (user: «یکم به تابلو کلمات طرح بده، هر فصل طرحش فرق کنه») */}
+          (user: «یکم به تابلو کلمات طرح بده، هر فصل طرحش فرق کنه»)
+          v1.20: the panel's cap is ROW-AWARE (min(rows*46+40px, 40%)) —
+          a 5-row board no longer swallows 40% of the screen and starves
+          the wheel (it shrank to ~205px); a 10-row board still caps at
+          40% and the height-fit shrinks the tiles into it */}
       <div
         className={`board-box ${shaking ? "shake" : ""}`}
         data-skin={ch}
         onAnimationEnd={() => setShaking(false)}
-        style={{ flex: "1 1 auto", margin: "4px 14px 0", maxHeight: "44%", minHeight: 130 }}
+        style={{
+          flex: "1 1 auto",
+          margin: "4px 14px 0",
+          maxHeight: `min(${wordRows.length * 46 + 38}px, 40%)`,
+          minHeight: 110,
+        }}
       >
         <WordBoard
           words={wordRows}
@@ -356,14 +364,25 @@ export function PlayScreen({
         />
       </div>
 
+      {/* GUESS STRIP (v1.20) — the live word-builder box; a FIXED flex
+          slot so it can never collide with the board or the wheel */}
+      <div className="guess-strip" aria-hidden>
+        <div ref={guessRef} className="guess-inner" />
+        <span className="guess-hint">واژه‌ات را اینجا بساز…</span>
+      </div>
+
       {/* wheel — v6: driven imperatively through the ref; celebrations
-          never re-render PlayScreen or the Wheel */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "6px 0 2px" }}>
+          never re-render PlayScreen or the Wheel. v1.20: seed makes the
+          letter seats GENUINELY RANDOM per level (user: «کلمات باید
+          رندوم باشن» — the old ring seated letters in wheel order). */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "4px 0 2px" }}>
         <Wheel
           ref={wheelRef}
           letters={wheelLetters}
+          seed={globalLevel(ch, lv)}
           shuffleKey={shuffleKey}
           reward={REWARDS.perWord}
+          guessRef={guessRef}
           onRelease={submit}
           onFirstDrag={dismissTutorial}
         />
@@ -425,7 +444,7 @@ export function PlayScreen({
           onResume={() => setPaused(false)}
           onRestart={() => {
             clearPending();
-            progressCache.delete(progressKey);
+            clearProgress(progressKey);
             setPaused(false);
             setFound(new Set());
             setRevealed(new Set());
@@ -482,13 +501,25 @@ const WordBoard = memo(function WordBoard({
       if (w <= 0) return;
       /* width for longest word: tile*len + inner gaps(4px)*(len-1) + row padding */
       const c = Math.floor((w - 28 - 4 * (longest - 1)) / longest);
-      setTile(Math.max(20, Math.min(36, c)));
+      /* v1.20 (user: «جمله‌هاشون زیاده و از کادر خارج میشه میره زیر
+       * دایره») — fit the HEIGHT too: rows = one per word; a row is
+       * tile + 0.24*tile gap. The tile now shrinks so ALL rows fit the
+       * panel — the board can never spill under the wheel. */
+      const rows = words.length;
+      const h = el.clientHeight;
+      let r = c;
+      if (rows > 0 && h > 40) {
+        const avail = h - 26; /* panel padding + slack */
+        const tileH = Math.floor(avail / (rows + 0.24 * (rows - 1)));
+        r = Math.min(c, tileH);
+      }
+      setTile(Math.max(16, Math.min(36, r)));
     };
     calc();
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [longest]);
+  }, [longest, words]);
 
   return (
     <div ref={boxRef} className="wboard" style={{ ["--wt" as string]: `${tile}px` }}>
@@ -632,12 +663,27 @@ export interface WheelHandle {
   endCelebrate(): void;
 }
 
+/* v1.20 — deterministic PRNG (mulberry32): the seat shuffle must be
+ * random for the PLAYER but stable across re-renders (no SSR flicker,
+ * no double-render divergence). Seeded per (level, shuffleKey). */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 const Wheel = memo(forwardRef(function Wheel({
-  letters: ls, shuffleKey, reward, onRelease, onFirstDrag,
+  letters: ls, seed, shuffleKey, reward, guessRef, onRelease, onFirstDrag,
 }: {
   letters: string[];
+  seed: number;
   shuffleKey: number;
   reward: number;
+  guessRef?: React.RefObject<HTMLDivElement | null>;
   onRelease: (str: string) => "new" | "known" | false;
   onFirstDrag?: () => void;
 }, ref) {
@@ -667,15 +713,27 @@ const Wheel = memo(forwardRef(function Wheel({
 
   const positions = useMemo(() => {
     const n = ls.length;
-    /* varied, deterministic rotation per shuffle (feels hand-shuffled) */
-    const rot = shuffleKey === 0 ? 0 : 1 + ((shuffleKey * 5) % (n - 1));
-    return ls.map((_, i) => {
-      const idx = (i + rot) % n;
+    /* v1.20 RANDOM SEATS (user: «اولین حروف دقیقا از سمت راست حلقه…
+     * کلمات باید رندوم باشن» + «بر زدنش ب ترتیب قاطی میکنه»):
+     * the OLD ring seated letters in wheel order (rotationally shifted),
+     * so the answer was readable around the circle and every shuffle
+     * press just rotated the ring — with 6-letter wheels the shift was
+     * ALWAYS exactly one seat (5 % (6-1) = 0), so repeated letters made
+     * it look like the shuffle did nothing at all.
+     * NEW: seeded Fisher–Yates — every level starts genuinely random
+     * and every shuffle press is a FULL re-mix. */
+    const rnd = mulberry32((seed + 1) * 0x9e3779b1 ^ (shuffleKey + 1) * 0x85ebca6b);
+    const perm = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      const t = perm[i]; perm[i] = perm[j]; perm[j] = t;
+    }
+    return perm.map((idx, i) => {
       const ang = -90 + (360 / n) * i;
       const rad = (ang * Math.PI) / 180;
       return { idx, x: 50 + 37 * Math.cos(rad), y: 50 + 37 * Math.sin(rad) };
     });
-  }, [ls, shuffleKey]);
+  }, [ls, seed, shuffleKey]);
 
   /* ---- FLIP SHUFFLE ---- tiles glide from old seat → new seat.
    * Pure transform/opacity (WAAPI) → fully composited, no jank. */
@@ -714,6 +772,24 @@ const Wheel = memo(forwardRef(function Wheel({
 
   /* selection lives ONLY in refs — tiles + line are painted by direct
    * DOM writes. A drag causes ZERO React re-renders. */
+  /* v1.20 — the GUESS STRIP writer: spells the in-progress word into
+   * the dedicated box between board and wheel. Direct DOM (tiny), so
+   * drags still never re-render React. */
+  const paintGuess = () => {
+    const g = guessRef?.current;
+    if (!g) return;
+    const sel = selRef.current;
+    if (sel.length === 0) {
+      if (g.innerHTML !== "") g.innerHTML = "";
+      g.parentElement?.classList.remove("live");
+      return;
+    }
+    let html = "";
+    for (const i of sel) html += `<b>${ls[i]}</b>`;
+    if (g.innerHTML !== html) g.innerHTML = html;
+    g.parentElement?.classList.add("live");
+  };
+
   const paintTiles = () => {
     const els = tileElsRef.current;
     if (!els) return;
@@ -724,6 +800,7 @@ const Wheel = memo(forwardRef(function Wheel({
     selRef.current = next;
     paintTiles();
     paintLine();
+    paintGuess();
   };
 
   /* ------- BUTTERY DRAG (user request: «ب شدت نرم روان بکن») -------
@@ -796,6 +873,41 @@ const Wheel = memo(forwardRef(function Wheel({
   /* tiles remount on shuffle → drop the cached elements */
   useEffect(() => { tileElsRef.current = null; }, [shuffleKey]);
 
+  /* v1.20 — SHUFFLE FX (user: «گرافیگ و افکت بده بهش»): the wooden ring
+   * physically SPINS while the tiles glide to their new seats (FLIP
+   * above). Class-on/class-off — compositor-only, no React re-render. */
+  useEffect(() => {
+    if (shuffleKey === 0) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    wrap.classList.add("shuffling");
+    const t = setTimeout(() => wrap.classList.remove("shuffling"), 700);
+    return () => { clearTimeout(t); wrap.classList.remove("shuffling"); };
+  }, [shuffleKey]);
+
+  /* v1.20 — HEIGHT-AWARE WHEEL SIZE: the wrap used to be a FIXED
+   * min(76vw, 330px) square; on short screens the flex column overflowed
+   * and the board slid UNDER the wheel (user: «جمله‌ها از کادر خارج
+   * میشه میره زیر دایره»). Now the wrap fits BOTH axes of its flex
+   * container — one ResizeObserver, zero per-frame work. */
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const host = wrap?.parentElement;
+    if (!wrap || !host) return;
+    const fit = () => {
+      const w = host.clientWidth;
+      const h = host.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      const s = Math.floor(Math.min(w - 8, h - 4, 330));
+      wrap.style.width = `${s}px`;
+      wrap.style.height = `${s}px`;
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(host);
+    return () => ro.disconnect();
+  }, []);
+
   /* distance hit-test — never misses between tiles, super cheap */
   const hitTile = (lx: number, ly: number): number | null => {
     const R = rRef.current;
@@ -847,6 +959,7 @@ const Wheel = memo(forwardRef(function Wheel({
     tipCurRef.current = null;
     paintTiles();
     paintLine();
+    paintGuess(); /* v1.20 — clear the guess strip with the selection */
   }, []);
   useImperativeHandle(ref, () => ({ celebrate, endCelebrate }), [celebrate, endCelebrate]);
 
@@ -865,7 +978,11 @@ const Wheel = memo(forwardRef(function Wheel({
   };
 
   const down = (e: React.PointerEvent) => {
-    if (lockRef.current) return; /* celebrating → inputs locked for the moment */
+    /* v1.20 — input NEVER dead (user: «یه لگ ریز داره وقتی حدس میزنی»):
+     * during the 480ms celebration the wheel used to IGNORE touches —
+     * an immediate next drag felt frozen. Now the fx force-ends and the
+     * new stroke starts instantly (the pending word still lands). */
+    if (lockRef.current) endCelebrate();
     const r = measure();
     const lx = e.clientX - r.left, ly = e.clientY - r.top;
     const i = hitTile(lx, ly);

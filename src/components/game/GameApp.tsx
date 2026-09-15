@@ -14,6 +14,7 @@
  * ------------------------------------------------------------------ */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Save } from "@/game/core/save";
+import { hasProgress, flushProgress } from "@/game/core/progress";
 import { Audio } from "@/game/core/audio";
 import { CHAPTERS, MENU_MUSIC, PARTY_MUSIC } from "@/game/data/chapters";
 import { lvPerCh } from "@/game/data/levelsIndex";
@@ -91,12 +92,19 @@ export function GameApp() {
   }, []);
 
   /* v2.0 — leaving the shop → return where the player came from.
-   * If that play level completed meanwhile (shop opened from the win
-   * modal) land on the chapter map instead of a dead board. */
+   * v1.20 FIX (user: «از صفحه بازی روی سکه‌ها میزنه میره فروشگاه و
+   * دکمه برگشت میزنه بازی میپره صفحه اصلی یا تو مرحله‌ها»): the old
+   * check redirected to the map whenever a level RECORD existed —
+   * including a REPLAY of a completed level visited mid-progress!
+   * Now: redirect to the map ONLY when the level is finished AND no
+   * live in-level snapshot exists (i.e. the shop was opened from the
+   * win modal). Any replay with progress returns INTO the replay. */
   const leaveShop = useCallback(() => {
     const r = shopReturnRef.current;
     if (r.k === "play") {
-      if (Save.data.levels[`${r.ch}:${r.lv}`]) { setView({ k: "map", ch: r.ch }); return; }
+      const finished = !!Save.data.levels[`${r.ch}:${r.lv}`];
+      const live = hasProgress(`${r.ch}:${r.lv}`);
+      if (finished && !live) { setView({ k: "map", ch: r.ch }); return; }
       setView({ ...r, resume: true });
       return;
     }
@@ -151,7 +159,12 @@ export function GameApp() {
 
   /* ----- AUDIO LIFECYCLE — never play while the game is closed ----- */
   useEffect(() => {
-    const onVis = () => { if (document.hidden) Audio.pauseAll(); else Audio.resumeAll(); };
+    const onVis = () => {
+      if (document.hidden) {
+        Audio.pauseAll();
+        flushProgress(); /* v1.20 — in-level progress survives the freeze */
+      } else Audio.resumeAll();
+    };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);

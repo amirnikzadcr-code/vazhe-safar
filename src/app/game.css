@@ -445,6 +445,7 @@ html, body { overscroll-behavior: none; height: 100%; }
   padding: 12px 10px;
   display: flex; align-items: center; justify-content: center;
   contain: layout style;   /* v6: landings never invalidate the whole page */
+  overflow: hidden;        /* v1.20: nothing ever spills out of the panel */
 }
 /* v2.4 — hard chapters have up to 10 words: the board scrolls gently
  * instead of shrinking tiles into unreadability */
@@ -599,6 +600,73 @@ html, body { overscroll-behavior: none; height: 100%; }
 }
 @keyframes selPing { 0% { transform: scale(.85); opacity: 1; } 100% { transform: scale(1.16); opacity: 0; } }
 .tile.used { filter: grayscale(.4) brightness(.92); }
+
+/* ==================================================================
+   v1.20 — SHUFFLE SPIN FX («گرافیگ و افکت بده بهش»): the wooden ring
+   physically spins a full turn while the tiles FLIP-glide to their
+   new seats; the hub pulses. Compositor-only (transform), one-shot.
+   ================================================================== */
+.wheel-wrap.shuffling .wheel-wood { animation: woodSpin .68s cubic-bezier(.3,.6,.25,1) both; }
+@keyframes woodSpin {
+  0%   { transform: rotate(0deg) scale(1); }
+  45%  { transform: rotate(196deg) scale(1.045); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.wheel-wrap.shuffling .wheel-hub { animation: hubPulse .68s ease both; }
+@keyframes hubPulse {
+  0% { transform: translate(-50%,-50%) scale(1); }
+  45% { transform: translate(-50%,-50%) scale(1.22); }
+  100% { transform: translate(-50%,-50%) scale(1); }
+}
+
+/* ==================================================================
+   v1.20 — GUESS STRIP («ی کادر درست بکن بدون تداخل جمله… کلمه‌ای که
+   کاربر می‌سازه دیده بشه»): a dedicated word-builder box in its own
+   fixed flex slot between the board and the wheel — it can NEVER
+   collide with either. RTL flow: the first letter appears rightmost.
+   Written imperatively by the Wheel during drags (zero re-renders).
+   ================================================================== */
+.guess-strip {
+  position: relative;
+  flex: 0 0 auto;
+  height: 46px;
+  margin: 7px 34px 0;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,251,235,.55), rgba(255,244,214,.38));
+  border: 2px dashed rgba(255,255,255,.65);
+  box-shadow: inset 0 2px 6px rgba(95,58,20,.18), 0 3px 8px rgba(60,35,0,.14);
+  display: flex; align-items: center; justify-content: center;
+  transition: background .25s ease, border-color .25s ease;
+}
+.guess-strip.live {
+  background: linear-gradient(180deg, rgba(255,243,190,.92), rgba(255,228,148,.85));
+  border: 2px solid #fff;
+  outline: 2px solid rgba(240,169,44,.55);
+  box-shadow: 0 4px 0 rgba(180,119,8,.35), 0 8px 14px rgba(60,35,0,.22);
+}
+.guess-hint {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12.5px; font-weight: 700; color: rgba(122,84,22,.5);
+  pointer-events: none; transition: opacity .2s ease;
+}
+.guess-strip.live .guess-hint { opacity: 0; }
+.guess-inner {
+  display: flex; align-items: center; gap: 5px;
+  max-width: 100%; overflow: hidden; padding: 0 8px;
+}
+.guess-inner b {
+  flex: 0 0 auto;
+  min-width: 30px; height: 32px; padding: 0 5px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fffdf4, #ffe9ae);
+  border: 2px solid #fff; outline: 1.5px solid #e2b25e;
+  box-shadow: 0 3px 0 #d9a94e;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 17px; color: #5d3a12;
+  animation: gPop .2s cubic-bezier(.2,1.6,.4,1) both;
+}
+@keyframes gPop { 0% { transform: scale(.4); } 70% { transform: scale(1.18); } 100% { transform: scale(1); } }
 
 /* wheel celebration FX (bounded one-shot).
    PERF: glow = composited ::after halo (transform+opacity), NOT an
@@ -1955,6 +2023,11 @@ body { background: #5cb2ef; }
 .lowfx .unlock-go { animation: celebPop .5s cubic-bezier(.34,1.56,.64,1) 2.35s both !important; }
 .lowfx .unlock-lock .ul-body { animation: none !important; }
 .lowfx .ch-dot { transition: none !important; }
+/* v1.20 — new play-screen pieces shed cleanly on weak phones */
+.lowfx .wheel-wrap.shuffling .wheel-wood,
+.lowfx .wheel-wrap.shuffling .wheel-hub,
+.lowfx .guess-inner b { animation: none !important; }
+.lowfx .guess-strip { transition: none !important; }
 
 /* ═══════════════════════════════════════════════════════════════════
    v3 SHOP — premium night-gold market (exclusive identity).

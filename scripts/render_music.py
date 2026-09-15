@@ -336,7 +336,10 @@ def stereo(total, L, R, loop_len):
     dry = np.stack([L, R])
     mix = dry*(1-0.26) + wet*0.26
     # --- master: gentle lowpass (kill harshness), soft saturation, normalize
-    mix = butter_lp(mix, 11000, order=2, axis=1)
+    # v1.20 (user: «سعی کن موزیک ها تیز نباشن») — 11000 → 7000 Hz: removes
+    # the piercing top edge of the santur/kamancheh partials for a warmer,
+    # softer track. (Runtime also applies a 5.2 kHz tone shelf on top.)
+    mix = butter_lp(mix, 7000, order=2, axis=1)
     mix = np.tanh(mix*1.15)/1.15
     mix /= max(np.abs(mix).max(), 1e-9)
     # loudness consistency: pull every track to a common perceived level
