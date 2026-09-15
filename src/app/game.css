@@ -542,7 +542,9 @@ html, body { overscroll-behavior: none; height: 100%; }
 /* wheel celebration FX (bounded one-shot).
    PERF: glow = composited ::after halo (transform+opacity), NOT an
    animated box-shadow — the old shadow loop repainted every frame and
-   made the “نور گیر می‌کنه” stuck-glow artifact on weak phones. */
+   made the “نور گیر می‌کنه” stuck-glow artifact on weak phones.
+   v5: the burst + fx-coin are PRE-MOUNTED (display:none) and replayed
+   with a .play class toggle — the guess frame creates no DOM. */
 .wheel-wrap.fx .tile.sel::after {
   content: ""; position: absolute; inset: -6px; border-radius: 999px;
   background: radial-gradient(circle, rgba(255,236,170,.95) 0%, rgba(255,214,90,.55) 45%, rgba(255,214,90,0) 72%);
@@ -554,35 +556,37 @@ html, body { overscroll-behavior: none; height: 100%; }
   from { transform: scale(.92); opacity: .55; }
   to   { transform: scale(1.22); opacity: 1; }
 }
-.wheel-burst { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
+.wheel-burst { position: absolute; inset: 0; pointer-events: none; z-index: 30; display: none; }
+.wheel-burst.play { display: block; }
 .wb-ring {
   position: absolute; left: 50%; top: 50%; width: 70%; aspect-ratio: 1; margin: -35% 0 0 -35%;
   border-radius: 999px; border: 4px solid #ffd94e;
-  animation: wbRing .58s ease-out both;
 }
+.wheel-burst.play .wb-ring { animation: wbRing .58s ease-out both; }
 @keyframes wbRing { from { transform: scale(.4); opacity: .95; } to { transform: scale(2.6); opacity: 0; } }
 .wb-flash {
   position: absolute; inset: 0; border-radius: 999px;
   background: radial-gradient(circle, rgba(255,244,180,.5), transparent 70%);
-  animation: wbFlash .4s ease-out both;
 }
+.wheel-burst.play .wb-flash { animation: wbFlash .4s ease-out both; }
 @keyframes wbFlash { from { opacity: 1; } to { opacity: 0; } }
 .wheel-burst i {
   position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; border-radius: 3px;
   background: var(--dc,#ffd94e);
-  animation: wbSpark .6s ease-out var(--dd,0ms) both;
 }
+.wheel-burst.play i { animation: wbSpark .6s ease-out var(--dd,0ms) both; }
 @keyframes wbSpark {
   0% { transform: translate(0,0) scale(1); opacity: 1; }
   100% { transform: translate(var(--dx),var(--dy)) scale(.2); opacity: 0; }
 }
 .fx-coin {
   position: absolute; left: 50%; top: 8%; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 5px;
+  display: none; align-items: center; gap: 5px;
   background: rgba(74,44,14,.85); border: 2px solid #ffcf6e; border-radius: 999px;
   color: #ffe08a; font-weight: 800; font-size: 14px; padding: 3px 11px;
-  animation: fxCoin .62s ease-out both; z-index: 31;
+  z-index: 31;
 }
+.fx-coin.play { display: flex; animation: fxCoin .62s ease-out both; }
 @keyframes fxCoin {
   0% { transform: translate(-50%, 16px) scale(.6); opacity: 0; }
   25% { transform: translate(-50%, 0) scale(1.08); opacity: 1; }
@@ -597,17 +601,18 @@ html, body { overscroll-behavior: none; height: 100%; }
    ================================================================== */
 .word-banner {
   position: absolute; inset: 0; z-index: 45; pointer-events: none;
-  display: flex; align-items: center; justify-content: center;
+  display: none; align-items: center; justify-content: center;
 }
+.word-banner.play { display: flex; }
 .wb-ribbon {
   position: relative; display: inline-flex; align-items: center; gap: 12px;
   padding: 14px 34px 16px; border-radius: 22px;
   background: linear-gradient(180deg, rgba(255,253,244,.97), rgba(255,233,174,.97));
   border: 3px solid #fff; outline: 3px solid #e8a93c;
   box-shadow: 0 10px 26px rgba(80,40,0,.4);
-  animation: wbRibbon 1.5s cubic-bezier(.2,1.5,.4,1) both;
   will-change: transform, opacity;
 }
+.word-banner.play .wb-ribbon { animation: wbRibbon 1.5s cubic-bezier(.2,1.5,.4,1) both; }
 .wb-word {
   font-weight: 800; font-size: 40px; line-height: 1.25; color: #7a4a00;
   text-shadow: 0 2px 0 #ffe9ae;
@@ -618,8 +623,8 @@ html, body { overscroll-behavior: none; height: 100%; }
   margin: -10px 0 0 -10px; border-radius: 4px; background: #f0a92c;
 }
 .wb-star::after { transform: rotate(90deg); background: #ffd76e; }
-.wb-star.l { animation: wbSpin 1.5s ease both; }
-.wb-star.r { animation: wbSpinR 1.5s ease both; }
+.word-banner.play .wb-star.l { animation: wbSpin 1.5s ease both; }
+.word-banner.play .wb-star.r { animation: wbSpinR 1.5s ease both; }
 @keyframes wbSpin { from { transform: rotate(-160deg) scale(0); } 55% { transform: rotate(20deg) scale(1.25); } to { transform: rotate(0) scale(1); } }
 @keyframes wbSpinR { from { transform: rotate(160deg) scale(0); } 55% { transform: rotate(-20deg) scale(1.25); } to { transform: rotate(0) scale(1); } }
 @keyframes wbRibbon {
@@ -633,9 +638,9 @@ html, body { overscroll-behavior: none; height: 100%; }
 .wb-dust i {
   position: absolute; left: 0; top: 0; width: 8px; height: 8px; border-radius: 2px;
   background: #ffd94e;
-  animation: wbDust 1.15s ease-out var(--dd,0ms) both;
   will-change: transform, opacity;
 }
+.word-banner.play .wb-dust i { animation: wbDust 1.15s ease-out var(--dd,0ms) both; }
 @keyframes wbDust {
   0% { transform: translate(0,0) scale(.4) rotate(0); opacity: 0; }
   14% { opacity: 1; }

@@ -92,9 +92,19 @@ export function PlayScreen({
   const [revealed, setRevealed] = useState<Set<string>>(
     () => new Set(resumeSnap?.revealed ?? []), // "word#idx"
   );
-  const [justFound, setJustFound] = useState<{ word: string; k: number } | null>(null);
-  const [banner, setBanner] = useState<{ word: string; k: number } | null>(null);
+  /* v5 PERF — the word-guess hitch (user: «هنوز قیمتی کلمه حدس میزنی
+   * یهو یکم لگ میزنه توی موبایل») came from ONE frame doing ALL of:
+   * wheel-fx unmount + board re-render + banner DOM mount + audio.
+   * Fixes applied:
+   *   1. the banner is PRE-MOUNTED (display:none) and replayed with a
+   *      class toggle — guess-time does ZERO DOM creation for it;
+   *   2. board rows are memo'd (only the found row re-renders);
+   *   3. the wheel burst is pre-mounted too (same class-replay trick).
+   *  → the celebration frame is a handful of classList toggles. */
+  const bannerRef = useRef<HTMLDivElement | null>(null);
+  const bannerWordRef = useRef<HTMLElement | null>(null);
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bannerRafRef = useRef(0);
   const [wheelFx, setWheelFx] = useState<{ word: string; k: number } | null>(null);
   const [shaking, setShaking] = useState(false);
   const [won, setWon] = useState<{ stars: number; coins: number } | null>(null);
@@ -171,29 +181,37 @@ export function PlayScreen({
   }, []);
   useEffect(() => () => clearPending(), [clearPending]);
 
-  /* letters of a word currently visible (found = all, hint = some) */
-  const letterShown = useCallback((word: string, idx: number, isFound: boolean) => {
-    if (isFound) return true;
-    return revealed.has(`${word}#${idx}`);
-  }, [revealed]);
-
   /* stage 2: the word actually lands on the board + the FULL word
-   * banner blooms over the screen, then fades (user request) */
+   * banner blooms over the screen, then fades (user request).
+   * v5 PERF: board update and banner replay are SPLIT across frames —
+   * each gets its own frame on weak phones. The banner itself is a
+   * pre-mounted element replayed with a class toggle (no DOM mount). */
   const commitFound = useCallback((word: string) => {
     pendingRef.current.delete(word);
     const next = new Set(foundRef.current);
     next.add(word);
     foundRef.current = next;
     setFound(next);
-    fxKRef.current += 1;
-    setJustFound({ word, k: fxKRef.current });
-    fxKRef.current += 1;
-    setBanner({ word, k: fxKRef.current });
-    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
-    bannerTimerRef.current = setTimeout(() => setBanner(null), BANNER_MS);
     Audio.sfxSettle();
+    bannerRafRef.current = requestAnimationFrame(() => {
+      bannerRafRef.current = 0;
+      const el = bannerRef.current;
+      if (el) {
+        if (bannerWordRef.current) bannerWordRef.current.textContent = word;
+        el.classList.remove("play");
+        void el.offsetWidth; /* force reflow → CSS animations restart */
+        el.classList.add("play");
+      }
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+      bannerTimerRef.current = setTimeout(() => {
+        bannerRef.current?.classList.remove("play");
+      }, BANNER_MS);
+    });
   }, []);
-  useEffect(() => () => { if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current); }, []);
+  useEffect(() => () => {
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    if (bannerRafRef.current) cancelAnimationFrame(bannerRafRef.current);
+  }, []);
 
   /* stage 1: reward + wheel celebration, then apply to the board */
   const celebrate = useCallback((word: string, byPlayer: boolean) => {
@@ -329,8 +347,7 @@ export function PlayScreen({
         <WordBoard
           words={wordRows}
           found={found}
-          isShown={letterShown}
-          justFound={justFound}
+          revealed={revealed}
         />
       </div>
 
@@ -377,21 +394,20 @@ export function PlayScreen({
         </div>
       )}
 
-      {/* COMPLETE-WORD BANNER — blooms when a word is guessed, then fades */}
-      {banner && (
-        <div key={banner.k} className="word-banner" aria-hidden>
-          <span className="wb-ribbon">
-            <i className="wb-star l" />
-            <b className="wb-word">{banner.word}</b>
-            <i className="wb-star r" />
-          </span>
-          <span className="wb-dust">
-            {Array.from({ length: 8 }, (_, s) => (
-              <i key={s} style={{ ["--dx" as string]: `${Math.cos((s / 8) * Math.PI * 2) * 90}px`, ["--dy" as string]: `${Math.sin((s / 8) * Math.PI * 2) * 46 - 20}px`, ["--dd" as string]: `${s * 40}ms` }} />
-            ))}
-          </span>
-        </div>
-      )}
+      {/* COMPLETE-WORD BANNER — pre-mounted once, replayed via class
+          toggle (zero DOM creation at guess time → no mobile hitch) */}
+      <div ref={bannerRef} className="word-banner" aria-hidden>
+        <span className="wb-ribbon">
+          <i className="wb-star l" />
+          <b className="wb-word" ref={bannerWordRef} />
+          <i className="wb-star r" />
+        </span>
+        <span className="wb-dust">
+          {Array.from({ length: 8 }, (_, s) => (
+            <i key={s} style={{ ["--dx" as string]: `${Math.cos((s / 8) * Math.PI * 2) * 90}px`, ["--dy" as string]: `${Math.sin((s / 8) * Math.PI * 2) * 46 - 20}px`, ["--dd" as string]: `${s * 40}ms` }} />
+          ))}
+        </span>
+      </div>
 
       {paused && (
         <PauseModal
@@ -402,7 +418,6 @@ export function PlayScreen({
             setPaused(false);
             setFound(new Set());
             setRevealed(new Set());
-            setJustFound(null);
             mistakesRef.current = 0;
             setEarned({ words: 0, bonus: 0 });
             setShuffleKey((k) => k + 1);
@@ -433,14 +448,16 @@ export function PlayScreen({
 
 /* ================= WordBoard — each word = its own separate row.
    Uniform tile size measured from the longest word → smaller tiles,
-   mathematically guaranteed to fit: overlap is impossible. ================= */
+   mathematically guaranteed to fit: overlap is impossible.
+   v5 PERF (mobile word-guess hitch): each ROW is a memo component with
+   primitive props — when a word is found only THAT row re-renders;
+   the other rows bail out of reconciliation entirely. ================= */
 const WordBoard = memo(function WordBoard({
-  words, found, isShown, justFound,
+  words, found, revealed,
 }: {
   words: string[];
   found: Set<string>;
-  isShown: (word: string, idx: number, isFound: boolean) => boolean;
-  justFound: { word: string; k: number } | null;
+  revealed: Set<string>;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [tile, setTile] = useState(30);
@@ -465,37 +482,57 @@ const WordBoard = memo(function WordBoard({
   return (
     <div ref={boxRef} className="wboard" style={{ ["--wt" as string]: `${tile}px` }}>
       {words.map((w) => {
-        const ls = letters(w);
         const isF = found.has(w);
-        const isJf = justFound?.word === w;
+        /* shown-mask: "1" → letter visible (found rows show everything) */
+        const mask = isF
+          ? LETTER_MASKS[letters(w).length] ?? "1".repeat(letters(w).length)
+          : maskOf(w, revealed);
+        return <WordRow key={w} word={w} isF={isF} mask={mask} tile={tile} />;
+      })}
+    </div>
+  );
+});
+
+/* pre-built masks for found rows (avoids a repeat() on every render) */
+const LETTER_MASKS: Record<number, string> = {};
+for (let i = 0; i <= 12; i++) LETTER_MASKS[i] = "1".repeat(i);
+
+function maskOf(word: string, revealed: Set<string>): string {
+  let m = "";
+  for (let i = 0; i < letters(word).length; i++) m += revealed.has(`${word}#${i}`) ? "1" : "0";
+  return m;
+}
+
+const WordRow = memo(function WordRow({
+  word, isF, mask, tile,
+}: {
+  word: string;
+  isF: boolean;
+  mask: string;
+  tile: number;
+}) {
+  const ls = letters(word);
+  return (
+    <div className={`wrow ${isF ? "done" : ""}`}>
+      {ls.map((ch, i) => {
+        const shown = isF || mask[i] === "1";
         return (
-          <div
-            key={w}
-            className={`wrow ${isF ? "done" : ""}`}
-            data-jf={isJf ? justFound!.k : undefined}
+          <span
+            key={i}
+            className={`wtile ${isF ? "fill" : shown ? "reveal" : "empty"}`}
+            style={{ animationDelay: isF ? `${i * 45}ms` : shown ? "0ms" : undefined, fontSize: Math.round(tile * 0.6) }}
           >
-            {ls.map((ch, i) => {
-              const shown = isShown(w, i, isF);
-              return (
-                <span
-                  key={i}
-                  className={`wtile ${isF ? "fill" : shown ? "reveal" : "empty"}`}
-                  style={{ animationDelay: isF ? `${i * 45}ms` : shown ? "0ms" : undefined, fontSize: Math.round(tile * 0.6) }}
-                >
-                  {shown ? ch : ""}
-                </span>
-              );
-            })}
-            {isF && (
-              <span className="wsparkles" aria-hidden>
-                {Array.from({ length: 6 }, (_, s) => (
-                  <i key={s} style={{ ["--dx" as string]: `${(s - 2.5) * 26}px`, ["--dy" as string]: `${-18 - (s % 3) * 14}px`, ["--dd" as string]: `${s * 45}ms` }} />
-                ))}
-              </span>
-            )}
-          </div>
+            {shown ? ch : ""}
+          </span>
         );
       })}
+      {isF && (
+        <span className="wsparkles" aria-hidden>
+          {Array.from({ length: 6 }, (_, s) => (
+            <i key={s} style={{ ["--dx" as string]: `${(s - 2.5) * 26}px`, ["--dy" as string]: `${-18 - (s % 3) * 14}px`, ["--dd" as string]: `${s * 45}ms` }} />
+          ))}
+        </span>
+      )}
     </div>
   );
 });
@@ -528,6 +565,10 @@ const Wheel = memo(function Wheel({
   const coreRef = useRef<SVGPolylineElement | null>(null);
   const shineRef = useRef<SVGPolylineElement | null>(null);
   const beadRef = useRef<SVGGElement | null>(null);
+  /* v5 PERF — celebration FX pre-mounted ONCE and replayed with a class
+   * toggle: the guess frame does classList work, not DOM creation */
+  const burstRef = useRef<HTMLDivElement | null>(null);
+  const coinFxRef = useRef<HTMLSpanElement | null>(null);
   const selRef = useRef<number[]>([]);
   const dragRef = useRef(false);
   const firstDragRef = useRef(false);
@@ -688,12 +729,25 @@ const Wheel = memo(function Wheel({
   };
 
   /* fx set → celebrate (class derived from fx, no state needed);
-   * fx cleared (word landed) → release the selection, DOM-only */
+   * fx cleared (word landed) → release the selection, DOM-only.
+   * v5 PERF: the burst/coin are pre-mounted — replay via class toggle */
   const hadFxRef = useRef(false);
   useEffect(() => {
-    if (fx) { hadFxRef.current = true; return; }
+    if (fx) {
+      hadFxRef.current = true;
+      const b = burstRef.current;
+      const c = coinFxRef.current;
+      if (b) b.classList.remove("play");
+      if (c) c.classList.remove("play");
+      void b?.offsetWidth; /* one shared reflow → animations restart */
+      if (b) b.classList.add("play");
+      if (c) c.classList.add("play");
+      return;
+    }
     if (!hadFxRef.current) return;
     hadFxRef.current = false;
+    burstRef.current?.classList.remove("play");
+    coinFxRef.current?.classList.remove("play");
     selRef.current = [];
     tipTargetRef.current = null;
     tipCurRef.current = null;
@@ -805,31 +859,28 @@ const Wheel = memo(function Wheel({
         ))}
       </div>
 
-      {/* ---- CELEBRATION FX (pure CSS, bounded, 60fps) — keyed by fx.k,
-           shown only while the parent keeps `fx` set ---- */}
-      {fx && (
-        <div key={fx.k} className="wheel-burst" aria-hidden>
-          <span className="wb-ring" />
-          <span className="wb-flash" />
-          {Array.from({ length: 10 }, (_, s) => (
-            <i
-              key={s}
-              style={{
-                ["--dx" as string]: `${Math.cos((s / 10) * Math.PI * 2) * 120}px`,
-                ["--dy" as string]: `${Math.sin((s / 10) * Math.PI * 2) * 120}px`,
-                ["--dd" as string]: `${s * 24}ms`,
-                ["--dc" as string]: s % 2 ? "#ffd94e" : "#ffefb0",
-              }}
-            />
-          ))}
-        </div>
-      )}
-      {fx && (
-        <span key={`coin${fx.k}`} className="fx-coin" aria-hidden>
-          <span className="coin-ic" style={{ width: 18, height: 18 }} />
-          +{faNum(reward)}
-        </span>
-      )}
+      {/* ---- CELEBRATION FX (pure CSS, bounded, 60fps) — pre-mounted
+           ONCE, replayed with a class toggle (v5 PERF: zero DOM
+           creation inside the guess frame on weak phones) ---- */}
+      <div ref={burstRef} className="wheel-burst" aria-hidden>
+        <span className="wb-ring" />
+        <span className="wb-flash" />
+        {Array.from({ length: 10 }, (_, s) => (
+          <i
+            key={s}
+            style={{
+              ["--dx" as string]: `${Math.cos((s / 10) * Math.PI * 2) * 120}px`,
+              ["--dy" as string]: `${Math.sin((s / 10) * Math.PI * 2) * 120}px`,
+              ["--dd" as string]: `${s * 24}ms`,
+              ["--dc" as string]: s % 2 ? "#ffd94e" : "#ffefb0",
+            }}
+          />
+        ))}
+      </div>
+      <span ref={coinFxRef} className="fx-coin" aria-hidden>
+        <span className="coin-ic" style={{ width: 18, height: 18 }} />
+        +{faNum(reward)}
+      </span>
     </div>
   );
 });

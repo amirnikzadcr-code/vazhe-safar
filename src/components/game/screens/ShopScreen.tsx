@@ -1,29 +1,29 @@
 "use client";
 /* ------------------------------------------------------------------
- * ShopScreen — v3 FULL REDESIGN («فروشگاه رو خوشگل تر و اختصاصی تر بکن»)
- * A premium night-gold market — exclusive look, zero backdrop-blur,
- * one-shot compositor-only animations (60 fps on weak phones).
+ * ShopScreen — v4 RELEASE MODE (user: «تمام متن های نمایشی در قسمت
+ * فروشگاه حذف کن … الکی پول نده حالت نمایشی در بیار … بخش تبلیغات هم
+ * از حالت نمایشی در بیار و کلا خاموشش کن تا بعدا فعالش میکنیم»)
  *
- * Monetization-ready (user: «آمادش کن در صورت انتشار در مایکت و بازار
- * بشه پرداخت درون برنامه ایی وصل کرد یا بشه تبلیغات گذاشت»):
- *   • every buy button routes through Monetization.purchase(sku)
- *   • with the native bridge (APK) → real Myket/Bazaar IAP
- *   • without it → SIMULATED purchase so the flow is testable
- *   • «سکهٔ رایگان» tab = rewarded-video slot (AdMob-ready; simulated
- *     in web with a small in-page ad overlay)
- *   • «حذف تبلیغات» product persists in the save (Save.data.adsRemoved)
+ *  • ZERO demo texts, ZERO simulated purchases — every buy routes
+ *    through Monetization.purchase(sku); with the native store bridge
+ *    (release APK) → real Myket/Bazaar IAP; without it → a polite
+ *    «پس از انتشار فعال می‌شود» message and NOTHING is granted.
+ *  • ADS are globally OFF → the rewarded-video tab + sim overlay are
+ *    gone from this build (Monetization.ADS_ENABLED brings them back).
+ *  • A premium night-gold market — exclusive look, zero backdrop-blur,
+ *    one-shot compositor-only animations (60 fps on weak phones).
  * Back button returns to where the player came from (GameApp.leaveShop).
  * ------------------------------------------------------------------ */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Sheet, TopBar, Btn, useToast, ToastHost } from "@/components/game/ui/kit";
-import { Coin, Sparkles } from "@/components/game/icons";
+import { Coin } from "@/components/game/icons";
 import { faNum } from "@/game/core/utils";
 import { useCoins } from "@/components/game/useSave";
 import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
 import {
-  SKUS, Sku, REWARDED_COINS, REWARDED_COOLDOWN_MS,
-  purchase, showRewardedAd, completeSimulatedAd, hasNativeBilling,
+  SKUS, Sku, ADS_ENABLED, REWARDED_COINS, REWARDED_COOLDOWN_MS,
+  purchase, hasNativeBilling,
 } from "@/game/core/monetization";
 
 type Tab = "coins" | "special" | "free";
@@ -34,30 +34,10 @@ export function ShopScreen({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("coins");
   const [pending, setPending] = useState<string | null>(null);
   const [adsRemoved, setAdsRemoved] = useState(Save.data.adsRemoved);
-  const [simAd, setSimAd] = useState(false);
-  const [adTick, setAdTick] = useState(0); /* re-render for the cooldown text */
-
-  /* cooldown ticker for the rewarded card (only while the tab is open) */
-  useEffect(() => {
-    if (tab !== "free") return;
-    const id = setInterval(() => setAdTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
-  }, [tab]);
-
-  const rewardedReady = Date.now() - Save.data.lastRewardedAd >= REWARDED_COOLDOWN_MS;
-  const waitSec = Math.max(0, Math.ceil((Save.data.lastRewardedAd + REWARDED_COOLDOWN_MS - Date.now()) / 1000));
-
-  /* simulated rewarded video (web/preview — native uses real AdMob) */
-  useEffect(() => {
-    const open = () => setSimAd(true);
-    window.addEventListener("vz:sim-rewarded-ad", open);
-    return () => window.removeEventListener("vz:sim-rewarded-ad", open);
-  }, []);
 
   const buy = async (sku: Sku) => {
     if (pending) return;
     setPending(sku.id);
-    show("در حال اتصال به فروشگاه…");
     const r = await purchase(sku);
     setPending(null);
     if (!r.ok) { Audio.sfxWrong(); show(r.error); return; }
@@ -70,23 +50,29 @@ export function ShopScreen({ onBack }: { onBack: () => void }) {
       return;
     }
     Save.addCoins(sku.coins ?? 0);
-    show(r.simulated
-      ? `خرید نمایشی موفق — ${faNum(sku.coins ?? 0)} سکه اضافه شد`
-      : `پرداخت موفق — ${faNum(sku.coins ?? 0)} سکه اضافه شد`);
+    show(`پرداخت موفق — ${faNum(sku.coins ?? 0)} سکه اضافه شد`);
   };
+
+  /* rewarded card state (only mounted while ads are ON) */
+  const rewardedReady = Date.now() - Save.data.lastRewardedAd >= REWARDED_COOLDOWN_MS;
+  const waitSec = Math.max(0, Math.ceil((Save.data.lastRewardedAd + REWARDED_COOLDOWN_MS - Date.now()) / 1000));
 
   const watchAd = async () => {
     if (!rewardedReady || pending) return;
     setPending("rewarded");
+    const { showRewardedAd } = await import("@/game/core/monetization");
     const completed = await showRewardedAd();
     setPending(null);
     if (!completed) { Audio.sfxWrong(); show("ویدیو کامل نشد"); return; }
     Audio.sfxCoin();
     Save.data.lastRewardedAd = Date.now();
     Save.addCoins(REWARDED_COINS);
-    setAdTick((t) => t + 1);
     show(`+${faNum(REWARDED_COINS)} سکه هدیهٔ تماشای ویدیو!`);
   };
+
+  const tabs: [Tab, string][] = ADS_ENABLED
+    ? [["coins", "سکه‌ها"], ["special", "ویژه"], ["free", "سکهٔ رایگان"]]
+    : [["coins", "سکه‌ها"], ["special", "ویژه"]];
 
   return (
     <Sheet bg="/assets/bg/sunset2.webp" bgDim={0.56}>
@@ -107,11 +93,7 @@ export function ShopScreen({ onBack }: { onBack: () => void }) {
 
       {/* segmented tabs */}
       <div className="shop2-tabs" role="tablist">
-        {([
-          ["coins", "سکه‌ها"],
-          ["special", "ویژه"],
-          ["free", "سکهٔ رایگان"],
-        ] as [Tab, string][]).map(([id, label]) => (
+        {tabs.map(([id, label]) => (
           <button
             key={id}
             type="button"
@@ -169,7 +151,7 @@ export function ShopScreen({ onBack }: { onBack: () => void }) {
             </>
           )}
 
-          {tab === "free" && (
+          {tab === "free" && ADS_ENABLED && (
             adsRemoved ? (
               <div className="shop2-quiet">تبلیغات حذف شده — تو نسخهٔ پرمیوم هستی ✨</div>
             ) : (
@@ -204,15 +186,11 @@ export function ShopScreen({ onBack }: { onBack: () => void }) {
           )}
 
           <p className="shop2-note">
-            پرداخت امن از طریق
-            <b> مایکت </b>و<b> کافه‌بازار</b>
-            {hasNativeBilling() ? "" : " — در این نسخه، خرید نمایشی است"}
+            پرداخت امن از طریق <b>مایکت</b> و <b>کافه‌بازار</b>
+            {hasNativeBilling() ? "" : " — به‌زودی همراه انتشار بازی فعال می‌شود"}
           </p>
         </div>
       </div>
-
-      {/* simulated rewarded video — only when the native ads SDK is absent */}
-      {simAd && <SimAdOverlay onDone={(ok) => { setSimAd(false); completeSimulatedAd(ok); }} />}
 
       <ToastHost toast={toast} />
     </Sheet>
@@ -252,38 +230,6 @@ function ShopCard({
       >
         {pending === sku.id ? "…" : sku.price}
       </Btn>
-    </div>
-  );
-}
-
-/* ---- simulated rewarded video (web/preview only; native = real AdMob) ---- */
-function SimAdOverlay({ onDone }: { onDone: (completed: boolean) => void }) {
-  const [left, setLeft] = useState(4);
-  useEffect(() => {
-    if (left <= 0) return;
-    const t = setTimeout(() => setLeft((l) => l - 1), 1000);
-    return () => clearTimeout(t);
-  }, [left]);
-  return (
-    <div className="sim-ad" role="dialog" aria-modal="true" aria-label="نمایش ویدیو">
-      <div className="sim-ad-frame">
-        <div className="sim-ad-head">ویدیوی حامی بازی</div>
-        <div className="sim-ad-art">
-          <Sparkles size={44} />
-          <div style={{ fontWeight: 800, marginTop: 6 }}>جای ویدیوی تبلیغ</div>
-          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>نسخهٔ اندروید: ویدیوی واقعی</div>
-        </div>
-        {left > 0 ? (
-          <div className="sim-ad-count">{faNum(left)}</div>
-        ) : (
-          <Btn size="big" color="gold" onClick={() => { Audio.sfxClick(); onDone(true); }}>
-            دریافت سکه
-          </Btn>
-        )}
-        <button type="button" className="sim-ad-close" onClick={() => onDone(left <= 0)}>
-          {left > 0 ? "رد کردن (سکه‌ای نمی‌گیری)" : "بستن"}
-        </button>
-      </div>
     </div>
   );
 }

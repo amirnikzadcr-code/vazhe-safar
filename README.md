@@ -199,29 +199,27 @@ npm run gen:levels        # بازتولید مراحل از واژه‌نامه
 
 ## 💰 اتصال پرداخت درون‌برنامه‌ای و تبلیغات (مایکت / کافه‌بازار / AdMob)
 
-لایهٔ آماده در `src/game/core/monetization.ts` پیاده شده است؛ UI فروشگاه کامل به آن وصل است و بدون پلاگین هم (حالت شبیه‌سازی) قابل تست است. برای اتصال واقعی فقط یک پلاگین کوچک Capacitor لازم است:
+لایهٔ آماده در `src/game/core/monetization.ts` پیاده شده است. از نسخهٔ 1.17 بازی **حالت انتشار** است: هیچ خرید نمایشی‌ای وجود ندارد و تبلیغات کلاً خاموش است (`ADS_ENABLED = false`). برای اتصال واقعی فقط یک پلاگین کوچک Capacitor لازم است:
 
-1. **قرارداد پل (JSON) — پلاگین باید این چهار متد راExpose کند:**
+1. **قرارداد پل (JSON) — پلاگین باید این چهار متد را Expose کند:**
    ```ts
    VzBilling.purchase(productId): Promise<{ ok: boolean; orderId?: string; error?: string }>
    VzBilling.owned():               Promise<{ ok: boolean; owned: string[] }>
    VzAds.showRewarded():            Promise<{ completed: boolean }>
    VzAds.showInterstitial():        Promise<{ ok: boolean }>
    ```
-   پل باید روی `window.VzBilling` / `window.VzAds` (یا `Capacitor.Plugins.VzBilling/VzAds`) در دسترس باشد. تشخیص خودکار است: تا وقتی پل نباشد، همه‌چیز شبیه‌سازی می‌شود؛ به‌محض اضافه‌شدن پلاگین، خرید و تبلیغ واقعی می‌شوند — **بدون هیچ تغییری در کد UI**.
+   پل باید روی `window.VzBilling` / `window.VzAds` (یا `Capacitor.Plugins.VzBilling/VzAds`) در دسترس باشد. تشخیص خودکار است: تا وقتی پل نباشد، دکمه‌های خرید پیام «پس از انتشار فعال می‌شود» می‌دهند و **هیچ سکه‌ای اهدا نمی‌شود**؛ به‌محض اضافه‌شدن پلاگین، خرید واقعی می‌شود — بدون هیچ تغییری در کد UI.
 
 2. **SDKهای پشت پل:**
    - کافه‌بازار → [Poolakey](https://github.com/CafeBazaar/GameHub-Poolakey) (IAB بازار)
    - مایکت → Myket In-App Billing
-   - تبلیغات → Google AdMob (Rewarded + Interstitial)
+   - تبلیغات → Tapsell یا Google AdMob (Rewarded + Interstitial)
 
 3. **شناسهٔ محصولات** (باید در کنسول هر دو استور دقیقاً با همین شناسه‌ها ساخته شوند):
    `coins_50` · `coins_250` · `coins_550` · `coins_1200` · `golden_bundle` · `remove_ads`
    (فهرست رسمی و قیمت‌ها: `SKUS` در `monetization.ts`)
 
-4. **جایگاه‌های تبلیغاتی که از الان در بازی رزرو شده:**
-   - ویدیوی جایزه‌دار «سکهٔ رایگان» در فروشگاه (فعال، با کول‌داون)
-   - Interstitial بین فصل‌ها (تابع `showInterstitialAd` آماده است؛ پس از خرید «حذف تبلیغات» هر دو جایگاه غیرفعال می‌شوند — `Save.data.adsRemoved`)
+4. **تبلیغات (فعلاً خاموش):** با وصل‌شدن SDK و `true` کردن `ADS_ENABLED` در `monetization.ts`، تب «سکهٔ رایگان» و ویدیوی جایزه‌دار خودکار به فروشگاه برمی‌گردند؛ پس از خرید «حذف تبلیغات» (`Save.data.adsRemoved`) هیچ تبلیغی نشان داده نمی‌شود. راهنمای کامل انتشار: [`docs/release-guide-fa.md`](docs/release-guide-fa.md)
 
 ## 🎨 لایسنس Assetها (Asset Licenses)
 

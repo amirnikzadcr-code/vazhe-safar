@@ -36,29 +36,60 @@ jobs:
       - name: Validate level data
         run: bun scripts/validate_words.ts
 
-      - name: Build static web bundle
+      - name: Read version
+        id: ver
+        run: echo "v=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # ---------- 1) OFFICIAL RELEASE APK (normal level locking) ----------
+      - name: Build static web bundle (official)
         run: npm run build:static
 
-      - name: Sync Android
+      - name: Sync Android (official)
         run: npx cap sync android
 
-      - name: Build signed release APK
+      - name: Build official signed release APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
 
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk VazheSafar.apk
+      - name: Rename official APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk "VazheSafar-v${{ steps.ver.outputs.v }}.apk"
 
-      - name: Upload artifact
+      # ---------- 2) ALL-LEVELS-OPEN TEST APK (NEXT_PUBLIC_ALL_UNLOCKED=1)
+      # Same app, every chapter + level unlocked so the owner can review
+      # all 200 levels. Install → check → then install the official APK
+      # over it (same signature, same applicationId). ----------
+      - name: Build static web bundle (all levels open)
+        env:
+          NEXT_PUBLIC_ALL_UNLOCKED: "1"
+        run: npm run build:static
+
+      - name: Sync Android (all levels open)
+        env:
+          NEXT_PUBLIC_ALL_UNLOCKED: "1"
+        run: npx cap sync android
+
+      - name: Build all-levels-open signed release APK
+        run: |
+          cd android
+          ./gradlew clean assembleRelease --no-daemon
+
+      - name: Rename all-levels-open APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk "VazheSafar-AllLevels-v${{ steps.ver.outputs.v }}.apk"
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: VazheSafar-APK
-          path: VazheSafar.apk
+          name: VazheSafar-APKs
+          path: |
+            VazheSafar-v*.apk
+            VazheSafar-AllLevels-v*.apk
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: VazheSafar.apk
+          files: |
+            VazheSafar-v*.apk
+            VazheSafar-AllLevels-v*.apk

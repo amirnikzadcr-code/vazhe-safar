@@ -1,8 +1,15 @@
 /* ------------------------------------------------------------------
- *  واژه‌سفر — core/monetization.ts  (v3)
+ *  واژه‌سفر — core/monetization.ts  (v4 — RELEASE MODE)
  *  پرداخت درون‌برنامه‌ای + تبلیغات — آماده برای مایکت و کافه‌بازار
- *  (user: «آمادش کن در صورت انتشار در مایکت و بازار بشه پرداخت
- *   درون برنامه ایی وصل کرد یا بشه تبلیغات گذاشت تو بازی»)
+ *
+ *  v4 (user: «الکی پول نده حالت نمایشی در بیار… بخش تبلیغات هم از
+ *  حالت نمایشی در بیار و کلا خاموشش کن تا بعدا فعالش میکنیم»):
+ *   • NO simulation anywhere — without the native store bridge a
+ *     purchase simply reports «پس از انتشار فعال می‌شود» and NEVER
+ *     grants fake coins.
+ *   • ADS are globally OFF (ADS_ENABLED = false) — the rewarded-video
+ *     tab, the simulated ad overlay, every ad UI is removed from the
+ *     release build. Flip the flag when the ad SDK is connected.
  *
  *  ─────────────────────────────────────────────────────────────────
  *  HOW THE REAL STORES CONNECT (native side — future tiny plugin):
@@ -19,16 +26,16 @@
  *  2) Store SDKs behind the bridge:
  *     • کافه‌بازار → Poolakey (ir.cafebazaar.poolakey) IAB
  *     • مایکت    → Myket In-App Billing (com.myket.android.billing)
- *     • Ads       → Google AdMob (rewarded + interstitial), or the
- *       stores' own ad networks.
+ *     • Ads       → Tapsell / Google AdMob (rewarded + interstitial)
  *
  *  3) Product IDs below MUST match the IDs defined in each store's
  *     console (they are intentionally identical across stores).
- *
- *  UNTIL the native plugin ships, everything runs in SIMULATION mode:
- *  the shop flow is fully testable (buttons, toasts, coin grants) and
- *  the game is 100% functional without it.
  * ------------------------------------------------------------------ */
+
+/** MASTER SWITCH — ads are OFF for the store release. Turn this on
+ * after the ad SDK (Tapsell/AdMob) is wired through the VzAds bridge
+ * and the «حذف تبلیغات» product should go live. */
+export const ADS_ENABLED = false;
 
 export type SkuKind = "coins" | "removeads" | "bundle";
 
@@ -42,7 +49,8 @@ export interface Sku {
   bonus?: string;     // value badge, e.g. «+۱۵٪ هدیه»
 }
 
-/** live inventory — single source of truth for the shop + billing */
+/** live inventory — single source of truth for the shop + billing.
+ * IDs match the products registered in the Myket / Bazaar consoles. */
 export const SKUS: Sku[] = [
   { id: "coins_50",   kind: "coins", title: "کیسهٔ سکه",       price: "۵٬۰۰۰ تومان",   coins: 50 },
   { id: "coins_250",  kind: "coins", title: "صندوق سکه",      price: "۱۹٬۰۰۰ تومان",  coins: 250, hot: true, bonus: "+۱۵٪ هدیه" },
@@ -82,44 +90,48 @@ function adsBridge(): AdsBridge | null {
 export function hasNativeBilling(): boolean {
   return billingBridge() != null;
 }
-/** true → the native ads SDK is connected */
+/** true → the native ads SDK is connected AND ads are switched on */
 export function hasNativeAds(): boolean {
-  return adsBridge() != null;
+  return ADS_ENABLED && adsBridge() != null;
 }
 
 export type PurchaseResult =
-  | { ok: true; simulated: boolean; sku: Sku }
+  | { ok: true; sku: Sku }
   | { ok: false; error: string; sku: Sku };
 
-/** purchase a SKU through the native store — or simulate in dev/web */
+/** Friendly message shown when the store billing is not connected yet
+ * (web preview / pre-release APK). NO simulated grant — the user asked
+ * for zero demo purchases («الکی پول نده»). */
+export const BILLING_PENDING_MSG =
+  "پرداخت درون‌برنامه‌ای پس از انتشار در مایکت و کافه‌بازار فعال می‌شود";
+
+/** purchase a SKU through the native store. Without the bridge nothing
+ * is granted — the shop shows a polite "coming with the release" note. */
 export async function purchase(sku: Sku): Promise<PurchaseResult> {
   const bridge = billingBridge();
-  if (bridge) {
-    try {
-      const r = await bridge.purchase(sku.id);
-      if (r?.ok) return { ok: true, simulated: false, sku };
-      return { ok: false, error: r?.error || "خرید انجام نشد", sku };
-    } catch {
-      return { ok: false, error: "اتصال به فروشگاه برقرار نشد", sku };
-    }
+  if (!bridge) return { ok: false, error: BILLING_PENDING_MSG, sku };
+  try {
+    const r = await bridge.purchase(sku.id);
+    if (r?.ok) return { ok: true, sku };
+    return { ok: false, error: r?.error || "خرید انجام نشد", sku };
+  } catch {
+    return { ok: false, error: "اتصال به فروشگاه برقرار نشد", sku };
   }
-  /* SIMULATION — keeps the whole flow testable before the native
-   * plugin is wired (release builds connect it in ~30 lines). */
-  await new Promise((res) => setTimeout(res, 650));
-  return { ok: true, simulated: true, sku };
 }
 
-/* ---------------- rewarded / interstitial ads ---------------- */
-
-let simAdResolver: ((completed: boolean) => void) | null = null;
+/* ---------------- rewarded / interstitial ads ----------------
+ * Ads are OFF in this build (ADS_ENABLED = false): showRewardedAd
+ * resolves false immediately and NO overlay/event ever fires. When the
+ * ad SDK ships behind the VzAds bridge, flip the flag — the shop UI
+ * (free-coins tab) comes back automatically. */
 
 /**
  * Show a rewarded ad. Resolves true ONLY when the video was watched.
- * • native → real AdMob rewarded video
- * • sim    → dispatches `vz:sim-rewarded-ad`; the caller (shop) renders
- *   a small simulated ad overlay and calls completeSimulatedAd(true).
+ * • ads OFF            → resolves false instantly (no UI)
+ * • native + ads ON    → real rewarded video through the bridge
  */
 export function showRewardedAd(): Promise<boolean> {
+  if (!ADS_ENABLED) return Promise.resolve(false);
   const bridge = adsBridge();
   if (bridge) {
     return bridge
@@ -127,22 +139,13 @@ export function showRewardedAd(): Promise<boolean> {
       .then((r) => !!r?.completed)
       .catch(() => false);
   }
-  return new Promise((resolve) => {
-    simAdResolver = resolve;
-    try { window.dispatchEvent(new CustomEvent("vz:sim-rewarded-ad")); } catch { resolve(false); }
-  });
-}
-
-/** the simulated-ad overlay calls this when the fake video ends */
-export function completeSimulatedAd(completed: boolean): void {
-  const r = simAdResolver;
-  simAdResolver = null;
-  r?.(completed);
+  return Promise.resolve(false);
 }
 
 /** interstitial (future: between chapter transitions when ads are on) */
 export function showInterstitialAd(): Promise<boolean> {
+  if (!ADS_ENABLED) return Promise.resolve(false);
   const bridge = adsBridge();
   if (bridge) return bridge.showInterstitial?.().then((r) => !!r?.ok).catch(() => false) ?? Promise.resolve(false);
-  return Promise.resolve(false); /* never fake an interstitial */
+  return Promise.resolve(false);
 }

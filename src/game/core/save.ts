@@ -44,6 +44,14 @@ export interface SaveData {
 
 const KEY = "vazhe_safar_save_v1";
 
+/* v5 — TEST-BUILD FLAG: compile the web bundle with
+ * NEXT_PUBLIC_ALL_UNLOCKED=1 and EVERY chapter + level is open so the
+ * owner can review all 200 levels (the «تمام مراحل باز» APK).
+ * The official release build compiles WITHOUT it → normal locking.
+ * Next.js inlines NEXT_PUBLIC_* at build time — nothing to toggle at
+ * runtime, the two APKs are byte-distinct products. */
+export const ALL_LEVELS_OPEN = process.env.NEXT_PUBLIC_ALL_UNLOCKED === "1";
+
 function fresh(): SaveData {
   return {
     v: 1,
@@ -327,11 +335,13 @@ export const Save = {
   },
 
   chapterUnlocked(ch: number): boolean {
+    if (ALL_LEVELS_OPEN) return true;
     if (ch === 1) return true;
     return Save.levelsDoneInChapter(ch - 1) >= 7;
   },
 
   levelUnlocked(ch: number, lv: number): boolean {
+    if (ALL_LEVELS_OPEN) return true;
     if (!Save.chapterUnlocked(ch)) return false;
     if (lv === 1) return true;
     return !!Save.data.levels[`${ch}:${lv - 1}`];
