@@ -81,11 +81,11 @@ button:active { transition-duration: .05s; }
   display: block;
   background: linear-gradient(180deg,#fffdf4,#f7e9c8);
   border: 2.5px solid #fff; outline: 2px solid #d9b87a;
-  border-radius: 16px; padding: 5px 12px 7px;
+  border-radius: 16px; padding: 4px 10px 5px;
   box-shadow: 0 4px 0 #d9b87a, 0 7px 12px rgba(0,0,0,.22);
-  min-width: 132px;
+  min-width: 118px;
 }
-.plate-name { display: block; font-weight: 800; font-size: 13.5px; color: #6b4a1e; line-height: 1.35; }
+.plate-name { display: block; font-weight: 800; font-size: 12.5px; color: #6b4a1e; line-height: 1.35; }
 .plate-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
 .lvl-badge {
   width: 24px; height: 24px; flex: none; border-radius: 8px;
@@ -97,7 +97,7 @@ button:active { transition-duration: .05s; }
 }
 .plate-xp { display: block; flex: 1; min-width: 0; }
 .plate-xpbar {
-  height: 9px; border-radius: 999px; overflow: hidden;
+  height: 8px; border-radius: 999px; overflow: hidden;
   background: #4a2e17;
   box-shadow: inset 0 1.5px 2.5px rgba(0,0,0,.55);
 }
@@ -598,7 +598,9 @@ button:active { transition-duration: .05s; }
 /* ==================================================================
    WHEEL — carved wooden disc + cream letter tiles + golden star hub
    ================================================================== */
-.wheel-wrap { position: relative; aspect-ratio: 1; width: min(78vw, 352px); margin: 0 auto; contain: layout style; }
+.wheel-wrap { position: relative; aspect-ratio: 1; width: min(78vw, 352px); margin: 0 auto; contain: layout style; transform: translateZ(0); /* Y — own GPU layer: ribbon repaints never invalidate the page */ }
+.wheel-wrap.dragging,
+.wheel-wrap.dragging .tile { will-change: transform; /* Y — stroke stays fully composited (weak-phone drag = 60fps) */ }
 .wheel-wood {
   position: absolute; inset: 0; border-radius: 999px;
   background:
@@ -633,17 +635,20 @@ button:active { transition-duration: .05s; }
   color: #b47708;
 }
 .tile {
-  position: absolute; width: var(--tile, 27%); aspect-ratio: 1;
+  position: absolute; width: var(--tile, 23%); aspect-ratio: 1;
   transform: translate(-50%,-50%);
   border-radius: 999px;
   background: radial-gradient(circle at 38% 30%, #fffdf4, #fdf3d2 52%, #f0dca8 100%);
-  border: 3px solid #fff; outline: 2.5px solid #d9b87a;
-  box-shadow: 0 4px 0 #c9a35e, 0 8px 10px rgba(95,58,20,.4);
+  border: 2.5px solid #fff; outline: 2px solid #d9b87a;
+  box-shadow: 0 3.5px 0 #c9a35e, 0 7px 10px rgba(95,58,20,.4);
   display: flex; align-items: center; justify-content: center;
   font-weight: 800; color: #5d3a12;
+  backface-visibility: hidden;
   /* v1.22 — the glyph scales WITH the solved tile size (adaptive
-     geometry sets --tile in px per level) */
-  font-size: calc(var(--tile, 93px) * 0.32);
+     geometry sets --tile in px per level)
+   * Y — tiles are SMALLER (cap 23%), so the glyph ratio rises to .35
+     to keep the letters big and readable inside the smaller discs */
+  font-size: calc(var(--tile, 93px) * 0.35);
   z-index: 2; touch-action: none;
 }
 .tile.sel {
@@ -1719,12 +1724,15 @@ button:active { transition-duration: .05s; }
 /* the letter ring */
 .ps-ring {
   position: relative; width: min(74vw, 300px); aspect-ratio: 1; margin: 0 auto;
+  transform: translateZ(0); /* Y — own GPU layer during drags */
   border-radius: 999px;
   background:
     radial-gradient(circle at 50% 42%, #7a5a36 0%, #5d3f22 58%, #4a2f18 100%);
   border: 4px solid #c98d4e; outline: 3px solid #8a5a2e;
   box-shadow: 0 8px 0 #3a2412, 0 14px 22px rgba(30,15,0,.45), inset 0 4px 10px rgba(255,220,160,.16);
 }
+.ps-ring.dragging,
+.ps-ring.dragging .pw-tile { will-change: transform; }
 .ps-ring.golden { border-color: #ffd76e; outline-color: #b47708; box-shadow: 0 8px 0 #6b4218, 0 0 0 5px rgba(255,215,110,.4), 0 14px 22px rgba(30,15,0,.45); }
 .pw-tile {
   position: absolute; transform: translate(-50%, -50%);
@@ -1914,18 +1922,34 @@ button:active { transition-duration: .05s; }
  * during WebView cold start */
 body { background: #5cb2ef; }
 
-/* ---------- unified profile plate (HUD) ---------- */
-.plate-unified {
-  display: flex; align-items: center; gap: 8px;
-  min-width: 148px; padding: 4px 10px 5px 12px;
+/* Y — splash EXIT curtain: the splash fades + gently scales out BEFORE
+ * the home screen mounts (compositor-only; the body's matching blue
+ * makes the handover seamless, then the home fades in) */
+.splash-out { animation: splashOut .43s ease both; }
+@keyframes splashOut {
+  to { opacity: 0; transform: scale(1.045); }
 }
-.plate-avatar { position: relative; flex: none; width: 48px; height: 48px; display: block; }
+
+/* ---------- unified profile plate (HUD) — Y: compact, level chip is
+   a STANDALONE inline badge (no longer docked on the avatar face) */
+.plate-unified {
+  display: flex; align-items: center; gap: 7px;
+  min-width: 128px; padding: 4px 9px 5px 10px;
+}
+.plate-avatar { position: relative; flex: none; width: 40px; height: 40px; display: block; }
 .plate-avatar svg { border-radius: 999px; background: #fdf3dd; box-shadow: 0 0 0 2px #fff, 0 2px 5px rgba(122,74,0,.35); }
 .plate-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.plate-info .plate-name { font-size: 13px; }
-.plate-info .plate-xpnum { font-size: 9px; }
-/* level corner badge docks onto the avatar inside the plate */
-.plate-avatar .hud-lvl-corner { bottom: -5px; left: -7px; }
+.plate-info .plate-name { font-size: 12px; }
+.plate-info .plate-xpnum { font-size: 8.5px; }
+/* the level chip — own inline slot, NEVER overlaps avatar or name */
+.hud-lvl-chip {
+  flex: none; width: 24px; height: 24px; border-radius: 8px;
+  background: linear-gradient(180deg,#6fc0f5,#2a7fc9);
+  border: 2px solid #fff; outline: 1.5px solid #1b5da0;
+  color: #fff; font-weight: 800; font-size: 11.5px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 0 #1b5da0;
+}
 
 /* ---------- tidy profile card (editor modal) ---------- */
 .prof-card { display: flex; flex-direction: column; }

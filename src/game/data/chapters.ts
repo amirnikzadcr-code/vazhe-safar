@@ -321,14 +321,17 @@ for (const ch of CHAPTERS) {
 
 /* ---------------- per-SECTION themes (user: «موسیقی بساز برای هربخش») ---------------- */
 
-/** صفحهٔ اصلی + منوها — v3 NEW menu theme «دلنواز و ریتمیک»: a warm
- *  D-Shur 6/8 santur+ney loop (renders to menu2.ogg via
- *  scripts/render_menu_v2.py — user: «موزیک صفحه اصلی رو مخ بود») */
+/** صفحهٔ اصلی + منوها — SESSION Y NEW theme «بیس‌دارِ شاد»: a deep
+ *  saturated sub-bass walks D→D→B♭→A under a driving 6/8 tombak
+ *  groove and a joyful D-Shur santur+ney exchange (renders to
+ *  menu3.ogg via scripts/render_menu_v3.py — user: «موزیک صفحه اصلی
+ *  رو حذف کن، یک موزیک بیس دار شاد ایرانی بدون صدای تیز طراحی کن
+ *  خیلی خفن و هیجانی»). menu2.ogg is DELETED. */
 export const MENU_MUSIC: MusicConfig & { scale: ScaleName } = {
-  track: "menu2", scale: "shur", root: 293.66, cents: [...SCALES.shur], bpm: 100, meter: 6,
-  perc: "daf", lead: "santur", octave: 1, drone: 0.4,
-  motif: [[0,1],[2,1],[1,1],[3,1.5],[2,0.5],[1,1],[0,1.5],[-1,0.5],[2,1],[1,1],[0,2]],
-  motifB: [[3,1],[2,1],[1,1],[0,1.5],[-1,0.5],[1,1],[0,2.5]],
+  track: "menu3", scale: "shur", root: 293.66, cents: [...SCALES.shur], bpm: 125, meter: 6,
+  perc: "tombak", lead: "santur", octave: 1, drone: 0.3,
+  motif: [[0,0.5],[2,0.5],[4,1],[5,1],[4,1],[3,1],[2,1],[3,0.5],[2,0.5],[1,1],[2,1],[1,1],[0,1],[1,1],[4,0.5],[5,0.5],[6,1],[5,1],[4,1],[3,1],[2,1],[3,0.5],[2,0.5],[3,1],[2,1],[1,1],[0,2]],
+  motifB: [[3,1],[2,1],[1,1],[2,1],[1,0.5],[0,0.5],[1,1],[2,1],[1,1],[0,1],[1,1],[0,1],[4,1],[5,0.5],[4,0.5],[3,1],[4,1],[3,1],[2,1],[1,1],[2,1],[1,1],[0,2]],
 };
 
 /** بازی دورهمی — festive 6/8 rast, daf-driven party mood (renders to party.ogg) */

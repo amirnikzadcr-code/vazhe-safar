@@ -178,7 +178,7 @@ if (!(await ensureHome())) throw new Error("never reached home");
 clickText("بازی دورهمی");
 await sleep(1300);
 await assert("party setup opens", async () => J(`document.body.innerText.includes('چند نفرید؟')`) === true);
-await assert("setup shows the big offline lexicon claim", async () => /۱۵۹/.test(J(`document.body.innerText`)));
+await assert("setup shows the big offline lexicon claim", async () => /بیش از [۰-۹٬]+ واژهٔ فارسی/.test(J(`document.body.innerText`)));
 clickText("۲ نفر");
 await sleep(300);
 await clickText("شروع دورهمی");
@@ -222,7 +222,9 @@ await assert("final podium reached", async () => J(`!!document.querySelector('.p
 
 console.log("— E. podium geometry");
 {
-  const r = J(`(function(){
+  /* Y-FIX — J() returns a JSON STRING; the old code indexed .ovx/.onAvatar
+   * straight off the string (always undefined → vacuous pass). Parse it. */
+  const r = JSON.parse(J(`(function(){
     const medal=document.querySelector('.ps-medal'); const name=document.querySelector('.ps-pod-name');
     if(!medal||!name) return JSON.stringify({err:'missing'});
     const m=medal.getBoundingClientRect(); const n=name.getBoundingClientRect();
@@ -231,7 +233,7 @@ console.log("— E. podium geometry");
     const ovx=Math.min(m.right,n.right)-Math.max(m.left,n.left);
     const ovy=Math.min(m.bottom,n.bottom)-Math.max(m.top,n.top);
     return JSON.stringify({ovx:Math.round(ovx),ovy:Math.round(ovy),onAvatar:a?(m.top>=a.top-16&&m.bottom<=a.bottom+10&&(m.left+m.right)/2>=a.left-4&&(m.left+m.right)/2<=a.right+4):false});
-  })()`);
+  })()`));
   if (!r || r.err) bad("podium geometry measured", (r && r.err) || "no data");
   else {
     if (r.ovx > 0 && r.ovy > 0) bad("medal never intersects the name", `overlap ${r.ovx}x${r.ovy}px`);

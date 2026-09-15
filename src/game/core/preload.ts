@@ -13,13 +13,17 @@
  * ------------------------------------------------------------------ */
 
 /** screen backgrounds — resident in the in-DOM ImgPool → page switches
- *  NEVER re-fetch or re-decode them (user: «هروقت جا ب جا میشی سریع باشن») */
+ *  NEVER re-fetch or re-decode them (user: «هروقت جا ب جا میشی سریع باشن»)
+ *  Y: +map2b (party setup) +sunset2b (party turn/recap) — the party
+ *  screens used to decode their bg on first entry (fresh-install pop). */
 export const SCREEN_BGS: string[] = [
   "/assets/bg/home3.webp",
   "/assets/bg/play3.webp",
   "/assets/bg/home2.webp",
   "/assets/bg/map2.webp",
   "/assets/bg/sunset2.webp",
+  "/assets/bg/map2b.webp",
+  "/assets/bg/sunset2b.webp",
 ];
 
 /** everything the splash waits for: screen bgs + icons + first realms */

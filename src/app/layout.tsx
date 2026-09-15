@@ -29,6 +29,13 @@ export default function RootLayout({
         <link rel="preload" as="image" href="/assets/bg/home3.webp" fetchPriority="high" />
         <link rel="preload" as="image" href="/assets/img/grandpa.webp" fetchPriority="high" />
         <link rel="preload" as="image" href="/assets/img/logo_banner.webp" fetchPriority="high" />
+        {/* Y — the TITLE fonts preload with the HTML, so the splash wordmark
+            and every headline render with Vazirmatn on the VERY first
+            paint (no fallback-font flash = «صفحه لودینگ درست رندر
+            نمیشه» fixed at the root) */}
+        <link rel="preload" href="/assets/fonts/Vazirmatn-ExtraBold.woff2" as="font" type="font/woff2" crossOrigin="anonymous" fetchPriority="high" />
+        <link rel="preload" href="/assets/fonts/Vazirmatn-Bold.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/assets/fonts/Vazirmatn-Medium.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         {children}
       </body>
     </html>

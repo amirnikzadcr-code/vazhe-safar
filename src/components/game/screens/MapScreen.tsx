@@ -206,6 +206,11 @@ export function MapScreen({
       else setTimeout(fn, 300);
     };
     idle(() => { void preloadImage(realmSrc(ch)); });
+    /* Y — warm THIS chapter's play backdrop + track too: entering a
+     * level (map → play) then costs zero fetch/decode work, even on
+     * a fresh install where nothing is cached yet. */
+    idle(() => { void preloadImage(`/assets/bg/ch${String(ch).padStart(2, "0")}.webp`); });
+    idle(() => { Audio.preloadTrack(`ch${String(ch).padStart(2, "0")}`); });
     if (ch < CHAPTERS.length) {
       idle(() => { void preloadImage(realmSrc(ch + 1)); });
       idle(() => { void preloadImage(`/assets/bg/ch${String(ch + 1).padStart(2, "0")}.webp`); });
@@ -223,6 +228,9 @@ export function MapScreen({
     if (c < 1 || c > CHAPTERS.length) return;
     void preloadImage(realmSrc(c));
     void preloadImage(`/assets/bg/ch${String(c).padStart(2, "0")}.webp`);
+    /* Y — the track decodes alongside the art on the POINTERDOWN
+     * frame → a flip never starts a chapter with a silent/janky beat */
+    Audio.preloadTrack(`ch${String(c).padStart(2, "0")}`);
   };
 
   /* navigation */

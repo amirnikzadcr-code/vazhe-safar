@@ -896,7 +896,20 @@ const Wheel = memo(forwardRef(function Wheel({
   const tipTargetRef = useRef<{ x: number; y: number } | null>(null);
   const tipCurRef = useRef<{ x: number; y: number } | null>(null);
   const rafRef = useRef(0);
-  const rRef = useRef(46); /* hit radius in px, measured per stroke */
+  const rRef = useRef(46); /* TAP radius in px (pointer-down), measured per stroke */
+  const catchRRef = useRef(30); /* Y — PASS-THROUGH catch threshold (segment distance) */
+  /* Y — coalesced-drag state: pointermove ONLY records the finger; the
+   * single rAF tick does the catch + ribbon paint exactly once per
+   * frame. The catch is SEGMENT-based: a tile is caught when the
+   * finger's path (prev → current) passes within catchR of its CENTER
+   * — not when the finger merely comes close. A straight stroke that
+   * SKIPS a seat passes ~R×(1−cosθ) from the skipped tile (the probe:
+   * 47px on a 7-seat wheel) — catchR is clamped BELOW that clearance,
+   * so skipped seats can never be grazed (that was the «stray letter
+   * in my word» bug + the e2e mistakes). */
+  const lastPtRef = useRef<{ x: number; y: number } | null>(null);
+  const prevPtRef = useRef<{ x: number; y: number } | null>(null);
+  const lineStrRef = useRef("");
   /* tile elements for DOM-driven .sel painting (idx → element) */
   const tileElsRef = useRef<Map<number, HTMLElement> | null>(null);
   /* v3 PERF: rect cached once per stroke — pointermove used to call
@@ -1029,17 +1042,71 @@ const Wheel = memo(forwardRef(function Wheel({
     const tip = tipCurRef.current;
     if (tip) pts.push(`${tip.x},${tip.y}`);
     const s = pts.join(" ");
-    auraRef.current?.setAttribute("points", s);
-    coreRef.current?.setAttribute("points", s);
-    shineRef.current?.setAttribute("points", s);
+    /* Y — skip-unchanged guard: idle/caught-up frames write NOTHING
+     * (setAttribute on 3 polylines forced SVG repaints every frame) */
+    if (s !== lineStrRef.current) {
+      lineStrRef.current = s;
+      auraRef.current?.setAttribute("points", s);
+      coreRef.current?.setAttribute("points", s);
+      shineRef.current?.setAttribute("points", s);
+    }
     const bead = beadRef.current;
     if (bead) {
       if (tip) {
         bead.setAttribute("transform", `translate(${tip.x} ${tip.y})`);
         bead.setAttribute("opacity", "1");
-      } else {
+      } else if (bead.getAttribute("opacity") !== "0") {
         bead.setAttribute("opacity", "0");
       }
+    }
+  };
+
+  /* distance from point P to segment AB — the Y catch primitive */
+  const distToSeg = (px: number, py: number, ax: number, ay: number, bx: number, by: number): number => {
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t * dx, cy = ay + t * dy;
+    return Math.hypot(px - cx, py - cy);
+  };
+
+  /* Y — COALESCED SEGMENT catch: runs once per frame from the rAF tick
+   * AND synchronously from up() — a release can never miss a caught
+   * letter. Catches AT MOST the tiles whose centers the finger path
+   * actually passed near (see the note on catchRRef). */
+  const catchUpTo = (pt: { x: number; y: number } | null) => {
+    if (!dragRef.current || !pt) return;
+    const from = prevPtRef.current ?? pt;
+    const T = catchRRef.current * catchRRef.current;
+    let best: number | null = null;
+    let bestD = T;
+    const cur = selRef.current;
+    for (const c of centersRef.current) {
+      if (cur.includes(c.idx)) continue;
+      const d = distToSeg(c.x, c.y, from.x, from.y, pt.x, pt.y);
+      if (d * d < bestD) { bestD = d * d; best = c.idx; }
+    }
+    if (best === null) { prevPtRef.current = pt; return; }
+    const next = [...cur, best];
+    Audio.sfxLetter(next.length);
+    applySel(next);
+    /* tail snaps to the newly caught tile — then keeps chasing.
+     * NO auto-commit here anymore (v2.0): the word is judged on release */
+    const c = centersRef.current.find((c) => c.idx === best)!;
+    tipCurRef.current = { x: c.x, y: c.y };
+    prevPtRef.current = { x: c.x, y: c.y }; /* next segment starts from the caught tile */
+    /* v1.21 — juicy CATCH POP on the tile + a soft ring pulse
+     * («یکم نرم‌تر و گرافیکی‌تر»): WAAPI, compositor-only. */
+    const el = tileElsRef.current?.get(best);
+    if (el && typeof el.animate === "function") {
+      el.animate(
+        [
+          { transform: "translate(-50%,-50%) scale(1.28)" },
+          { transform: "translate(-50%,-50%) scale(1.1)" },
+        ],
+        { duration: 200, easing: "cubic-bezier(.2,1.6,.4,1)" },
+      );
     }
   };
 
@@ -1053,6 +1120,7 @@ const Wheel = memo(forwardRef(function Wheel({
         tipC.x = tipT.x; tipC.y = tipT.y;
       }
     }
+    catchUpTo(lastPtRef.current);
     paintLine();
     const settled = !dragRef.current && tipT && tipC && tipT.x === tipC.x && tipT.y === tipC.y;
     if (settled) { rafRef.current = 0; return; } /* tail fully retracted → stop the loop */
@@ -1071,7 +1139,15 @@ const Wheel = memo(forwardRef(function Wheel({
       x: (p.x / 100) * r.width,
       y: (p.y / 100) * r.height,
     }));
+    /* generous TAP radius (a press is deliberate) */
     rRef.current = Math.max(34, r.width * 0.17);
+    /* Y — tight SEGMENT catch radius, clamped below the skip-seat
+     * clearance R×(1−cos(2π/n)) so a straight stroke between two seats
+     * can NEVER graze the seat between them */
+    const ringR = (geom.wr / 100) * r.width;
+    const n = Math.max(3, centersRef.current.length);
+    const clear = ringR * (1 - Math.cos((2 * Math.PI) / n));
+    catchRRef.current = Math.max(14, Math.min(geom.tile * 0.42, clear * 0.85));
     if (!tileElsRef.current) {
       const m = new Map<number, HTMLElement>();
       wrapRef.current!.querySelectorAll<HTMLElement>("[data-tile]").forEach((el) => {
@@ -1101,12 +1177,14 @@ const Wheel = memo(forwardRef(function Wheel({
    * and the board slid UNDER the wheel (user: «جمله‌ها از کادر خارج
    * میشه میره زیر دایره»). Now the wrap fits BOTH axes of its flex
    * container — one ResizeObserver, zero per-frame work.
-   * v1.22 — ADAPTIVE SEAT GEOMETRY (user: «در مراحل بالاتر که کلمات
-   * زیاد میشن دایره تنگ و کوچیک میشه — بزرگ باشه و فاصله دار»): the
-   * tile size and seat radius are SOLVED per (size, letter-count) so
-   * ۹–۱۲ letter wheels get big, evenly-spaced tiles with zero overlap:
-   *   tile = min(27% cap, closed-form max tile keeping ≥12px seat gap)
-   *   wr   = seat radius % that keeps every tile inside the wood rim. */
+   * v1.22 — ADAPTIVE SEAT GEOMETRY: tile + seat radius solved per
+   * (size, letter-count).
+   * SESSION Y (user: «این دکمه های کلمه روی دایره زیادی بزرگن — یکم
+   * کوچیک تر بکن، از هم دیگ فاصله داشته باشن، اما خود دایره بزرگ
+   * بمونه»): the tile cap drops 29%→23% of the wheel, the neighbor
+   * gap doubles 10→18px, the glyph ratio rises (0.32→0.35) so the
+   * letters stay big inside the smaller discs — and the WHEEL ITSELF
+   * keeps its exact size (floor 188 / cap 364 untouched). */
   useLayoutEffect(() => {
     const wrap = wrapRef.current;
     const host = wrap?.parentElement;
@@ -1115,15 +1193,12 @@ const Wheel = memo(forwardRef(function Wheel({
       const w = host.clientWidth;
       const h = host.clientHeight;
       if (w <= 0 || h <= 0) return;
-      /* v1.22 — 170px FLOOR: on very short viewports the flex column can
-       * squeeze the wheel into meaninglessness; a compact-but-playable
-       * wheel beats a vanished one (the board's packing guard absorbs
-       * the rest). */
+      /* v1.22 — 170px→188px FLOOR kept: the wheel stays BIG (user). */
       const s = Math.max(188, Math.floor(Math.min(w - 8, h - 4, 364)));
       const n = Math.max(1, ls.length);
-      const tCap = 0.29 * s;
-      const tFit = ((2 * Math.PI * (s / 2 - 5)) / n - 10) / (1 + Math.PI / n);
-      const tile = Math.max(30, Math.min(tCap, tFit));
+      const tCap = 0.23 * s;                       /* Y: was 0.29 */
+      const tFit = ((2 * Math.PI * (s / 2 - 5)) / n - 18) / (1 + Math.PI / n); /* Y: gap 10→18 */
+      const tile = Math.max(26, Math.min(tCap, tFit));
       const wr = Math.min(43, ((s / 2 - tile / 2 - 4) / s) * 100);
       wrap.style.width = `${s}px`;
       wrap.style.height = `${s}px`;
@@ -1195,6 +1270,7 @@ const Wheel = memo(forwardRef(function Wheel({
 
   const endStroke = (keepLineDuringFx: boolean) => {
     dragRef.current = false;
+    wrapRef.current?.classList.remove("dragging");
     if (keepLineDuringFx) {
       /* tail retracts into the last caught tile while the celebration plays */
       const cur = selRef.current;
@@ -1219,11 +1295,17 @@ const Wheel = memo(forwardRef(function Wheel({
     if (i === null) return;
     if (!firstDragRef.current) { firstDragRef.current = true; onFirstDrag?.(); }
     dragRef.current = true;
+    /* Y — promote the wheel to its OWN compositor layer for the whole
+     * stroke (ribbon repaints stop invalidating the page = no more
+     * drag jank on weak GPUs) */
+    wrapRef.current?.classList.add("dragging");
     try { wrapRef.current?.setPointerCapture(e.pointerId); } catch { /* noop */ }
     applySel([i]);
     const c = centersRef.current.find((c) => c.idx === i)!;
     tipCurRef.current = { x: c.x, y: c.y };
+    prevPtRef.current = { x: c.x, y: c.y }; /* catch segments start from the pressed tile */
     tipTargetRef.current = { x: lx, y: ly };
+    lastPtRef.current = { x: lx, y: ly };
     ensureRaf();
     Audio.sfxLetter(0);
   };
@@ -1233,35 +1315,19 @@ const Wheel = memo(forwardRef(function Wheel({
     const r = rectRef.current;
     if (!r) return;
     const lx = e.clientX - r.left, ly = e.clientY - r.top;
+    /* Y — pointermove is now ONLY a recorder (coalesced): the rAF tick
+     * does the lerp + hit-test + ribbon paint exactly once per frame,
+     * no matter how many move events arrived. */
     tipTargetRef.current = { x: lx, y: ly };
-    const i = hitTile(lx, ly);
-    const cur = selRef.current;
-    if (i !== null && !cur.includes(i)) {
-      const next = [...cur, i];
-      Audio.sfxLetter(next.length);
-      applySel(next);
-      /* tail snaps to the newly caught tile — then keeps chasing.
-       * NO auto-commit here anymore (v2.0): the word is judged on release */
-      const c = centersRef.current.find((c) => c.idx === i)!;
-      tipCurRef.current = { x: c.x, y: c.y };
-      /* v1.21 — juicy CATCH POP on the tile + a soft ring pulse
-       * («یکم نرم‌تر و گرافیکی‌تر»): WAAPI, compositor-only. */
-      const el = tileElsRef.current?.get(i);
-      if (el && typeof el.animate === "function") {
-        el.animate(
-          [
-            { transform: "translate(-50%,-50%) scale(1.28)" },
-            { transform: "translate(-50%,-50%) scale(1.1)" },
-          ],
-          { duration: 200, easing: "cubic-bezier(.2,1.6,.4,1)" },
-        );
-      }
-    }
+    lastPtRef.current = { x: lx, y: ly };
     ensureRaf();
   };
 
   const up = () => {
     if (!dragRef.current) return;
+    /* Y — flush any pending catch work BEFORE judging the release (a
+     * stroke can end between two rAF ticks) */
+    catchUpTo(lastPtRef.current);
     const cur = selRef.current;
     if (cur.length >= 2) {
       /* v2.0: the ONLY moment a word can apply — finger released */

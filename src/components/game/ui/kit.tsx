@@ -116,10 +116,13 @@ export function CoinPill({ value, onPlus }: { value?: number; onPlus?: () => voi
 }
 
 /* ---------- player HUD — REAL profile: v2.4 ONE unified plate.
-   «پروفایل مرتب‌تر … آواتار با کادر پروفایل یکی بکن»: the avatar sits
-   INSIDE the wooden profile plate (no separate floating circle) with
-   the level badge docked on its corner; name + XP bar fill the rest.
-   Tap opens the profile editor. ---------- */
+   SESSION Y (user: «اون پروفایل بالا صفحه رو یکم بهتر بکن اندازش جمع
+   جور تر بکن و اون عدد لول تداخل داره با پروفایل برطرف بکن»):
+   • the level number is NO LONGER docked ON the avatar (it visually
+     collided with the face) — it's a standalone inline BLUE chip
+     between the avatar and the info column: zero overlap, always
+     readable, and the plate got visibly more compact (smaller avatar,
+     tighter padding, 8px XP bar). ---------- */
 export function PlayerHud({
   gear, onGear, onPlus, onProfile,
 }: {
@@ -144,14 +147,14 @@ export function PlayerHud({
       >
         <span className="plate plate-unified">
           <span className="plate-avatar">
-            <AvatarFace id={prof.avatar} size={44} />
-            <span className="hud-lvl-corner">{faNum(lvl)}</span>
+            <AvatarFace id={prof.avatar} size={40} />
           </span>
+          <span className="lvl-badge hud-lvl-chip" aria-label={`سطح ${faNum(lvl)}`}>{faNum(lvl)}</span>
           <span className="plate-info">
             <span className="plate-name">{prof.name || "مسافر"}</span>
             <span className="plate-xp">
               <span className="plate-xpbar"><i style={{ ["--p" as string]: cur / need }} /></span>
-              <span className="plate-xpnum">سطح {faNum(lvl)} · {faNum(cur)}/{faNum(need)}</span>
+              <span className="plate-xpnum">{faNum(cur)}/{faNum(need)} تجربه</span>
             </span>
           </span>
         </span>

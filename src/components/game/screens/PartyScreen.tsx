@@ -360,27 +360,51 @@ function TurnGame({
   const cheer = useMemo(() => pick(TURN_CHEERS).replace("{n}", p.name), [p.name]);
 
   /* v1.22 — DRAGGABLE PARTY RING (user: «اونجا هم کلمات رو کشیدنی
-   * بکن»): the same buttery pointer-stroke the main wheel uses —
-   * pointerdown starts the stroke, moving over tiles collects them
-   * in order (distance hit-test on cached centers, zero layout reads
-   * per move), and releasing with ≥2 letters auto-submits. A quick
-   * TAP still toggles one letter (old behavior) for precise edits. */
+   * بکن»): the same pointer-stroke the main wheel uses — pointerdown
+   * starts the stroke, moving over tiles collects them in order,
+   * and releasing with ≥2 letters auto-submits. A quick TAP still
+   * toggles one letter (old behavior) for precise edits.
+   * SESSION Y (user: «اون دایره کلمه ها گرافیگ نواری نداره… اون خط
+   * نوار هم اضافه بکن وقتی میکشی»): the golden 3-layer RIBBON + the
+   * glowing finger-bead now draw through the stroke EXACTLY like the
+   * main wheel, and the drag is rAF-COALESCEd — pointermove only
+   * records the finger position; the single rAF tick does the
+   * hit-test + painting (multiple move events per frame cost one
+   * paint, so weak phones stay smooth). */
   const ringRef = useRef<HTMLDivElement | null>(null);
   const rectRef = useRef<DOMRect | null>(null);
   const centersRef = useRef<{ i: number; x: number; y: number }[]>([]);
   const dragRef = useRef(false);
   const strokeRef = useRef({ x: 0, y: 0, t: 0, moved: false, before: [] as number[], tile: null as number | null });
+  /* ribbon SVG + finger bead (painted by direct DOM writes) */
+  const auraRef = useRef<SVGPolylineElement | null>(null);
+  const coreRef = useRef<SVGPolylineElement | null>(null);
+  const shineRef = useRef<SVGPolylineElement | null>(null);
+  const beadRef = useRef<SVGGElement | null>(null);
+  const tipTargetRef = useRef<{ x: number; y: number } | null>(null);
+  const tipCurRef = useRef<{ x: number; y: number } | null>(null);
+  const lastPtRef = useRef<{ x: number; y: number } | null>(null);
+  const prevPtRef = useRef<{ x: number; y: number } | null>(null);
+  const catchRRef = useRef(18);
+  const rafRef = useRef(0);
+  const lineStrRef = useRef("");
 
   const measure = () => {
     const ring = ringRef.current!;
     const r = ring.getBoundingClientRect();
     rectRef.current = r;
-    const R = Math.max(30, r.width * 0.16);
+    const R = Math.max(30, r.width * 0.16); /* TAP radius */
     const els = ring.querySelectorAll<HTMLElement>(".pw-tile");
     centersRef.current = Array.from(els).map((el) => {
       const b = el.getBoundingClientRect();
       return { i: Number(el.dataset.i), x: b.left + b.width / 2 - r.left, y: b.top + b.height / 2 - r.top };
     });
+    /* Y — tight SEGMENT catch radius (same anti-graze math as the main
+     * wheel): a stroke skipping a seat can never graze it */
+    const ringR = 0.38 * r.width;
+    const n = Math.max(3, centersRef.current.length);
+    const clear = ringR * (1 - Math.cos((2 * Math.PI) / n));
+    catchRRef.current = Math.max(14, Math.min(19.3, clear * 0.85));
     return R;
   };
   const hitTile = (lx: number, ly: number, R: number): number | null => {
@@ -394,10 +418,100 @@ function TurnGame({
     return best;
   };
   const addToSel = (i: number) => {
-    if (selRef.current.includes(i)) return;
+    if (selRef.current.includes(i)) return false;
     Audio.sfxLetter(selRef.current.length % 3);
     setSelBoth([...selRef.current, i]);
+    return true;
   };
+
+  /* ---- the ribbon: selected tile centers + the chasing finger tip,
+   * written straight to the polylines (skip-unchanged guard so idle
+   * frames cost nothing) ---- */
+  const paintLine = () => {
+    const pts = selRef.current
+      .map((i) => centersRef.current.find((c) => c.i === i))
+      .filter(Boolean)
+      .map((c) => `${c!.x},${c!.y}`);
+    const tip = tipCurRef.current;
+    if (tip) pts.push(`${tip.x},${tip.y}`);
+    const s = pts.join(" ");
+    if (s !== lineStrRef.current) {
+      lineStrRef.current = s;
+      auraRef.current?.setAttribute("points", s);
+      coreRef.current?.setAttribute("points", s);
+      shineRef.current?.setAttribute("points", s);
+    }
+    const bead = beadRef.current;
+    if (bead) {
+      if (tip) {
+        bead.setAttribute("transform", `translate(${tip.x} ${tip.y})`);
+        bead.setAttribute("opacity", "1");
+      } else if (bead.getAttribute("opacity") !== "0") {
+        bead.setAttribute("opacity", "0");
+      }
+    }
+  };
+
+  /* distance from point P to segment AB — the Y catch primitive */
+  const distToSeg = (px: number, py: number, ax: number, ay: number, bx: number, by: number): number => {
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t * dx, cy = ay + t * dy;
+    return Math.hypot(px - cx, py - cy);
+  };
+
+  /* the single per-frame worker: tail lerp → coalesced SEGMENT catch →
+   * paint. A tile is caught when the finger PATH passes within catchR
+   * of its center — never merely by coming close (no grazed seats).
+   * ringUp() flushes it synchronously — a release can never miss. */
+  const catchUpTo = (pt: { x: number; y: number } | null) => {
+    if (!dragRef.current || !pt) return;
+    const from = prevPtRef.current ?? pt;
+    const T = catchRRef.current * catchRRef.current;
+    let best: number | null = null;
+    let bestD = T;
+    const cur = selRef.current;
+    for (const c of centersRef.current) {
+      if (cur.includes(c.i)) continue;
+      const d = distToSeg(c.x, c.y, from.x, from.y, pt.x, pt.y);
+      if (d * d < bestD) { bestD = d * d; best = c.i; }
+    }
+    if (best === null) { prevPtRef.current = pt; return; }
+    addToSel(best);
+    /* tail snaps to the newly caught tile, then keeps chasing */
+    const c = centersRef.current.find((c) => c.i === best)!;
+    tipCurRef.current = { x: c.x, y: c.y };
+    prevPtRef.current = { x: c.x, y: c.y };
+    const el = ringRef.current?.querySelector<HTMLElement>(`.pw-tile[data-i="${best}"]`);
+    if (el && typeof el.animate === "function") {
+      el.animate(
+        [{ transform: "translate(-50%,-50%) scale(1.26)" }, { transform: "translate(-50%,-50%) scale(1.07)" }],
+        { duration: 200, easing: "cubic-bezier(.2,1.6,.4,1)" },
+      );
+    }
+  };
+
+  const tick = () => {
+    const tipT = tipTargetRef.current;
+    const tipC = tipCurRef.current;
+    if (tipT && tipC) {
+      tipC.x += (tipT.x - tipC.x) * 0.32;
+      tipC.y += (tipT.y - tipC.y) * 0.32;
+      if (Math.abs(tipT.x - tipC.x) < 0.5 && Math.abs(tipT.y - tipC.y) < 0.5) { tipC.x = tipT.x; tipC.y = tipT.y; }
+    }
+    catchUpTo(lastPtRef.current);
+    paintLine();
+    const settled = !dragRef.current && tipT && tipC && tipT.x === tipC.x && tipT.y === tipC.y;
+    if (settled) { rafRef.current = 0; return; }
+    rafRef.current = requestAnimationFrame(tick);
+  };
+  const ensureRaf = () => { if (!rafRef.current) rafRef.current = requestAnimationFrame(tick); };
+  useEffect(() => () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = 0;
+  }, []);
 
   const word = sel.map((i) => wheel.ls[i]).join("");
 
@@ -418,19 +532,29 @@ function TurnGame({
   };
 
   /* X-FIX — every built word is validated against the OFFLINE lexicon
-   * that ships inside the app (۱۵۹٬۰۰۰+ واژه — no network, no waiting,
-   * and the UI never names any dictionary; user: «اسمی لغت نامه در
-   * بازی نبر»). The curated game dictionary answers instantly; the
-   * big local file covers everything else. */
+   * that ships inside the app (۴۵٬۰۰۰+ واژهٔ پاک‌سازی‌شده — no network,
+   * no waiting, and the UI never names any dictionary; user: «اسمی لغت
+   * نامه در بازی نبر»). The curated game dictionary answers instantly;
+   * the clean corpus file covers everything else.
+   * Y-FIX — a REJECTED release clears the stroke immediately (like the
+   * main wheel) so no half-built nonsense lingers on the ring. */
+  const clearStroke = () => {
+    setSelBoth([]);
+    tipTargetRef.current = null;
+    tipCurRef.current = null;
+    paintLine();
+  };
   const submitWith = async (selArr: number[]) => {
     if (endedRef.current || checkingRef.current) return;
     if (selArr.length < 2) {
       setMsg("حداقل ۲ حرف!"); setShake((s) => s + 1); Audio.sfxWrong();
+      clearStroke();
       return;
     }
     const wordStr = selArr.map((i) => wheel.ls[i]).join("");
     if (usedWords.current.has(wordStr)) {
       setMsg("این واژه قبلاً گفته شد!"); setShake((s) => s + 1); Audio.sfxWrong();
+      clearStroke();
       return;
     }
     if (isRealWord(wordStr) || levelWords.has(wordStr)) {
@@ -447,6 +571,7 @@ function TurnGame({
       accept(wordStr, selArr, "واژه تأیید شد!");
     } else {
       setMsg("این واژه پذیرفته نشد!"); setShake((s) => s + 1); Audio.sfxWrong();
+      clearStroke();
     }
   };
 
@@ -469,8 +594,20 @@ function TurnGame({
     const i = hitTile(lx, ly, R);
     strokeRef.current = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false, before: [...selRef.current], tile: i };
     dragRef.current = true;
+    ringRef.current?.classList.add("dragging");
     try { ringRef.current?.setPointerCapture(e.pointerId); } catch { /* noop */ }
-    if (i !== null) addToSel(i);
+    if (i !== null) {
+      addToSel(i);
+      const c = centersRef.current.find((c) => c.i === i)!;
+      tipCurRef.current = { x: c.x, y: c.y };
+      prevPtRef.current = { x: c.x, y: c.y }; /* catch segments start from the pressed tile */
+    } else {
+      tipCurRef.current = { x: lx, y: ly };
+      prevPtRef.current = { x: lx, y: ly };
+    }
+    tipTargetRef.current = { x: lx, y: ly };
+    lastPtRef.current = { x: lx, y: ly };
+    ensureRaf();
   };
   const ringMove = (e: React.PointerEvent) => {
     if (!dragRef.current || endedRef.current) return;
@@ -478,12 +615,20 @@ function TurnGame({
     if (!r) return;
     const st = strokeRef.current;
     if (Math.hypot(e.clientX - st.x, e.clientY - st.y) > 6) st.moved = true;
-    const i = hitTile(e.clientX - r.left, e.clientY - r.top, Math.max(30, r.width * 0.16));
-    if (i !== null) addToSel(i);
+    const lx = e.clientX - r.left, ly = e.clientY - r.top;
+    /* ONLY record the finger — the rAF tick does hit-test + painting
+     * (coalescing: 3 pointer events in one frame = one paint) */
+    tipTargetRef.current = { x: lx, y: ly };
+    lastPtRef.current = { x: lx, y: ly };
+    ensureRaf();
   };
   const ringUp = () => {
     if (!dragRef.current) return;
+    /* flush pending catch work BEFORE judging (stroke may end between
+     * two rAF ticks) */
+    catchUpTo(lastPtRef.current);
     dragRef.current = false;
+    ringRef.current?.classList.remove("dragging");
     const st = strokeRef.current;
     if (!st.moved && Date.now() - st.t < 400) {
       /* quick tap = toggle (old behavior): a tile that was ALREADY
@@ -491,10 +636,20 @@ function TurnGame({
       if (st.tile !== null && st.before.includes(st.tile)) {
         setSelBoth(selRef.current.filter((x) => x !== st.tile));
         Audio.sfxClick();
+        tipTargetRef.current = null; tipCurRef.current = null; paintLine();
       }
       return; /* a single tap never auto-submits */
     }
-    if (selRef.current.length >= 2) void submitWith([...selRef.current]);
+    /* tail retracts into the last caught tile while the verdict plays */
+    const cur = selRef.current;
+    const last = cur.length ? centersRef.current.find((c) => c.i === cur[cur.length - 1]) : null;
+    if (last && cur.length >= 2) {
+      tipTargetRef.current = { x: last.x, y: last.y };
+      ensureRaf();
+    } else {
+      tipTargetRef.current = null; tipCurRef.current = null; paintLine();
+    }
+    if (cur.length >= 2) void submitWith([...cur]);
   };
 
   return (
@@ -532,6 +687,18 @@ function TurnGame({
             role="group"
             aria-label="چرخ حروف دورهمی"
           >
+            {/* Y — the DRAG RIBBON, same 3-layer gold stroke + glowing
+                finger-bead as the main wheel (user: «اون خط نوار هم
+                اضافه بکن وقتی میکشی»). Painted by direct DOM writes. */}
+            <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible" }} aria-hidden>
+              <polyline ref={auraRef} points="" fill="none" stroke="rgba(255,187,56,.30)" strokeWidth={22} strokeLinecap="round" strokeLinejoin="round" />
+              <polyline ref={coreRef} points="" fill="none" stroke="#ffc93c" strokeWidth={10.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
+              <polyline ref={shineRef} points="" fill="none" stroke="rgba(255,252,232,.9)" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" />
+              <g ref={beadRef} opacity="0">
+                <circle r={12} fill="rgba(255,220,110,.30)" />
+                <circle r={5.5} fill="#fff6d8" stroke="#ffb302" strokeWidth="2" />
+              </g>
+            </svg>
             {wheel.ls.map((ch, i) => {
               const ang = -90 + (360 / wheel.ls.length) * i;
               const rad = (ang * Math.PI) / 180;

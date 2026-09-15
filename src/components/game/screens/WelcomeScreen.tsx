@@ -62,41 +62,73 @@ export function WelcomeScreen({
  * پرش نکنن») — the fill is driven by a per-frame lerp toward the real
  * target and painted with a DIRECT transform write (compositor-only,
  * zero React re-renders). Image completion bursts can no longer make
- * the bar jump — it always glides. ------------------------------- */
+ * the bar jump — it always glides. -------------------------------
+ * SESSION Y (user: «اون صفحه لودینگ آبی موقع ورود درست رندر نمیشه و
+ * سریع میره تو بازی»):
+ *  • FONT GATE — the wordmark/character never paint in a fallback
+ *    font: the splash waits for the preloaded Vazirmatn weights
+ *    (bounded 2s so a stuck font never blocks boot);
+ *  • BRANDING HOLD — minimum 1.7s so the screen is actually SEEN;
+ *  • SMOOTH EXIT — the splash fades+scales out over ~420ms BEFORE the
+ *    home screen mounts (no more instant jump «سریع میره تو بازی»). */
 export function Splash({ onDone }: { onDone: () => void }) {
   const doneRef = useRef(onDone);
   const fillRef = useRef<HTMLDivElement>(null);
   const targetRef = useRef(0);
   const shownRef = useRef(0);
+  const [out, setOut] = useState(false);
   useEffect(() => { doneRef.current = onDone; }); /* keep latest — never during render */
 
   useEffect(() => {
     let finished = false;
+    let assetsDone = false;
+    let fontsDone = false;
     const t0 = Date.now();
+    const MIN = 1700; /* branding hold — the splash is a scene, not a flash */
+
     const finish = () => {
-      if (finished) return;
-      finished = true;
-      doneRef.current();
+      targetRef.current = 1;
+      if (fillRef.current) fillRef.current.style.transform = "scaleX(1)";
+      setOut(true); /* 420ms fade+scale curtain, THEN the game mounts */
+      setTimeout(() => { doneRef.current(); }, 430);
     };
-    /* splash covers only the CRITICAL set (small, fast) — min
-     * 1.2s branding, max 6s safety. Chapter realms load in the
-     * background after boot (startDeferredPreload in GameApp). */
+    const maybeFinish = () => {
+      if (finished || !assetsDone || !fontsDone) return;
+      finished = true;
+      const wait = Math.max(0, MIN - (Date.now() - t0));
+      setTimeout(finish, wait);
+    };
+
+    /* splash covers only the CRITICAL set (small, fast) — max 6.5s
+     * safety. Chapter realms load in the background after boot. */
     preloadAssets((p) => {
       targetRef.current = Math.max(targetRef.current, p);
-      const minTime = 1200;
-      const elapsed = Date.now() - t0;
-      if (p >= 1 && elapsed >= minTime) finish();
-      else if (p >= 1) setTimeout(finish, minTime - elapsed);
     }).then(() => {
       targetRef.current = 1;
-      const elapsed = Date.now() - t0;
-      if (elapsed < 1200) setTimeout(finish, 1200 - elapsed);
-      else finish();
+      assetsDone = true;
+      maybeFinish();
     });
-    const cap = setTimeout(finish, 6000);
+
+    /* Y — FONT GATE (bounded): fonts are <link preload>ed in layout.tsx,
+     * so this resolves in ms; the 2s cap is a pure safety net. */
+    const fonts = (document as unknown as { fonts?: FontFaceSet }).fonts;
+    if (fonts?.load) {
+      Promise.all([
+        fonts.load('800 40px Vazirmatn'),
+        fonts.load('700 16px Vazirmatn'),
+        fonts.load('500 16px Vazirmatn'),
+      ])
+        .catch(() => { /* font set unavailable → never block boot */ })
+        .then(() => { fontsDone = true; maybeFinish(); });
+      setTimeout(() => { fontsDone = true; maybeFinish(); }, 2000);
+    } else {
+      fontsDone = true;
+    }
+    const cap = setTimeout(() => { assetsDone = true; fontsDone = true; maybeFinish(); }, 6500);
+
     /* decode the menu theme during the splash so the home screen
      * starts its music instantly (fetchTrack caches the AudioBuffer) */
-    Audio.preloadTrack("menu2");
+    Audio.preloadTrack("menu3");
 
     /* the smooth-bar animator — lerp toward the target each frame,
      * paint via direct transform (compositor thread, no layout) */
@@ -120,7 +152,10 @@ export function Splash({ onDone }: { onDone: () => void }) {
   }, []);
 
   return (
-    <div className="vz-page" style={{ background: "linear-gradient(180deg,#8fd0ff 0%,#5cb2ef 55%,#3d9df0 100%)", alignItems: "center", justifyContent: "center" }}>
+    <div
+      className={`vz-page ${out ? "splash-out" : ""}`}
+      style={{ background: "linear-gradient(180deg,#8fd0ff 0%,#5cb2ef 55%,#3d9df0 100%)", alignItems: "center", justifyContent: "center" }}
+    >
       <Vines />
 
       <img src="/assets/char/seat.webp" alt="عمو دانا" className="pop-in" style={{ height: "min(34vh, 240px)", objectFit: "contain", filter: "drop-shadow(0 16px 22px rgba(10,30,60,.35))" }} />
