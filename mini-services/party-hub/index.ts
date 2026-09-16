@@ -36,6 +36,10 @@ interface Room {
   code: string;
   hostId: string;
   players: Map<string, P>;
+  /* v5 BB — member memory (name-keyed): keeps the score/avatar of
+   * everyone who ever joined so a transient WiFi blip can REJOIN
+   * mid-match with the score intact. Cleaned on room teardown. */
+  members: Map<string, { avatar: string; score: number }>;
   phase: "lobby" | "round" | "review" | "over";
   rounds: number;
   seconds: number;
@@ -46,6 +50,8 @@ interface Room {
 
 const rooms = new Map<string, Room>();
 const roomOf = new Map<string, string>(); // socketId -> roomCode
+
+const LOG = (...a: unknown[]) => console.log("[hub]", new Date().toISOString().slice(11,19), ...a);
 
 const rid = () => Math.random().toString(36).slice(2, 10);
 const newCode = () => {
@@ -89,14 +95,25 @@ function getIo(): Server {
   return _io;
 }
 
+/* v5 BB — bun --hot used to re-execute this module in the SAME process,
+ * binding a second engine.io on :3003 (SO_REUSEPORT) → kernel split
+ * create/join across two module states → «اتاقی با این کد پیدا نشد».
+ * The singleton guard + plain `bun index.ts` (package.json) make the
+ * boot single-instance by construction. */
+const G = globalThis as typeof globalThis & { __vzPartyHub?: Server };
+if (G.__vzPartyHub) {
+  console.log("[party-hub] already listening — skipping re-init");
+} else {
 const io = new Server(PORT, {
   cors: { origin: "*" },
   pingInterval: 20000,
   pingTimeout: 25000,
 });
 _io = io;
+G.__vzPartyHub = io;
 
 io.on("connection", (s) => {
+  LOG("connect", s.id);
   let name = "مسافر";
   let avatar = "cat";
 
@@ -114,13 +131,16 @@ io.on("connection", (s) => {
     const r: Room = {
       code, hostId: s.id,
       players: new Map(),
+      members: new Map(),
       phase: "lobby",
       rounds: 3, seconds: 60,
       round: 0, wheel: null, claimed: new Map(),
     };
     r.players.set(s.id, { id: s.id, name, avatar, score: 0 });
+    r.members.set(name, { avatar, score: 0 });
     rooms.set(code, r);
     roomOf.set(s.id, code);
+    LOG("create", code, "by", s.id, "total:", rooms.size);
     s.join(code);
     ack?.({ ok: true, code });
     /* ONLY the creator learns their id — a room-wide broadcast would
@@ -132,16 +152,30 @@ io.on("connection", (s) => {
   s.on("room:join", (arg: { code?: string }, ack?: (res: unknown) => void) => {
     const code = String(arg?.code ?? "").trim().toUpperCase();
     const r = rooms.get(code);
+    LOG("join attempt", code, "found:", !!r, "total:", rooms.size, "codes:", [...rooms.keys()].join(","));
     if (!r) return ack?.({ ok: false, error: "اتاقی با این کد پیدا نشد" });
-    if (r.phase !== "lobby") return ack?.({ ok: false, error: "این بازی شروع شده — بعدی!" });
-    if (r.players.size >= MAX_PLAYERS) return ack?.({ ok: false, error: "اتاق پر است (حداکثر ۶ نفر)" });
+    const mem = r.members.get(name);
+    if (r.phase !== "lobby" && !mem)
+      return ack?.({ ok: false, error: "این بازی شروع شده — بعدی!" });
+    if (r.players.size >= MAX_PLAYERS && !mem)
+      return ack?.({ ok: false, error: "اتاق پر است (حداکثر ۶ نفر)" });
     leaveRoom(s);
-    r.players.set(s.id, { id: s.id, name, avatar, score: 0 });
+    /* v5 BB — REJOIN: the same name returning mid-match resumes with
+     * its saved score; in a fresh lobby it (re)enters with score 0. */
+    const p: P = { id: s.id, name, avatar, score: r.phase !== "lobby" && mem ? mem.score : 0 };
+    r.players.set(s.id, p);
+    r.members.set(name, { avatar, score: p.score });
     roomOf.set(s.id, code);
     s.join(code);
     ack?.({ ok: true, code });
     broadcast(r, "player:joined", { id: s.id });
     getIo().to(s.id).emit("room:hello", { yourId: s.id });
+    /* mid-match rejoin: hand back the live round so the phone resumes */
+    if (r.phase === "round" && r.wheel) {
+      getIo().to(s.id).emit("round:began", {
+        round: r.round, of: r.rounds, ls: r.wheel.ls, seconds: r.seconds,
+      });
+    }
   });
 
   /* ── lobby ── */
@@ -177,7 +211,11 @@ io.on("connection", (s) => {
     }
     r.claimed.set(w, s.id);
     const p = r.players.get(s.id);
-    if (p) p.score += w.length * 10; // hub-computed: len×10, first owner keeps it
+    if (p) {
+      p.score += w.length * 10; // hub-computed: len×10, first owner keeps it
+      const m = r.members.get(p.name);
+      if (m) m.score = p.score;  /* keep the resume memory in sync */
+    }
     broadcast(r, "word:scored", {
       pid: s.id, word: w, pts: w.length * 10,
       scores: roster(r).map((x) => ({ id: x.id, score: x.score })),
@@ -208,6 +246,7 @@ io.on("connection", (s) => {
     r.wheel = null;
     r.claimed = new Map();
     for (const p of r.players.values()) p.score = 0;
+    for (const m of r.members.values()) m.score = 0;
     broadcast(r, "room:rematch", null);
   });
 
@@ -222,7 +261,7 @@ io.on("connection", (s) => {
 
   /* ── teardown ── */
   s.on("leave", () => leaveRoom(s));
-  s.on("disconnect", () => leaveRoom(s));
+  s.on("disconnect", (reason) => { LOG("disconnect", s.id, reason); leaveRoom(s); });
 });
 
 function leaveRoom(s: { id: string; rooms?: Set<string> }) {
@@ -253,3 +292,4 @@ function leaveRoom(s: { id: string; rooms?: Set<string> }) {
 }
 
 console.log(`[party-hub] listening on :${PORT}`);
+} /* end not-already-booted */

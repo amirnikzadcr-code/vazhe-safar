@@ -129,7 +129,7 @@ export function Splash({ onDone }: { onDone: () => void }) {
 
     /* decode the menu theme during the splash so the home screen
      * starts its music instantly (fetchTrack caches the AudioBuffer) */
-    Audio.preloadTrack(MENU_MUSIC.track);
+    if (MENU_MUSIC.track) Audio.preloadTrack(MENU_MUSIC.track);
 
     /* the smooth-bar animator — lerp toward the target each frame,
      * paint via direct transform (compositor thread, no layout) */

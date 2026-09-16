@@ -161,8 +161,11 @@ class PartyNetClient {
   react(emoji: string): void { this.socket?.emit("react", { emoji }); }
   leave(): void {
     this.socket?.emit("leave");
-    /* drop ALL subscriptions — the next visit starts clean */
-    this.handlers.clear();
+    /* v5 BB-FIX: do NOT clear the handler map here. The WifiScreen owns
+     * its subscriptions and unsubscribes them on unmount; wiping them
+     * here killed room:state/round:began delivery for the LIFETIME of
+     * the screen — a second create/join from the internal menu rendered
+     * a dead lobby. (old bug: this.handlers.clear()) */
     try { this.socket?.disconnect(); } catch { /* noop */ }
     this.socket = null;
     this.yourId = "";

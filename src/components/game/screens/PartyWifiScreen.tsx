@@ -84,6 +84,8 @@ export function WifiRoot({ onExit, onHome }: { onExit: () => void; onHome: () =>
   const [reacts, setReacts] = useState<{ id: number; emoji: string; name: string }[]>([]);
   const reactId = useRef(0);
   const inRoom = useRef(false);
+  /* v5 BB — remember the room code so a network blip can silently rejoin */
+  const lastCode = useRef("");
 
   /* identity defaults from the player profile */
   const [name, setName] = useState(Save.data.profile.name);
@@ -129,12 +131,26 @@ export function WifiRoot({ onExit, onHome }: { onExit: () => void; onHome: () =>
     const offTaken = PartyNet.on("word:taken", () => { /* handled inside WifiTurn */ });
     const offDown = PartyNet.on("net:down", () => setOffline(true));
     const offUp = PartyNet.on("net:up", () => {
-      /* a reconnect means a NEW socket id → we are no longer in the room */
+      /* v5 BB — a reconnect no longer kicks you to the menu: if we were
+       * in a room, SILENTLY REJOIN it (the hub keeps the member's score
+       * and, mid-round, re-sends the live wheel). Only when the room is
+       * really gone do we fall back to the internal menu. */
       setOffline(false);
       if (inRoom.current) {
-        inRoom.current = false;
-        PartyNet.leave();
-        setUi("menu");
+        const code = lastCode.current;
+        if (code) {
+          void PartyNet.joinRoom(code).then((res) => {
+            if (res.ok) return;                       // back in — resume
+            inRoom.current = false;
+            PartyNet.leave();
+            setState(null); setRoundInfo(null); setReview(null); setOverPlayers(null);
+            setUi("menu");
+          });
+        } else {
+          inRoom.current = false;
+          PartyNet.leave();
+          setUi("menu");
+        }
       }
     });
     return () => {
@@ -166,20 +182,21 @@ export function WifiRoot({ onExit, onHome }: { onExit: () => void; onHome: () =>
     Audio.sfxClick();
     PartyNet.setHello(name, avatar);
     const res = await PartyNet.createRoom();
-    if (res.ok) { inRoom.current = true; setMenuErr(""); setUi("lobby"); }
+    if (res.ok) { inRoom.current = true; lastCode.current = res.code ?? ""; setMenuErr(""); setUi("lobby"); }
     else setMenuErr(PartyNet.lastError || "ساخت اتاق ناموفق بود");
   };
   const join = async (code: string): Promise<string> => {
     Audio.sfxClick();
     PartyNet.setHello(name, avatar);
     const res = await PartyNet.joinRoom(code);
-    if (res.ok) { inRoom.current = true; setUi("lobby"); return ""; }
+    if (res.ok) { inRoom.current = true; lastCode.current = code.trim().toUpperCase(); setUi("lobby"); return ""; }
     return PartyNet.lastError || "اتاق پیدا نشد";
   };
   const leaveTo = (where: "menu" | "home") => {
     Audio.sfxClick();
     PartyNet.leave();
     inRoom.current = false;
+    lastCode.current = "";
     setState(null); setRoundInfo(null); setReview(null); setOverPlayers(null);
     if (where === "menu") setUi("menu"); else onHome();
   };
