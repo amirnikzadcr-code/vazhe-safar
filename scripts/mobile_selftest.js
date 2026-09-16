@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // mobile_selftest.js — v4 mobile-emulated QA (CPU 4x throttle = weak phone)
 // Verifies: boot speed, no console errors, word-guess flow, page transitions,
 // party screen (pool badge + word count), XP bars use scaleX (no width anim).

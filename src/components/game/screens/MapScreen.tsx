@@ -289,22 +289,28 @@ export function MapScreen({
           <RealmImg src={realmSrc(ch)} />
           <div className="realm-shade" />
 
-          {/* chapter plate + progress ribbon */}
-          <div className="ch-plate">
-            <div className="ch-plate-row">
-              <span className="ch-medal">{unlockedCh ? faNum(ch) : <LockChunky size={15} />}</span>
-              <div className="ch-plate-t">
-                <div className="ch-title">{theme.title}</div>
-                <div className="ch-range">مرحله‌های {faNum(g0)} تا {faNum(g1)}</div>
+          {/* AB — the restored storybook BANNER (user: «اون انیمیشن
+              قهوه‌ای که ظاهر می‌شد و اسم فصل‌ها رو می‌نوشت چرا برداشتی؟
+              قشنگ بود») — a warm brown parchment plate that drops in
+              with an overshoot settle + a lazy idle sway, carrying the
+              chapter medal, title, poetic subtitle, stars and progress.
+              Transform/opacity only, shed under .lowfx. */}
+          <div className="ch-banner">
+            <div className="cb-plate">
+              <span className="cb-medal">{unlockedCh ? faNum(ch) : <LockChunky size={18} />}</span>
+              <div className="cb-title">{theme.title}</div>
+              <div className="cb-sub">{theme.subtitle}</div>
+              <div className="cb-row">
+                <span className="cb-chip">
+                  <StarGold size={12} />
+                  {faNum(prog.stars)}/{faNum(n * 3)}
+                </span>
+                <span className="cb-chip">مرحله‌های {faNum(g0)} تا {faNum(g1)}</span>
               </div>
-              <span className="ch-stars">
-                <StarGold size={14} />
-                {faNum(prog.stars)}/{faNum(n * 3)}
-              </span>
-            </div>
-            <div className="ch-progress">
-              <span className="ch-pbar"><i style={{ ["--p" as string]: unlockedCh ? prog.done / n : 0 }} /></span>
-              <span className="ch-plabel">{faNum(prog.done)}/{faNum(n)}</span>
+              <div className="cb-progress">
+                <span className="ch-pbar"><i style={{ ["--p" as string]: unlockedCh ? prog.done / n : 0 }} /></span>
+                <span className="cb-plabel">{faNum(prog.done)}/{faNum(n)}</span>
+              </div>
             </div>
           </div>
 

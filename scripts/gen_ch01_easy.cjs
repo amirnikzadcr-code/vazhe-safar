@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 /* SESSION Z — rebuild ch01 as the GENTLE ONBOARDING chapter:
  * «فصل اول خیلی یکم سخته آسون ترش بکن»
  *  • 10 levels, 3-4 SUPER-common words each, zero fragment words

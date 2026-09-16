@@ -237,12 +237,13 @@ await assert("curtain shows chapter pill", async () =>
   (await evalJSON(`JSON.stringify(document.querySelector('.curtain-pill')?.textContent.includes('فصل'))`)) === true);
 await sleep(2100);
 await assert("new chapter page mounted under curtain", async () =>
-  (await evalJSON(`JSON.stringify(document.querySelector('.ch-scene .ch-title')?.textContent.length > 2)`)) === true);
+  (await evalJSON(`JSON.stringify(document.querySelector('.ch-scene .cb-title')?.textContent.length > 2)`)) === true);
 
 console.log("— D. party (دورهمی)");
 await clickAria("بازگشت");
 await sleep(1200);
 if ((await clickText("بازی دورهمی")) !== 1) throw new Error("party button not found");
+if ((await evalJSON(`!!document.querySelector('.pm-cards')`)) === true) { await clickText("بازی با یک گوشی"); await sleep(900); }
 await sleep(1400);
 await evalJSON(`(function(){window.__errs=[];return 'ok'})()`);
 await clickText("۲ نفر");
@@ -278,7 +279,7 @@ await assert("party ring has letter tiles", async () =>
     if (dk === true && i > 30) { verdict = "checking-stuck"; break; }
   }
   if (verdict === "accepted") ok("party drag auto-submits a valid word");
-  else if (verdict.includes("معتبر نیست") || verdict.includes("دهخدا")) ok(`party drag→submit pipeline works (offline verdict: ${verdict})`);
+  else if (verdict.includes("معتبر نیست") || verdict.includes("دهخدا") || verdict.includes("پذیرفته نشد") || verdict.includes("گفته شد")) ok(`party drag→submit pipeline works (offline verdict: ${verdict})`);
   else bad("party drag auto-submit", verdict);
 }
 await assert("پایان نوبت leads to recap card", async () => {

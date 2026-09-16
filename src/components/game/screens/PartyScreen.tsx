@@ -23,9 +23,11 @@ import { letters, faNum, buzz } from "@/game/core/utils";
 import { validateWord, LEXICON_WORDS } from "@/game/core/lexicon";
 import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
+import { TurnTimer } from "@/components/game/ui/turntimer";
+import { WifiRoot } from "@/components/game/screens/PartyWifiScreen";
 
 const TURN_MS = 40_000;
-type Phase = "setup" | "handoff" | "turn" | "recap" | "final";
+type Phase = "mode" | "setup" | "wifi" | "handoff" | "turn" | "recap" | "final";
 
 interface PConf { name: string; avatar: string }
 interface PState { name: string; avatar: string; score: number; streak: number; best: number; words: number }
@@ -102,47 +104,9 @@ const SUPERLATIVES: { cond: (p: PState, all: PState[]) => boolean; line: (p: PSt
   { cond: (p, all) => all.filter((x) => x.score === all[0].score).length > 1, line: (p) => `مساوی شدید — حتماً یک دورِ تعیین‌کننده با ${p.name}!` },
 ];
 
-/* ---------------- countdown ring (own state → parent never re-renders) ---------------- */
-function TurnTimer({ ms, onEnd }: { ms: number; onEnd: () => void }) {
-  const C = 2 * Math.PI * 26;
-  const [run, setRun] = useState(false);
-  const [left, setLeft] = useState(Math.ceil(ms / 1000));
-  const leftRef = useRef(left);
-  const endRef = useRef(onEnd);
-  useEffect(() => { endRef.current = onEnd; });
-  useEffect(() => {
-    const t0 = Date.now();
-    const id = setInterval(() => {
-      const rem = Math.max(0, ms - (Date.now() - t0));
-      const s = Math.ceil(rem / 1000);
-      if (s !== leftRef.current) {
-        leftRef.current = s;
-        setLeft(s);
-        if (s <= 3 && s > 0) Audio.sfxLetter(2); /* gentle final ticks */
-      }
-      if (rem <= 0) { clearInterval(id); endRef.current(); }
-    }, 200);
-    const raf = requestAnimationFrame(() => setRun(true)); /* arm the ring transition */
-    return () => { clearInterval(id); cancelAnimationFrame(raf); };
-  }, [ms]);
-  const low = left <= 5;
-  return (
-    <div className={`pt-timer ${low ? "low" : ""}`} aria-label={`${faNum(left)} ثانیه`}>
-      <svg width="66" height="66" viewBox="0 0 64 64">
-        <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(74,44,14,.35)" strokeWidth="6" />
-        <circle
-          className="pt-ring"
-          cx="32" cy="32" r="26" fill="none"
-          stroke={low ? "#ff5b5b" : "#ffd76e"} strokeWidth="6" strokeLinecap="round"
-          strokeDasharray={C} strokeDashoffset={run ? C : 0}
-          transform="rotate(-90 32 32)"
-          style={{ transition: `stroke-dashoffset ${ms}ms linear` }}
-        />
-      </svg>
-      <b>{faNum(left)}</b>
-    </div>
-  );
-}
+/* ---------------- countdown ring ----------------
+ * (moved to ui/turntimer.tsx in session AB — the WiFi party mode
+ *  shares the exact same ring without a circular import) */
 
 /* ---------------- عمو دانا — the party coach ---------------- */
 function Coach({ line, small }: { line: string; small?: boolean }) {
@@ -916,9 +880,76 @@ function Final({ ps, onRematch, onNewPlayers, onHome }: {
   );
 }
 
+/* ================= MODE PICKER (AB) =================
+ * user: «بخش دورهمی رو تقسیم کن ب دو بخش بازی با یک گوشی و بازی با
+ * وصل شدن دستگاه‌ها از طریق وای فای» — two big friendly cards:
+ * one phone passed around, or every friend on their own phone
+ * joining the same room over WiFi. */
+const MODE_TIPS = [
+  "سلام! دو راه داری: گوشی را دست‌به‌دست بچرخانید، یا هرکسی با گوشی خودش به یک اتاقِ وای‌فای بپیوندد!",
+  "«بازی با یک گوشی» یعنی همه دور یک گوشی — نوبتی بازی می‌کنید!",
+  "«بازی با وای‌فای» یعنی هرکسی با گوشی خودش — هم‌زمان مسابقه می‌دهید!",
+  "در حالت وای‌فای، اولین نفری که واژه را بگوید مالک آن می‌شود — سریع باش!",
+];
+function ModePicker({ onPick, onExit }: { onPick: (m: "solo" | "wifi") => void; onExit: () => void }) {
+  const [tip, setTip] = useState(() => MODE_TIPS[0]);
+  return (
+    <Sheet bg="/assets/bg/map2b.webp" bgDim={0.3}>
+      <Garland />
+      <div className="ps-top">
+        <button type="button" className="ps-x" aria-label="بازگشت" onClick={onExit}>✕</button>
+        <div className="sheet-title" style={{ fontSize: 16, padding: "7px 22px" }}>بازی دورهمی</div>
+        <span style={{ width: 40 }} />
+      </div>
+      <div className="scrolly">
+        <Coach line={tip} />
+        <button
+          type="button"
+          className="ps-tip-next"
+          onClick={() => { Audio.sfxClick(); setTip(pick(MODE_TIPS)); }}
+          aria-label="نکته بعدی"
+        >
+          نکتهٔ بعدی ✨
+        </button>
+
+        <div className="pm-cards">
+          <button type="button" className="pm-card pm-solo" onClick={() => onPick("solo")}>
+            <span className="pm-ic" aria-hidden>
+              <svg width="46" height="46" viewBox="0 0 46 46">
+                <rect x="13" y="5" width="20" height="36" rx="4.5" fill="#7a4a12" />
+                <rect x="15" y="8" width="16" height="27" rx="2.5" fill="#ffe9b8" />
+                <circle cx="23" cy="39" r="1.7" fill="#ffe9b8" />
+                <path d="M23 12 l1.7 3.6 3.9.5-2.9 2.7.8 3.9-3.5-1.9-3.5 1.9.8-3.9-2.9-2.7 3.9-.5z" fill="#f2a52c" />
+              </svg>
+            </span>
+            <span className="pm-t">بازی با یک گوشی</span>
+            <span className="pm-d">دست‌به‌دست بچرخانید و نوبتی واژه بسازید — ۲ تا ۶ نفر کنار هم</span>
+            <span className="pm-go">بریم! ‹</span>
+          </button>
+
+          <button type="button" className="pm-card pm-wifi" onClick={() => onPick("wifi")}>
+            <span className="pm-ic" aria-hidden>
+              <svg width="46" height="46" viewBox="0 0 46 46">
+                <path d="M6 19 a25 25 0 0 1 34 0" fill="none" stroke="#7a4a12" strokeWidth="4" strokeLinecap="round" />
+                <path d="M11.5 25.5 a17 17 0 0 1 23 0" fill="none" stroke="#7a4a12" strokeWidth="4" strokeLinecap="round" />
+                <path d="M17 31.5 a9 9 0 0 1 12 0" fill="none" stroke="#7a4a12" strokeWidth="4" strokeLinecap="round" />
+                <circle cx="23" cy="37.5" r="3.2" fill="#f2a52c" stroke="#7a4a12" strokeWidth="1.6" />
+              </svg>
+            </span>
+            <span className="pm-t">بازی با وای‌فای</span>
+            <span className="pm-d">هرکسی با گوشی خودش — با کد اتاق به هم وصل شوید و هم‌زمان مسابقه بدهید</span>
+            <span className="pm-go">بریم! ‹</span>
+          </button>
+        </div>
+        <div style={{ height: 22 }} />
+      </div>
+    </Sheet>
+  );
+}
+
 /* ================= SCREEN ROOT ================= */
 export function PartyScreen({ onExit }: { onExit: () => void }) {
-  const [phase, setPhase] = useState<Phase>("setup");
+  const [phase, setPhase] = useState<Phase>("mode");
   const [players, setPlayers] = useState<PState[]>([]);
   const [rounds, setRounds] = useState(3);
   const [round, setRound] = useState(1);
@@ -976,7 +1007,13 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
     setPhase("recap");
   };
 
-  if (phase === "setup") return <Setup onStart={startAll} onExit={onExit} />;
+  if (phase === "mode") {
+    return <ModePicker onPick={(m) => { Audio.sfxClick(); setPhase(m === "wifi" ? "wifi" : "setup"); }} onExit={onExit} />;
+  }
+  if (phase === "wifi") {
+    return <WifiRoot onExit={() => setPhase("mode")} onHome={onExit} />;
+  }
+  if (phase === "setup") return <Setup onStart={startAll} onExit={() => setPhase("mode")} />;
   if (phase === "final") {
     return (
       <Final

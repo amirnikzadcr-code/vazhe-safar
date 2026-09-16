@@ -176,6 +176,7 @@ async function ensureHome() {
 console.log("— B. party setup");
 if (!(await ensureHome())) throw new Error("never reached home");
 clickText("بازی دورهمی");
+if (J(`!!document.querySelector('.pm-cards')`) === true) { clickText("بازی با یک گوشی"); await sleep(900); }
 await sleep(1300);
 await assert("party setup opens", async () => J(`document.body.innerText.includes('چند نفرید؟')`) === true);
 await assert("setup shows the big offline lexicon claim", async () => /بیش از [۰-۹٬]+ واژهٔ فارسی/.test(J(`document.body.innerText`)));

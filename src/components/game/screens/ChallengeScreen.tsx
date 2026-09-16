@@ -1,10 +1,17 @@
 "use client";
 /* ------------------------------------------------------------------
- * ChallengeScreen — daily challenge with Persian (Jalali) calendar
+ * ChallengeScreen — v2 (session AB, user: «صفحه چالش هم خوشگل تر بکن
+ * و آیکون هارو نرم تر و انیمیشن بکن و ماموریت های بیشتری اضافه بکن»)
+ *   • a wax-seal date medallion + animated flame streak badge
+ *   • softer calendar cells: gradient "today" with a breathing halo,
+ *     pop-in green check for done days, reward chips that wiggle
+ *   • streak milestone lamps (۳ / ۷ / ۱۴ روز) lighting up as you go
+ *   • everything transform/opacity only, .lowfx-guarded
  * ------------------------------------------------------------------ */
 import { useMemo } from "react";
 import { Sheet, TopBar, Btn, useToast, ToastHost } from "@/components/game/ui/kit";
-import { Gift as GiftIc, Check, Flame } from "lucide-react";
+import { Gift as GiftIc, Check, Coin } from "@/components/game/icons";
+import { Flame } from "lucide-react";
 import { Save } from "@/game/core/save";
 import { faNum } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
@@ -22,6 +29,12 @@ const wdIndex = (short: string) => {
   const map: Record<string, number> = { "شنبه": 0, "یکشنبه": 1, "دوشنبه": 2, "سه‌شنبه": 3, "سه شنبه": 3, "چهارشنبه": 4, "پنجشنبه": 5, "جمعه": 6, "ش": 0, "ی": 1, "د": 2, "س": 3, "چ": 4, "پ": 5, "ج": 6 };
   return map[short.trim()] ?? 0;
 };
+
+const MILESTONES: { d: number; label: string }[] = [
+  { d: 3, label: "۳ روز" },
+  { d: 7, label: "۷ روز" },
+  { d: 14, label: "۱۴ روز" },
+];
 
 export function ChallengeScreen({
   onBack, onStart, onShop,
@@ -52,7 +65,19 @@ export function ChallengeScreen({
       <TopBar onBack={onBack} onShop={onShop} title="چالش روزانه" />
 
       <div className="scrolly" style={{ display: "flex", flexDirection: "column" }}>
-        <div className="panel" style={{ margin: "2px auto 14px", width: "min(100%, 340px)", borderRadius: 24 }}>
+        {/* date medallion + streak flame */}
+        <div className="ch-hero">
+          <span className="ch-hero-seal">
+            <i>{faNum(info.todayDay)}</i>
+            <b>{info.month}</b>
+          </span>
+          <span className={`ch-hero-flame ${streak > 0 ? "lit" : ""}`} aria-hidden>
+            <Flame size={19} />
+            <b>{faNum(streak)}</b>
+          </span>
+        </div>
+
+        <div className="panel ch-cal rise-in" style={{ margin: "2px auto 14px", width: "min(100%, 340px)", borderRadius: 24 }}>
           <div className="panel-head">{info.month}</div>
           <div style={{ padding: 14 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5, marginBottom: 6 }}>
@@ -80,10 +105,20 @@ export function ChallengeScreen({
               })}
             </div>
           </div>
+
+          {/* streak milestone lamps */}
+          <div className="ch-stones">
+            {MILESTONES.map((m) => (
+              <span key={m.d} className={`ch-stone ${streak >= m.d ? "lit" : ""}`}>
+                <i className="ch-stone-lamp" />
+                {m.label}
+              </span>
+            ))}
+          </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 12 }}>
-          <span className="chip" style={{ fontSize: 13 }}>
+        <div className="ch-reward-row rise-in" style={{ animationDelay: "90ms" }}>
+          <span className="chip ch-chip-wiggle" style={{ fontSize: 13 }}>
             <GiftIc size={15} />
             جایزه: {faNum(50)} سکه
           </span>
@@ -93,6 +128,10 @@ export function ChallengeScreen({
               استریک: {faNum(streak)} روز
             </span>
           )}
+          <span className="chip" style={{ fontSize: 13 }}>
+            <Coin size={15} />
+            هر روز ادامه بده، بیشتر بگیر!
+          </span>
         </div>
 
         <p style={{ textAlign: "center", color: "#ffe9c8", fontWeight: 700, margin: "0 12px 14px", textShadow: "0 2px 4px rgba(0,0,0,.45)", fontSize: 14 }}>
@@ -101,7 +140,7 @@ export function ChallengeScreen({
 
         <div style={{ display: "flex", justifyContent: "center", paddingBottom: 10 }}>
           {done ? (
-            <span className="chip" style={{ fontSize: 15, padding: "8px 18px" }}>
+            <span className="chip ch-done-chip pop-in" style={{ fontSize: 15, padding: "8px 18px" }}>
               <Check size={18} />
               چالش امروز انجام شد — فردا بیا!
             </span>
@@ -109,6 +148,7 @@ export function ChallengeScreen({
             <Btn
               color="teal"
               size="big"
+              className="ch-start"
               onClick={() => { Audio.sfxClick(); bumpSave(); onStart(); show("چالش شروع شد!"); }}
             >
               شروع چالش
