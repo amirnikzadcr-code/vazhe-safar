@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Btn, Vines } from "@/components/game/ui/kit";
 import { Audio } from "@/game/core/audio";
 import { preloadAssets } from "@/game/core/preload";
+import { MENU_MUSIC } from "@/game/data/chapters";
 
 /* ---------- Welcome back ---------- */
 export function WelcomeScreen({
@@ -128,7 +129,7 @@ export function Splash({ onDone }: { onDone: () => void }) {
 
     /* decode the menu theme during the splash so the home screen
      * starts its music instantly (fetchTrack caches the AudioBuffer) */
-    Audio.preloadTrack("menu3");
+    Audio.preloadTrack(MENU_MUSIC.track);
 
     /* the smooth-bar animator — lerp toward the target each frame,
      * paint via direct transform (compositor thread, no layout) */

@@ -388,12 +388,12 @@ console.log("— G. shipped assets");
     else bad("all real probe words present", JSON.stringify(a.missingReal));
   } else bad("lexicon probe", JSON.stringify(a));
 
-  const m = P(`(function(){var x=new XMLHttpRequest();x.open('GET','/assets/music/menu4.ogg',false);x.send();return x.status+':'+x.getResponseHeader('content-length')})()`);
+  const m = P(`(function(){var x=new XMLHttpRequest();x.open('GET','/assets/music/menu5.ogg',false);x.send();return x.status+':'+x.getResponseHeader('content-length')})()`);
   const m3status = Number(String(m).split(":")[0]);
   const m3size = Number(String(m).split(":")[1] || 0);
-  if (m3status === 200 && m3size > 100000) ok("new menu music shipped (menu4.ogg — modern pop)", `${Math.round(m3size / 1024)}KB`);
-  else bad("new menu music shipped (menu4.ogg)", String(m));
-  for (const old of ["menu2", "menu3"]) {
+  if (m3status === 200 && m3size > 100000) ok("new menu music shipped (menu5.ogg — semi-traditional clean)", `${Math.round(m3size / 1024)}KB`);
+  else bad("new menu music shipped (menu5.ogg)", String(m));
+  for (const old of ["menu2", "menu3", "menu4"]) {
     const st = P(`(function(){var x=new XMLHttpRequest();x.open('GET','/assets/music/${old}.ogg',false);x.send();return x.status})()`);
     if (Number(st) === 404) ok(`old menu music deleted (${old}.ogg → 404)`);
     else bad(`old menu music deleted (${old}.ogg → 404)`, `status ${st}`);

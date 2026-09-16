@@ -2654,6 +2654,120 @@ body { background: #5cb2ef; }
   100% { transform: scale(.8); opacity: .85; }
 }
 
+/* ---------- AA — DISNEY-GRADE icon layers (glow, sheen, coin fly,
+   seal, green check) — transform/opacity only, .lowfx guarded ---------- */
+.chest-glow, .scroll-halo { transform-box: fill-box; transform-origin: center; animation: iconHalo 3.4s ease-in-out infinite; }
+@keyframes iconHalo {
+  0%, 100% { transform: scale(.92); opacity: .55; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+.chest-inside { transform-box: fill-box; transform-origin: 50% 100%; animation: insideBreath 2.6s ease-in-out infinite; }
+@keyframes insideBreath {
+  0%, 100% { transform: scaleY(.86); opacity: .75; }
+  50% { transform: scaleY(1.08); opacity: 1; }
+}
+.chest-coinfly { transform-box: fill-box; transform-origin: center; animation: coinFly 2.6s ease-in-out infinite; }
+@keyframes coinFly {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  30% { transform: translate(1.6px, -3.4px) rotate(14deg); }
+  55% { transform: translate(-.8px, -1.2px) rotate(-8deg); }
+}
+.chest-sheen { animation: sheenSweep 3.2s ease-in-out infinite; }
+.scroll-sheen { animation: sheenSweep 3.6s ease-in-out infinite; }
+@keyframes sheenSweep {
+  0% { transform: translateX(0) skewX(-18deg); }
+  55%, 100% { transform: translateX(82px) skewX(-18deg); }
+}
+.scroll-seal { transform-box: fill-box; transform-origin: center; animation: sealSquish 3.6s ease-in-out infinite; }
+@keyframes sealSquish {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  45% { transform: scale(1.1, .94) rotate(-3deg); }
+  60% { transform: scale(.96, 1.05) rotate(2deg); }
+}
+.scroll-check { transform-box: fill-box; transform-origin: center; animation: checkPop 2.8s ease-in-out infinite; }
+@keyframes checkPop {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  55% { transform: scale(.95); }
+  65% { transform: scale(1.05); }
+}
+
+/* ---------- AA — HOME SCENE AMBIENCE (Disney-life): lazy sun,
+   drifting clouds, falling petals, golden motes, one butterfly.
+   transform/opacity only; everything dies under .lowfx. ---------- */
+.home-sun {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,244,200,.5) 0%, rgba(255,238,170,.22) 34%, rgba(255,230,150,0) 62%),
+    repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,246,205,.14) 0deg 7deg, rgba(255,246,205,0) 7deg 24deg);
+  border-radius: 50%;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  animation: sunSpin 80s linear infinite;
+}
+@keyframes sunSpin { from { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(1.05); } to { transform: rotate(360deg) scale(1); } }
+
+.home-cloud { will-change: transform; animation: cloudDrift linear infinite; filter: drop-shadow(0 4px 6px rgba(90,140,200,.18)); }
+.home-cloud.c1 { animation-duration: 85s; animation-delay: -22s; }
+.home-cloud.c2 { animation-duration: 120s; animation-delay: -64s; }
+@keyframes cloudDrift { from { transform: translateX(0); } to { transform: translateX(-118vw); } }
+
+.home-petal {
+  position: absolute; top: -6vh; width: 11px; height: 11px;
+  border-radius: 88% 0 88% 0;
+  background: radial-gradient(circle at 30% 30%, #ffd3de, #ff8fab 60%, #e25c78);
+  box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  will-change: transform, opacity;
+  animation: petalFall linear infinite;
+}
+.home-petal.p1 { left: 16%; animation-duration: 12.5s; animation-delay: -2s; }
+.home-petal.p2 { left: 38%; animation-duration: 15.5s; animation-delay: -9s; width: 9px; height: 9px; background: radial-gradient(circle at 30% 30%, #ffe3e3, #ff7b6b 60%, #d94f3d); }
+.home-petal.p3 { left: 63%; animation-duration: 13.8s; animation-delay: -5.5s; }
+.home-petal.p4 { left: 85%; animation-duration: 16.8s; animation-delay: -12s; width: 8px; height: 8px; background: radial-gradient(circle at 30% 30%, #fff0f5, #ffa5c0 60%, #e26a92); }
+@keyframes petalFall {
+  0%   { transform: translate(0, -6vh) rotate(0deg); opacity: 0; }
+  8%   { opacity: .95; }
+  28%  { transform: translate(4vw, 26vh) rotate(95deg); }
+  52%  { transform: translate(-2vw, 54vh) rotate(190deg); }
+  76%  { transform: translate(3vw, 82vh) rotate(280deg); opacity: .9; }
+  92%  { opacity: 0; }
+  100% { transform: translate(-1vw, 112vh) rotate(360deg); opacity: 0; }
+}
+
+.home-mote {
+  position: absolute; bottom: -4vh; width: 6px; height: 6px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #fffbe0, #ffd94e 65%, #f0a51c);
+  box-shadow: 0 0 7px 2px rgba(255,217,78,.45);
+  will-change: transform, opacity;
+  animation: moteRise ease-in-out infinite;
+}
+.home-mote.m1 { left: 22%; animation-duration: 9.5s; animation-delay: -3s; }
+.home-mote.m2 { left: 48%; animation-duration: 12s; animation-delay: -8s; width: 4.5px; height: 4.5px; }
+.home-mote.m3 { left: 70%; animation-duration: 10.5s; animation-delay: -1.5s; }
+.home-mote.m4 { left: 90%; animation-duration: 13.5s; animation-delay: -6s; width: 5px; height: 5px; }
+@keyframes moteRise {
+  0%   { transform: translate(0, 0) scale(.7); opacity: 0; }
+  12%  { opacity: .95; }
+  50%  { transform: translate(2.2vw, -52vh) scale(1.1); opacity: .8; }
+  86%  { opacity: 0; }
+  100% { transform: translate(-1vw, -104vh) scale(.8); opacity: 0; }
+}
+
+.home-butterfly { will-change: transform; animation: bflyFloat 7.5s ease-in-out infinite; }
+@keyframes bflyFloat {
+  0%, 100% { transform: translate(0, 0) rotate(-4deg); }
+  30% { transform: translate(4.5vw, -5vh) rotate(6deg); }
+  55% { transform: translate(-2vw, 2.5vh) rotate(-6deg); }
+  78% { transform: translate(3vw, -3vh) rotate(4deg); }
+}
+.bfly-wing { transform-box: fill-box; animation: bflyFlap .38s ease-in-out infinite alternate; }
+.bfly-wing.l { transform-origin: 100% 50%; }
+.bfly-wing.r { transform-origin: 0% 50%; }
+@keyframes bflyFlap { from { transform: scaleX(1); } to { transform: scaleX(.3); } }
+
+/* party-button balloons get a gentle bob too (AA) */
+.pb-balloons { display: inline-flex; animation: pbBob 3.2s ease-in-out infinite; will-change: transform; }
+@keyframes pbBob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-2.5px) rotate(2.5deg); } }
+
 /* ---------- ③ chapter-1 TUTORIAL: veil + hand + teaching card ---------- */
 .tut-veil {
   position: absolute; inset: 0; z-index: 55;
@@ -2779,4 +2893,8 @@ img { -webkit-user-drag: none; }
 .tut-hand-fly { will-change: transform; }
 .lowfx .anim-chest, .lowfx .anim-scroll, .lowfx .chest-lid, .lowfx .chest-coins,
 .lowfx .chest-spark, .lowfx .scroll-flag, .lowfx .scroll-goal, .lowfx .scroll-spark,
+.lowfx .chest-glow, .lowfx .chest-inside, .lowfx .chest-coinfly, .lowfx .chest-sheen,
+.lowfx .scroll-halo, .lowfx .scroll-sheen, .lowfx .scroll-seal, .lowfx .scroll-check,
+.lowfx .home-cloud, .lowfx .home-sun, .lowfx .home-mote, .lowfx .home-petal,
+.lowfx .home-butterfly, .lowfx .bfly-wing, .lowfx .pb-balloons,
 .lowfx .tut-hand-fly svg { animation: none !important; }

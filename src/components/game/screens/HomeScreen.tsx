@@ -51,6 +51,11 @@ export function HomeScreen({
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
         <PlayerHud gear="bronze" onGear={onSettings} onPlus={onShop} onProfile={onProfile} />
 
+        {/* AA — living-scene ambience: drifting clouds, lazy sun rays,
+            falling petals, golden motes + a fluttering butterfly — all
+            compositor-only (transform/opacity), all shed under .lowfx */}
+        <HomeAmbience />
+
         {/* logo — painted banner + crisp golden text */}
         <div className="logo-wrap">
           <img className="logo-banner" src="/assets/img/logo_banner.webp" alt="" draggable={false} />
@@ -121,11 +126,11 @@ export function HomeScreen({
             a rich wooden plank board; settings lives on the HUD gear. */}
         <nav className="navbar2 wooden" aria-label="منوی اصلی">
           <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onShop(); }}>
-            <span className="nav2-orb gold"><ChestIcon size={38} /></span>
+            <span className="nav2-orb gold"><ChestIcon size={54} /></span>
             <span className="nav2-label">فروشگاه</span>
           </button>
           <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onMissions(); }}>
-            <span className="nav2-orb leaf"><MissionScrollIcon size={38} /></span>
+            <span className="nav2-orb leaf"><MissionScrollIcon size={54} /></span>
             <span className="nav2-label">ماموریت‌ها</span>
           </button>
         </nav>
@@ -153,6 +158,44 @@ function StableHomeBg() {
         decoding="async"
       />
     </>
+  );}
+
+/* AA — DISNEY-LIFE layer for the home scene. Only transform/opacity
+ * animations (GPU compositor), ~15 small layers, zero layout work;
+ * every node dies under .lowfx so weak phones stay smooth. */
+function HomeAmbience() {
+  return (
+    <div aria-hidden style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 6 }}>
+      {/* lazy sun halo + slow rays (top-left where the sky is open) */}
+      <div className="home-sun" style={{ position: "absolute", top: "-14vh", left: "-14vw", width: "64vw", height: "64vw" }} />
+      {/* drifting clouds — two sizes, two speeds */}
+      <svg className="home-cloud c1" style={{ position: "absolute", top: "6%", right: "-90px", width: 150 }} viewBox="0 0 120 46">
+        <path d="M18 40a14 14 0 0 1 2-27 18 18 0 0 1 34-6 16 16 0 0 1 26 8 13 13 0 0 1 12 25Z" fill="#ffffff" opacity=".92" />
+        <path d="M30 34a9 9 0 0 1 6-16 12 12 0 0 1 22-2 10 10 0 0 1 14 8Z" fill="#eaf6ff" opacity=".8" />
+      </svg>
+      <svg className="home-cloud c2" style={{ position: "absolute", top: "17%", right: "-60px", width: 104 }} viewBox="0 0 120 46">
+        <path d="M18 40a14 14 0 0 1 2-27 18 18 0 0 1 34-6 16 16 0 0 1 26 8 13 13 0 0 1 12 25Z" fill="#ffffff" opacity=".85" />
+      </svg>
+      {/* falling petals from the flower pots (4, staggered) */}
+      <span className="home-petal p1" /><span className="home-petal p2" />
+      <span className="home-petal p3" /><span className="home-petal p4" />
+      {/* golden motes twinkling upward */}
+      <span className="home-mote m1" /><span className="home-mote m2" />
+      <span className="home-mote m3" /><span className="home-mote m4" />
+      {/* one happy butterfly by the flower pots */}
+      <svg className="home-butterfly" style={{ position: "absolute", bottom: "34%", left: "12%", width: 30 }} viewBox="0 0 30 22">
+        <g className="bfly-wing l">
+          <ellipse cx="9" cy="8" rx="8" ry="6.4" fill="#ff8fab" stroke="#d4506e" strokeWidth="1" />
+          <ellipse cx="10" cy="7" rx="4" ry="3" fill="#ffc2d1" opacity=".9" />
+        </g>
+        <g className="bfly-wing r">
+          <ellipse cx="21" cy="8" rx="8" ry="6.4" fill="#ff8fab" stroke="#d4506e" strokeWidth="1" />
+          <ellipse cx="20" cy="7" rx="4" ry="3" fill="#ffc2d1" opacity=".9" />
+        </g>
+        <ellipse cx="15" cy="9.5" rx="2" ry="7" fill="#7a4a00" />
+        <path d="M14 3.5 12.4.8M16 3.5 17.6.8" stroke="#7a4a00" strokeWidth="1.1" strokeLinecap="round" />
+      </svg>
+    </div>
   );
 }
 

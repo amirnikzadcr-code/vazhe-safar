@@ -194,80 +194,167 @@ export function BagIcon({ size = 24 }: { size?: number }) {
   );
 }
 
-/* ---------- Z — CARTOON MONEY CHEST (kawaii treasure chest stuffed
-   with gold coins, bold outlines, anim: happy lid bounce + coin pop).
-   The user: «آیکون فروشگاه رو یک صندوقه پر پول بکن کارتونی گرافیگی». ---------- */
+/* ---------- AA — DISNEY-GRADE MONEY CHEST (v2): layered gradients,
+   inner treasure glow, rim-lit wood, glossy sheen sweep, rivets,
+   plank seams, a flying coin + kawaii face. Anim: lid bounce, coin
+   bob, glow pulse, sheen sweep, sparkles. «در حد انیمیشن‌های دیزنی». ---------- */
 export function ChestIcon({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" className="anim-chest" aria-hidden>
       <defs>
-        <linearGradient id="ch-wood" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#e8a45c" /><stop offset=".55" stopColor="#c97c30" /><stop offset="1" stopColor="#9c5518" />
+        <radialGradient id="ch-halo" cx=".5" cy=".5" r=".5">
+          <stop offset="0" stopColor="#ffe98a" stopOpacity=".85" />
+          <stop offset=".55" stopColor="#ffd94e" stopOpacity=".35" />
+          <stop offset="1" stopColor="#ffd94e" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="ch-inside" cx=".5" cy=".28" r=".62">
+          <stop offset="0" stopColor="#fffbe0" /><stop offset=".45" stopColor="#ffd94e" /><stop offset="1" stopColor="#f29200" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="ch-wood3" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#f4b878" /><stop offset=".42" stopColor="#d98a3e" /><stop offset=".78" stopColor="#b06322" /><stop offset="1" stopColor="#8a4a12" />
         </linearGradient>
-        <linearGradient id="ch-gold" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fff3b0" /><stop offset=".5" stopColor="#ffd94e" /><stop offset="1" stopColor="#f79c0d" />
+        <linearGradient id="ch-lid3" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffcf95" /><stop offset=".55" stopColor="#dd954a" /><stop offset="1" stopColor="#a95d1d" />
         </linearGradient>
+        <linearGradient id="ch-gold3" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff7c8" /><stop offset=".45" stopColor="#ffd94e" /><stop offset=".8" stopColor="#f5a50a" /><stop offset="1" stopColor="#d97e00" />
+        </linearGradient>
+        <linearGradient id="ch-strap" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffe27a" /><stop offset=".5" stopColor="#f0a51c" /><stop offset="1" stopColor="#b36b00" />
+        </linearGradient>
+        <clipPath id="ch-clip"><rect x="4.6" y="21.6" width="38.8" height="20" rx="5" /></clipPath>
       </defs>
-      {/* gold pile bursting out of the chest */}
+
+      {/* halo */}
+      <ellipse className="chest-glow" cx="24" cy="24" rx="22" ry="21" fill="url(#ch-halo)" />
+      {/* magic glow rising out of the open chest */}
+      <path className="chest-inside" d="M10 24c2.6-5 7.8-7.6 14-7.6S35.4 19 38 24l-2.2 2H12.2Z" fill="url(#ch-inside)" />
+
+      {/* gold pile bursting out */}
       <g className="chest-coins">
-        <ellipse cx="16" cy="20.5" rx="5.2" ry="4" fill="url(#ch-gold)" stroke="#a86a00" strokeWidth="1.6" />
-        <ellipse cx="30" cy="19.5" rx="5.6" ry="4.2" fill="url(#ch-gold)" stroke="#a86a00" strokeWidth="1.6" />
-        <ellipse cx="23" cy="16.5" rx="6" ry="4.6" fill="#ffe98a" stroke="#a86a00" strokeWidth="1.6" />
-        <circle cx="23" cy="16" r="2.1" fill="#f5a50a" stroke="#a86a00" strokeWidth="1" />
-        <path d="M11 23c3.6-2.4 8.6-3.4 13-3.4s9.4 1 13 3.4" fill="none" stroke="#a86a00" strokeWidth="1.4" opacity=".5" />
+        <ellipse cx="14.5" cy="21" rx="5" ry="3.8" fill="url(#ch-gold3)" stroke="#a86a00" strokeWidth="1.5" />
+        <ellipse cx="31.5" cy="20.2" rx="5.4" ry="4" fill="url(#ch-gold3)" stroke="#a86a00" strokeWidth="1.5" />
+        <ellipse cx="23.5" cy="17" rx="6.2" ry="4.7" fill="#ffe98a" stroke="#a86a00" strokeWidth="1.5" />
+        <circle cx="23.5" cy="16.4" r="2.5" fill="#ffdf6b" stroke="#a86a00" strokeWidth="1" />
+        <path d="M23.5 14.9l.6 1.2 1.3.2-.95.9.25 1.3-1.2-.65-1.2.65.25-1.3-.95-.9 1.3-.2Z" fill="#c87f06" />
+        <circle cx="14.5" cy="20.4" r="1.6" fill="#ffe27a" stroke="#a86a00" strokeWidth=".9" />
+        <circle cx="31.5" cy="19.6" r="1.6" fill="#ffe27a" stroke="#a86a00" strokeWidth=".9" />
+        <g className="chest-coinfly">
+          <circle cx="38.5" cy="12.5" r="2.3" fill="url(#ch-gold3)" stroke="#a86a00" strokeWidth="1" />
+          <path d="M38.5 11.2l.5 1 1.1.15-.8.75.2 1.1-.98-.55-1 .55.2-1.1-.8-.75 1.1-.15Z" fill="#c87f06" />
+        </g>
       </g>
-      {/* open lid (bounces) */}
+
+      {/* open lid (bounces on its hinge) */}
       <g className="chest-lid">
-        <rect x="5" y="8.5" width="38" height="11.5" rx="5.4" fill="url(#ch-wood)" stroke="#6b3400" strokeWidth="2.1" />
-        <rect x="9" y="11" width="30" height="3.4" rx="1.7" fill="#ffb35e" opacity=".55" />
-        <rect x="20" y="8.5" width="8" height="11.5" fill="#ffd94e" stroke="#6b3400" strokeWidth="1.7" />
-        <circle cx="24" cy="14.2" r="1.5" fill="#8a5500" />
+        <rect x="4.6" y="7.5" width="38.8" height="12.6" rx="6" fill="url(#ch-lid3)" stroke="#6b3400" strokeWidth="2" />
+        <path d="M7.5 11.2q16.5-4.6 33 0" fill="none" stroke="#8a4a12" strokeWidth="1.2" opacity=".55" />
+        <rect x="8.4" y="9.8" width="31" height="2.6" rx="1.3" fill="#ffd9a4" opacity=".6" />
+        <rect x="19.4" y="7.5" width="9.2" height="12.6" rx="2" fill="url(#ch-gold3)" stroke="#6b3400" strokeWidth="1.7" />
+        <circle cx="24" cy="13.8" r="1.6" fill="#8a5500" />
+        <circle cx="8.8" cy="13.8" r=".9" fill="#8a5500" opacity=".7" />
+        <circle cx="39.2" cy="13.8" r=".9" fill="#8a5500" opacity=".7" />
       </g>
+
       {/* chest body */}
-      <rect x="5" y="22" width="38" height="19" rx="4.5" fill="url(#ch-wood)" stroke="#6b3400" strokeWidth="2.1" />
-      <rect x="20.2" y="22" width="7.6" height="19" fill="#ffd94e" stroke="#6b3400" strokeWidth="1.7" />
-      <rect x="21.4" y="27" width="5.2" height="4.6" rx="1.4" fill="#8a5500" stroke="#6b3400" strokeWidth="1.2" />
+      <rect x="4.6" y="21.6" width="38.8" height="20" rx="5" fill="url(#ch-wood3)" stroke="#6b3400" strokeWidth="2.1" />
+      <g clipPath="url(#ch-clip)">
+        <path d="M4.6 28.6h38.8M4.6 34.8h38.8" stroke="#8a4a12" strokeWidth="1.1" opacity=".5" />
+        {/* glossy sheen sweep */}
+        <rect className="chest-sheen" x="-16" y="18" width="12" height="28" fill="#ffffff" opacity=".28" transform="skewX(-18)" />
+      </g>
+      {/* gold straps + rivets */}
+      <rect x="8.2" y="21.6" width="5.4" height="20" fill="url(#ch-strap)" stroke="#6b3400" strokeWidth="1.5" />
+      <rect x="34.4" y="21.6" width="5.4" height="20" fill="url(#ch-strap)" stroke="#6b3400" strokeWidth="1.5" />
+      <circle cx="10.9" cy="24.6" r=".75" fill="#8a5500" /><circle cx="10.9" cy="38.4" r=".75" fill="#8a5500" />
+      <circle cx="37.1" cy="24.6" r=".75" fill="#8a5500" /><circle cx="37.1" cy="38.4" r=".75" fill="#8a5500" />
+      {/* big lock plate */}
+      <rect x="18.6" y="23.4" width="10.8" height="9.4" rx="2.4" fill="url(#ch-gold3)" stroke="#6b3400" strokeWidth="1.7" />
+      <circle cx="24" cy="27.2" r="1.7" fill="#7a4a00" /><rect x="23.1" y="28.2" width="1.8" height="2.9" rx=".9" fill="#7a4a00" />
       {/* kawaii face on the front */}
-      <circle cx="13.5" cy="31.5" r="1.5" fill="#4a2400" />
-      <circle cx="34.5" cy="31.5" r="1.5" fill="#4a2400" />
-      <path d="M20.5 34.4c2.2 1.9 4.8 1.9 7 0" fill="none" stroke="#4a2400" strokeWidth="1.6" strokeLinecap="round" />
-      <circle cx="13" cy="31" r="0.5" fill="#fff" />
-      <circle cx="34" cy="31" r="0.5" fill="#fff" />
-      <circle cx="11" cy="26.4" r="1.9" fill="#ff8fab" opacity=".55" />
-      <circle cx="37" cy="26.4" r="1.9" fill="#ff8fab" opacity=".55" />
+      <circle cx="14.6" cy="34.6" r="1.5" fill="#4a2400" />
+      <circle cx="33.4" cy="34.6" r="1.5" fill="#4a2400" />
+      <path d="M20.6 37.3c2.2 1.9 4.8 1.9 7 0" fill="none" stroke="#4a2400" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="14.1" cy="34.1" r=".5" fill="#fff" />
+      <circle cx="32.9" cy="34.1" r=".5" fill="#fff" />
+      <circle cx="11.8" cy="31.6" r="1.9" fill="#ff8fab" opacity=".55" />
+      <circle cx="36.2" cy="31.6" r="1.9" fill="#ff8fab" opacity=".55" />
       {/* sparkles */}
-      <path className="chest-spark" d="M40.5 6.2l1 2.2 2.2 1-2.2 1-1 2.2-1-2.2-2.2-1 2.2-1Z" fill="#ffd94e" stroke="#e8940a" strokeWidth=".8" />
-      <path className="chest-spark d2" d="M6.5 3.8l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8Z" fill="#fff3b0" stroke="#e8940a" strokeWidth=".7" />
+      <path className="chest-spark" d="M43.2 5.4l1 2.2 2.2 1-2.2 1-1 2.2-1-2.2-2.2-1 2.2-1Z" fill="#ffd94e" stroke="#e8940a" strokeWidth=".8" />
+      <path className="chest-spark d2" d="M5.6 2.9l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8Z" fill="#fff3b0" stroke="#e8940a" strokeWidth=".7" />
     </svg>
   );
 }
 
-/* ---------- Z — CARTOON MISSION SCROLL (unrolling parchment quest
-   map with a wax seal + animated sparkle — «ماموریت هم یچی انیمیشنی
-   خوشگل»). ---------- */
+/* ---------- AA — DISNEY-GRADE MISSION SCROLL (v2): warm parchment
+   with an inner gold frame, ribbon-topped rolled ends, quest path +
+   waving flag, a red wax seal, a popping GREEN check badge and a
+   glossy sheen sweep — «گرافیکی‌تر و خوشگل‌تر در حد دیزنی». ---------- */
 export function MissionScrollIcon({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" className="anim-scroll" aria-hidden>
       <defs>
-        <linearGradient id="ms-paper" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fff8e2" /><stop offset="1" stopColor="#f3dfae" />
+        <linearGradient id="ms-paper2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fffcf0" /><stop offset=".5" stopColor="#f9ecc8" /><stop offset="1" stopColor="#ecd29c" />
         </linearGradient>
+        <linearGradient id="ms-roll2" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#ffe7b3" /><stop offset=".5" stopColor="#e9c184" /><stop offset="1" stopColor="#c99a52" />
+        </linearGradient>
+        <radialGradient id="ms-seal2" cx=".38" cy=".32" r=".8">
+          <stop offset="0" stopColor="#ff8a8f" /><stop offset=".55" stopColor="#e63946" /><stop offset="1" stopColor="#a3112c" />
+        </radialGradient>
+        <radialGradient id="ms-check2" cx=".36" cy=".3" r=".85">
+          <stop offset="0" stopColor="#b2ffc0" /><stop offset=".5" stopColor="#4cd964" /><stop offset="1" stopColor="#1d9e3c" />
+        </radialGradient>
+        <radialGradient id="ms-halo2" cx=".5" cy=".5" r=".5">
+          <stop offset="0" stopColor="#fff3b0" stopOpacity=".7" /><stop offset="1" stopColor="#fff3b0" stopOpacity="0" />
+        </radialGradient>
+        <clipPath id="ms-clip2"><rect x="9" y="11.6" width="30" height="24.8" rx="4.4" /></clipPath>
       </defs>
-      {/* unrolled parchment */}
-      <rect x="9" y="12" width="30" height="24" rx="4" fill="url(#ms-paper)" stroke="#8a5a1e" strokeWidth="2" />
-      {/* rolled ends */}
-      <rect x="5.5" y="10" width="7" height="28" rx="3.5" fill="#e8c98a" stroke="#8a5a1e" strokeWidth="2" />
-      <rect x="35.5" y="10" width="7" height="28" rx="3.5" fill="#e8c98a" stroke="#8a5a1e" strokeWidth="2" />
-      {/* quest path + flag target */}
-      <path d="M14 32c4-1 4-6 8-6s4 4 8 3" fill="none" stroke="#c26a2e" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="3 2.6" />
-      <g className="scroll-flag">
-        <path d="M30 17.5v9" stroke="#8a5a1e" strokeWidth="1.7" strokeLinecap="round" />
-        <path d="M30 17.5l7.5 2.3-7.5 2.5Z" fill="#f43f5f" stroke="#a3112c" strokeWidth="1.1" strokeLinejoin="round" />
+
+      {/* warm halo */}
+      <circle className="scroll-halo" cx="24" cy="24" r="21" fill="url(#ms-halo2)" />
+
+      {/* parchment */}
+      <rect x="9" y="11.6" width="30" height="24.8" rx="4.4" fill="url(#ms-paper2)" stroke="#8a5a1e" strokeWidth="2" />
+      <g clipPath="url(#ms-clip2)">
+        <rect x="12.2" y="14.8" width="23.6" height="18.4" rx="2.8" fill="none" stroke="#d9b26a" strokeWidth="1.1" strokeDasharray="2.6 2.2" opacity=".8" />
+        {/* glossy sheen sweep */}
+        <rect className="scroll-sheen" x="-18" y="6" width="11" height="38" fill="#ffffff" opacity=".3" transform="skewX(-18)" />
       </g>
-      <circle className="scroll-goal" cx="14.5" cy="32.5" r="2.6" fill="#ffd94e" stroke="#c87f06" strokeWidth="1.4" />
-      {/* check line + sparkle */}
-      <path d="M15 21.5h8M15 25h5.5" stroke="#c2a06a" strokeWidth="1.8" strokeLinecap="round" />
-      <path className="scroll-spark" d="M39.5 7.5l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9Z" fill="#7ce97f" stroke="#2ea648" strokeWidth=".8" />
+      {/* rolled ends with ribbon tips */}
+      <rect x="5.2" y="9.6" width="7.2" height="28.8" rx="3.6" fill="url(#ms-roll2)" stroke="#8a5a1e" strokeWidth="2" />
+      <rect x="35.6" y="9.6" width="7.2" height="28.8" rx="3.6" fill="url(#ms-roll2)" stroke="#8a5a1e" strokeWidth="2" />
+      <ellipse cx="8.8" cy="12.6" rx="2.1" ry="1.1" fill="#b98c46" opacity=".7" />
+      <ellipse cx="39.2" cy="12.6" rx="2.1" ry="1.1" fill="#b98c46" opacity=".7" />
+
+      {/* quest path → flag target */}
+      <path d="M14 31.5c4.4-1.2 4.2-6.2 8.4-6.2s3.8 4 8.2 2.8" fill="none" stroke="#c26a2e" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="3 2.6" />
+      <g className="scroll-flag">
+        <path d="M31 16.6v9.4" stroke="#8a5a1e" strokeWidth="1.7" strokeLinecap="round" />
+        <path d="M31 16.6l7.6 2.4-7.6 2.6Z" fill="#f43f5f" stroke="#a3112c" strokeWidth="1.1" strokeLinejoin="round" />
+      </g>
+      <circle className="scroll-goal" cx="14.3" cy="31.8" r="2.5" fill="#ffd94e" stroke="#c87f06" strokeWidth="1.4" />
+      {/* quest text hints */}
+      <path d="M15 19.6h7.4M15 23h5" stroke="#c2a06a" strokeWidth="1.7" strokeLinecap="round" />
+
+      {/* red wax seal (bottom-left on the paper) */}
+      <g className="scroll-seal">
+        <circle cx="17.6" cy="34.2" r="3.5" fill="url(#ms-seal2)" stroke="#8f0d24" strokeWidth="1" />
+        <path d="M17.6 32.4l.75 1.5 1.65.25-1.2 1.15.3 1.65-1.5-.8-1.5.8.3-1.65-1.2-1.15 1.65-.25Z" fill="#ffd9dd" opacity=".9" />
+        <ellipse cx="16.4" cy="32.9" rx="1" ry=".55" fill="#ffffff" opacity=".45" />
+      </g>
+
+      {/* GREEN check badge (bottom-right, pops) */}
+      <g className="scroll-check">
+        <circle cx="33.4" cy="34.6" r="4.3" fill="url(#ms-check2)" stroke="#146c2e" strokeWidth="1.4" />
+        <path d="M30.9 34.7l1.8 1.8 3.3-3.7" fill="none" stroke="#ffffff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+        <ellipse cx="31.9" cy="32.8" rx="1.2" ry=".7" fill="#eafff0" opacity=".7" />
+      </g>
+
+      {/* sparkles */}
+      <path className="scroll-spark" d="M40.8 5.6l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9Z" fill="#7ce97f" stroke="#2ea648" strokeWidth=".8" />
+      <path className="scroll-spark d2" d="M6.2 3.4l.7 1.6 1.6.7-1.6.7-.7 1.6-.7-1.6-1.6-.7 1.6-.7Z" fill="#fff3b0" stroke="#e8940a" strokeWidth=".7" />
     </svg>
   );
 }

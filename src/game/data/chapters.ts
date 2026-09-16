@@ -321,19 +321,23 @@ for (const ch of CHAPTERS) {
 
 /* ---------------- per-SECTION themes (user: «موسیقی بساز برای هربخش») ---------------- */
 
-/** صفحهٔ اصلی + منوها — SESSION Z theme «پاپِ ایرانیِ مدرن»: the user
- *  found the traditional santur/ney groove dated («خیلی سنتی و بی
- *  کیفیت») → a modern-pop production instead: soft four-on-the-floor,
- *  sidechained pads, saturated octave-pop bass, pluck hook with a
- *  dotted echo + strings answer, with the Persian soul in the NOTES
- *  (D-minor + the Shur «کرون» wink + a quiet santur counter-line).
- *  Renders to menu4.ogg via scripts/render_menu_v4.py — seamless 37s
- *  loop, warm 7.6k master. menu3.ogg is DELETED. */
+/** صفحهٔ اصلی + منوها — SESSION AA theme «نیمه‌سنتیِ تمیز»: the user
+ *  found the v4 modern-pop «افتضاح و ترسناک» (the E♭ melody degree
+ *  clashed with D-minor chords = b9 horror intervals + chiptune
+ *  plucks) → back to SEMI-TRADITIONAL, modelled on the clean sound of
+ *  Iranian-game menus: rich 4-course santur lead, breathy ney answers,
+ *  Karplus-Strong oud strums, deep round bass, classic 6/8 tombak +
+ *  a light modern shaker in the climax. The Persian soul is SAFE: the
+ *  harmony is pure drone practice (root+fifth+octave only — no thirds
+ *  anywhere), so every Shur E♭ / Homayoun F♯ melody note stays
+ *  consonant by construction. Renders to menu5.ogg via
+ *  scripts/render_menu_v5.py — seamless 31.7s loop, master LP 7.4k.
+ *  menu4.ogg is DELETED. */
 export const MENU_MUSIC: MusicConfig & { scale: ScaleName } = {
-  track: "menu4", scale: "shur", root: 293.66, cents: [...SCALES.shur], bpm: 104, meter: 4,
-  perc: "tombak", lead: "santur", octave: 0, drone: 0.25,
-  motif: [[0,0.5],[2,0.5],[3,1],[4,1],[3,1],[2,1],[1,1],[2,0.5],[1,0.5],[0,1],[1,1],[0,1],[2,1],[3,0.5],[4,0.5],[5,1],[4,1],[3,1],[2,1],[1,1],[3,1],[2,1],[1,1],[0,2]],
-  motifB: [[5,1],[4,1],[3,1],[4,1],[2,1],[1,1],[0,1],[3,0.5],[4,0.5],[3,1],[2,1],[1,1],[0,1],[2,1],[4,1],[5,1],[3,1],[2,1],[1,1],[0,2]],
+  track: "menu5", scale: "shur", root: 293.66, cents: [...SCALES.shur], bpm: 121, meter: 6,
+  perc: "tombak", lead: "santur", octave: 0, drone: 0.35,
+  motif: [[0,2],[1,1],[0,2],[3,2],[1,1],[0,2],[0,1],[1,1],[3,2],[1,1],[0,1],[0,3],[3,0.5],[5,0.5],[7,1],[8,2],[7,1],[5,2],[3,1],[5,2],[3,1],[1,1],[0,2]],
+  motifB: [[8,3],[7,1],[5,2],[7,3],[5,1],[3,2],[5,2],[3,1],[1,1],[0,2],[1,2],[0,3],[8,2],[10,1],[12,2],[10,1],[12,3],[10,1],[8,2]],
 };
 
 /** بازی دورهمی — festive 6/8 rast, daf-driven party mood (renders to party.ogg) */
