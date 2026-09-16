@@ -194,6 +194,84 @@ export function BagIcon({ size = 24 }: { size?: number }) {
   );
 }
 
+/* ---------- Z — CARTOON MONEY CHEST (kawaii treasure chest stuffed
+   with gold coins, bold outlines, anim: happy lid bounce + coin pop).
+   The user: «آیکون فروشگاه رو یک صندوقه پر پول بکن کارتونی گرافیگی». ---------- */
+export function ChestIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" className="anim-chest" aria-hidden>
+      <defs>
+        <linearGradient id="ch-wood" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#e8a45c" /><stop offset=".55" stopColor="#c97c30" /><stop offset="1" stopColor="#9c5518" />
+        </linearGradient>
+        <linearGradient id="ch-gold" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff3b0" /><stop offset=".5" stopColor="#ffd94e" /><stop offset="1" stopColor="#f79c0d" />
+        </linearGradient>
+      </defs>
+      {/* gold pile bursting out of the chest */}
+      <g className="chest-coins">
+        <ellipse cx="16" cy="20.5" rx="5.2" ry="4" fill="url(#ch-gold)" stroke="#a86a00" strokeWidth="1.6" />
+        <ellipse cx="30" cy="19.5" rx="5.6" ry="4.2" fill="url(#ch-gold)" stroke="#a86a00" strokeWidth="1.6" />
+        <ellipse cx="23" cy="16.5" rx="6" ry="4.6" fill="#ffe98a" stroke="#a86a00" strokeWidth="1.6" />
+        <circle cx="23" cy="16" r="2.1" fill="#f5a50a" stroke="#a86a00" strokeWidth="1" />
+        <path d="M11 23c3.6-2.4 8.6-3.4 13-3.4s9.4 1 13 3.4" fill="none" stroke="#a86a00" strokeWidth="1.4" opacity=".5" />
+      </g>
+      {/* open lid (bounces) */}
+      <g className="chest-lid">
+        <rect x="5" y="8.5" width="38" height="11.5" rx="5.4" fill="url(#ch-wood)" stroke="#6b3400" strokeWidth="2.1" />
+        <rect x="9" y="11" width="30" height="3.4" rx="1.7" fill="#ffb35e" opacity=".55" />
+        <rect x="20" y="8.5" width="8" height="11.5" fill="#ffd94e" stroke="#6b3400" strokeWidth="1.7" />
+        <circle cx="24" cy="14.2" r="1.5" fill="#8a5500" />
+      </g>
+      {/* chest body */}
+      <rect x="5" y="22" width="38" height="19" rx="4.5" fill="url(#ch-wood)" stroke="#6b3400" strokeWidth="2.1" />
+      <rect x="20.2" y="22" width="7.6" height="19" fill="#ffd94e" stroke="#6b3400" strokeWidth="1.7" />
+      <rect x="21.4" y="27" width="5.2" height="4.6" rx="1.4" fill="#8a5500" stroke="#6b3400" strokeWidth="1.2" />
+      {/* kawaii face on the front */}
+      <circle cx="13.5" cy="31.5" r="1.5" fill="#4a2400" />
+      <circle cx="34.5" cy="31.5" r="1.5" fill="#4a2400" />
+      <path d="M20.5 34.4c2.2 1.9 4.8 1.9 7 0" fill="none" stroke="#4a2400" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="13" cy="31" r="0.5" fill="#fff" />
+      <circle cx="34" cy="31" r="0.5" fill="#fff" />
+      <circle cx="11" cy="26.4" r="1.9" fill="#ff8fab" opacity=".55" />
+      <circle cx="37" cy="26.4" r="1.9" fill="#ff8fab" opacity=".55" />
+      {/* sparkles */}
+      <path className="chest-spark" d="M40.5 6.2l1 2.2 2.2 1-2.2 1-1 2.2-1-2.2-2.2-1 2.2-1Z" fill="#ffd94e" stroke="#e8940a" strokeWidth=".8" />
+      <path className="chest-spark d2" d="M6.5 3.8l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8Z" fill="#fff3b0" stroke="#e8940a" strokeWidth=".7" />
+    </svg>
+  );
+}
+
+/* ---------- Z — CARTOON MISSION SCROLL (unrolling parchment quest
+   map with a wax seal + animated sparkle — «ماموریت هم یچی انیمیشنی
+   خوشگل»). ---------- */
+export function MissionScrollIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" className="anim-scroll" aria-hidden>
+      <defs>
+        <linearGradient id="ms-paper" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff8e2" /><stop offset="1" stopColor="#f3dfae" />
+        </linearGradient>
+      </defs>
+      {/* unrolled parchment */}
+      <rect x="9" y="12" width="30" height="24" rx="4" fill="url(#ms-paper)" stroke="#8a5a1e" strokeWidth="2" />
+      {/* rolled ends */}
+      <rect x="5.5" y="10" width="7" height="28" rx="3.5" fill="#e8c98a" stroke="#8a5a1e" strokeWidth="2" />
+      <rect x="35.5" y="10" width="7" height="28" rx="3.5" fill="#e8c98a" stroke="#8a5a1e" strokeWidth="2" />
+      {/* quest path + flag target */}
+      <path d="M14 32c4-1 4-6 8-6s4 4 8 3" fill="none" stroke="#c26a2e" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="3 2.6" />
+      <g className="scroll-flag">
+        <path d="M30 17.5v9" stroke="#8a5a1e" strokeWidth="1.7" strokeLinecap="round" />
+        <path d="M30 17.5l7.5 2.3-7.5 2.5Z" fill="#f43f5f" stroke="#a3112c" strokeWidth="1.1" strokeLinejoin="round" />
+      </g>
+      <circle className="scroll-goal" cx="14.5" cy="32.5" r="2.6" fill="#ffd94e" stroke="#c87f06" strokeWidth="1.4" />
+      {/* check line + sparkle */}
+      <path d="M15 21.5h8M15 25h5.5" stroke="#c2a06a" strokeWidth="1.8" strokeLinecap="round" />
+      <path className="scroll-spark" d="M39.5 7.5l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9Z" fill="#7ce97f" stroke="#2ea648" strokeWidth=".8" />
+    </svg>
+  );
+}
+
 /* ---------- play: glossy gold triangle (anim: pulse) ---------- */
 export function PlayGold({ size = 24 }: { size?: number }) {
   return (

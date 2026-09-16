@@ -2548,3 +2548,235 @@ body { background: #5cb2ef; }
   border: 1.5px solid #fff; outline: 1.5px solid #b47708; color: #7a4a00;
 }
 .lowfx .ps-crown-wrap::after, .lowfx .ps-champ-ava::before { display: none; }
+
+/* ==================================================================
+   SESSION Z — v1.25.0
+   ① home dock → wooden plank board (user: «زمینه سبزی ک زیرشون قرار
+     داره رو قهوه‌ای طرح تخته چوب خوشگل بکن… از رنگ های شاد پر رنگ»)
+   ② cartoon chest + mission scroll icons (kawaii, animated)
+   ③ chapter-1 tutorial veil + flying hand + coach bubble
+   ④ hidden-word fly-to-profile chip
+   ⑤ pause-modal wooden fancy buttons
+   ⑥ party fair-turn note
+   ⑦ GPU compositor promotions (رندر مستقیم روی GPU)
+   ================================================================== */
+
+/* ---------- ① WOODEN DOCK — warm planks, gold trim, vivid orbs ---------- */
+.navbar2.wooden {
+  background:
+    /* cheerful flower dots kept — now painted ON the wood as inlay */
+    radial-gradient(circle at 10% 40%, rgba(255,143,171,.8) 0 3px, transparent 4px),
+    radial-gradient(circle at 30% 70%, rgba(255,217,78,.85) 0 2.6px, transparent 3.6px),
+    radial-gradient(circle at 52% 34%, rgba(255,255,255,.8) 0 2.4px, transparent 3.4px),
+    radial-gradient(circle at 72% 66%, rgba(255,143,171,.8) 0 2.6px, transparent 3.6px),
+    radial-gradient(circle at 92% 38%, rgba(255,217,78,.85) 0 2.4px, transparent 3.4px),
+    /* wood knots */
+    radial-gradient(ellipse 9px 5px at 18% 24%, rgba(90,45,10,.5) 40%, transparent 45%),
+    radial-gradient(ellipse 8px 4px at 64% 78%, rgba(90,45,10,.45) 40%, transparent 45%),
+    radial-gradient(ellipse 7px 4px at 86% 30%, rgba(90,45,10,.4) 40%, transparent 45%),
+    /* horizontal PLANKS: repeating boards with darker seams */
+    repeating-linear-gradient(180deg,
+      rgba(60,30,8,.0) 0 13px,
+      rgba(60,30,8,.34) 13px 15px),
+    repeating-linear-gradient(90deg,
+      rgba(255,220,170,.05) 0 22px,
+      rgba(90,48,14,.08) 22px 46px),
+    linear-gradient(180deg, #d99a55 0%, #c17e35 46%, #96551b 100%);
+  border-color: #ffe9c2; outline-color: #6b3c10;
+  box-shadow:
+    inset 0 5px 0 rgba(255,235,200,.32),
+    inset 0 -3px 0 rgba(70,32,6,.4),
+    0 7px 0 #5d3210,
+    0 14px 22px rgba(0,0,0,.32);
+}
+/* scalloped lip → carved wood bumps */
+.navbar2.wooden::before {
+  background: radial-gradient(circle at 14px 14px, #d99a55 10px, transparent 11px);
+  filter: drop-shadow(0 2px 0 rgba(93,50,16,.55));
+}
+.navbar2.wooden .nav2-item .nav2-label {
+  color: #6b3c10;
+  background: linear-gradient(180deg, #fff8e6, #ffe3ad);
+  border-color: #fff; box-shadow: 0 2px 0 rgba(107,60,16,.55);
+}
+.navbar2.wooden .nav2-item .nav2-orb { outline-color: #6b3c10; box-shadow: 0 5px 0 #5d3210, 0 9px 12px rgba(0,0,0,.3); }
+/* vivid new leaf orb for missions (bright green + sky rim) */
+.nav2-item .nav2-orb.leaf {
+  background: radial-gradient(circle at 36% 30%, #e2ffd8, #7ce97f 55%, #2ea648);
+  outline-color: #1d7c33;
+  box-shadow: 0 5px 0 #17722c, 0 9px 12px rgba(0,0,0,.28);
+}
+/* bigger icon canvas for the two cartoon stars of the dock */
+.navbar2.wooden .nav2-item .nav2-orb { width: 62px; height: 62px; }
+.navbar2.wooden .nav2-item { margin-top: -26px; }
+
+/* ---------- ② icon animations (transform/opacity only) ---------- */
+.anim-chest { animation: chestBob 2.6s ease-in-out infinite; transform-origin: 50% 80%; }
+@keyframes chestBob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-2px) rotate(-2.4deg); }
+}
+.chest-lid {
+  transform-box: fill-box; transform-origin: 12% 92%;
+  animation: lidBounce 2.6s ease-in-out infinite;
+}
+@keyframes lidBounce {
+  0%, 100% { transform: rotate(0deg); }
+  42% { transform: rotate(-7deg); }
+  58% { transform: rotate(-5deg); }
+}
+.chest-coins { transform-box: fill-box; transform-origin: 50% 100%; animation: coinsPop 2.6s ease-in-out infinite; }
+@keyframes coinsPop {
+  0%, 100% { transform: translateY(0) scale(1); }
+  46% { transform: translateY(-1.6px) scale(1.05); }
+}
+.chest-spark, .scroll-spark { transform-box: fill-box; transform-origin: center; animation: sparkTwinkle 1.9s ease-in-out infinite; }
+.chest-spark.d2, .scroll-spark.d2 { animation-delay: .7s; }
+@keyframes sparkTwinkle {
+  0%, 100% { transform: scale(.55) rotate(0deg); opacity: .55; }
+  50% { transform: scale(1.15) rotate(24deg); opacity: 1; }
+}
+.anim-scroll { animation: scrollWiggle 3.1s ease-in-out infinite; transform-origin: 50% 60%; }
+@keyframes scrollWiggle {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  30% { transform: rotate(-3deg) translateY(-1.2px); }
+  65% { transform: rotate(2.4deg) translateY(-.8px); }
+}
+.scroll-flag { transform-box: fill-box; transform-origin: 0% 50%; animation: flagWave 1.6s ease-in-out infinite; }
+@keyframes flagWave {
+  0%, 100% { transform: scaleX(1) skewY(0deg); }
+  50% { transform: scaleX(1.08) skewY(-3deg); }
+}
+.scroll-goal { transform-box: fill-box; transform-origin: center; animation: goalPing 1.7s ease-out infinite; }
+@keyframes goalPing {
+  0% { transform: scale(.8); opacity: .85; }
+  55% { transform: scale(1.22); opacity: 1; }
+  100% { transform: scale(.8); opacity: .85; }
+}
+
+/* ---------- ③ chapter-1 TUTORIAL: veil + hand + teaching card ---------- */
+.tut-veil {
+  position: absolute; inset: 0; z-index: 55;
+  background: radial-gradient(ellipse at 50% 62%, rgba(16,38,66,.14) 0%, rgba(10,26,46,.5) 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  padding-bottom: 5%; pointer-events: none;
+}
+.tut-hand-fly {
+  position: fixed; left: 0; top: 0; z-index: 61;
+  width: 56px; height: 56px; pointer-events: none;
+  will-change: transform; transform: translate(-200px, -200px);
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.35));
+}
+.tut-hand-fly svg { transform: translate(-50%, -88%); display: block; animation: handTap 1.05s ease-in-out infinite; }
+.tut-card {
+  display: flex; align-items: center; gap: 10px;
+  max-width: 86%;
+  background: linear-gradient(180deg, #fffdf2, #ffedc2);
+  border: 3px solid #fff; outline: 2px solid #d9a13c;
+  border-radius: 20px; padding: 10px 14px;
+  box-shadow: 0 6px 0 #b9842c, 0 12px 20px rgba(0,0,0,.3);
+}
+.tut-card img {
+  width: 52px; height: 52px; border-radius: 999px; object-fit: cover; object-position: 50% 18%;
+  border: 2.5px solid #fff; box-shadow: 0 3px 0 #cfa14f; flex: none;
+}
+.tut-card-txt { display: flex; flex-direction: column; gap: 2px; text-align: right; }
+.tut-card-txt b { color: #7a4a00; font-size: 15.5px; }
+.tut-card-txt span { color: #8a6a3a; font-size: 12.5px; font-weight: 600; line-height: 1.7; }
+
+/* Z — chapter-1 coach bubble (cheer + teaching line after a find) */
+.pcoach {
+  position: absolute; top: 64px; left: 10px; right: 10px; z-index: 52;
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 auto; max-width: 400px;
+  background: linear-gradient(180deg, #fffdf2, #ffe9ae);
+  border: 3px solid #fff; outline: 2px solid #d9a13c;
+  border-radius: 20px; padding: 8px 12px;
+  box-shadow: 0 5px 0 #b9842c, 0 10px 18px rgba(0,0,0,.28);
+  pointer-events: none;
+}
+.pcoach img {
+  width: 44px; height: 44px; border-radius: 999px; object-fit: cover; object-position: 50% 18%;
+  border: 2.5px solid #fff; box-shadow: 0 3px 0 #cfa14f; flex: none;
+}
+.pcoach-body { display: flex; flex-direction: column; gap: 1px; }
+.pcoach-body b { color: #2e8450; font-size: 14.5px; }
+.pcoach-body span { color: #6b4a1e; font-size: 12px; font-weight: 700; line-height: 1.65; }
+
+/* ---------- ④ hidden-word chip flying into the profile ---------- */
+.fly-word-chip {
+  position: fixed; z-index: 95; pointer-events: none;
+  transform: translate(-50%, -50%);
+  padding: 7px 16px 9px;
+  font-weight: 900; font-size: 17px; color: #6b3c10;
+  background: linear-gradient(180deg, #fff6d8, #ffd76e 60%, #f0a92c);
+  border: 2.5px solid #fff; outline: 2px solid #b47708;
+  border-radius: 999px;
+  box-shadow: 0 4px 0 #b47708, 0 8px 18px rgba(180,119,8,.45), 0 0 0 6px rgba(255,224,138,.28);
+  text-shadow: 0 1px 0 rgba(255,255,255,.6);
+  will-change: transform, opacity;
+}
+.fly-word-chip::after {
+  content: "✦"; position: absolute; top: -12px; left: -6px;
+  color: #fff3b0; font-size: 15px; text-shadow: 0 0 8px #ffd94e;
+  animation: sparkTwinkle 1s ease-in-out infinite;
+}
+
+/* ---------- ⑤ pause-modal fancy wooden buttons ---------- */
+.b3.fancy {
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0 3px, rgba(0,0,0,.06) 3px 6px, transparent 6px 34px),
+    linear-gradient(180deg, var(--b3-top,#7ce97f) 0%, var(--b3-mid,#4ec95f) 55%, var(--b3-bot,#2ea648) 100%);
+  position: relative;
+  justify-content: flex-start;
+  padding-right: 1.1em;
+}
+.b3.fancy::before {
+  content: ""; position: absolute; inset: 4px;
+  border: 2px dashed rgba(255,255,255,.55);
+  border-radius: 13px; pointer-events: none;
+}
+.b3.fancy::after {
+  content: ""; position: absolute; left: 10%; right: 10%; top: 4px; height: 7px;
+  border-radius: 999px; background: rgba(255,255,255,.4); filter: blur(1px);
+  pointer-events: none;
+}
+
+/* settings rows — wooden parchment cards (بهشون روح بده) */
+.set-row {
+  background:
+    repeating-linear-gradient(90deg, rgba(160,110,50,.05) 0 4px, transparent 4px 30px),
+    linear-gradient(180deg, #fffdf2, #f7e8c6);
+  border: 2px solid #fff; outline: 1.5px solid #d9b87a;
+  border-radius: 16px; padding: 9px 12px;
+  box-shadow: 0 3px 0 rgba(217,184,122,.6);
+}
+
+/* ---------- ⑥ party fairness note (handoff card) ---------- */
+.ps-fair-note {
+  display: inline-block; margin: 2px auto 0;
+  background: linear-gradient(180deg, #e8fff0, #c8f5dd);
+  border: 2px solid #fff; outline: 1.5px solid #2ea648;
+  color: #17722c; font-weight: 800; font-size: 12px;
+  border-radius: 999px; padding: 4px 14px 5px;
+  box-shadow: 0 3px 0 rgba(23,114,44,.35);
+  animation: riseIn .4s cubic-bezier(.2,1.4,.4,1) both .12s;
+}
+
+/* ---------- ⑦ GPU — direct compositor rendering for the hot paths
+   (user: «کل بازی رو نرم روان تر بشه با GPU گوشی برای رندر مستقیم
+   حرف بزن»): every heavy interactive surface gets its OWN layer up
+   front, so phone GPUs composite it without re-painting the page. */
+.vz-page, .sheet-scrim { contain: layout style; }
+.wheel-wrap, .ps-ring, .guess-strip, .navbar2, .hud, .wboard, .helper-bar {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+.tile, .pw-tile, .wtile { backface-visibility: hidden; }
+.logo-banner, .vz-fill { backface-visibility: hidden; }
+img { -webkit-user-drag: none; }
+.wheel-wrap { will-change: transform; }
+.tut-hand-fly { will-change: transform; }
+.lowfx .anim-chest, .lowfx .anim-scroll, .lowfx .chest-lid, .lowfx .chest-coins,
+.lowfx .chest-spark, .lowfx .scroll-flag, .lowfx .scroll-goal, .lowfx .scroll-spark,
+.lowfx .tut-hand-fly svg { animation: none !important; }

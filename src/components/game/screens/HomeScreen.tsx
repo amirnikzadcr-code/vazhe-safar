@@ -12,7 +12,7 @@
  * PERF: zero idle animations; whole scene = ONE preloaded image.
  * ------------------------------------------------------------------ */
 import { PlayerHud } from "@/components/game/ui/kit";
-import { ImgIcon } from "@/components/game/icons";
+import { ChestIcon, MissionScrollIcon } from "@/components/game/icons";
 import { Save } from "@/game/core/save";
 import { isDecoded } from "@/game/core/preload";
 import { faNum } from "@/game/core/utils";
@@ -115,19 +115,18 @@ export function HomeScreen({
           </button>
         </div>
 
-        {/* bottom dock — v1.19 gorgeous wood-and-gold (کتابخانه removed) */}
-        <nav className="navbar2" aria-label="منوی اصلی">
+        {/* bottom dock — Z (user: «دکمه تنظیمات رو حذف کن… آیکون فروشگاه
+            رو یک صندوقه پر پول بکن کارتونی… ماموریت هم یچی انیمیشنی
+            خوشگل… زمینه‌ی زیرشون قهوه‌ای طرح تخته چوب») — TWO items on
+            a rich wooden plank board; settings lives on the HUD gear. */}
+        <nav className="navbar2 wooden" aria-label="منوی اصلی">
           <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onShop(); }}>
-            <span className="nav2-orb gold"><ImgIcon name="shop" size={32} /></span>
+            <span className="nav2-orb gold"><ChestIcon size={38} /></span>
             <span className="nav2-label">فروشگاه</span>
           </button>
           <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onMissions(); }}>
-            <span className="nav2-orb coral"><ImgIcon name="tasks" size={32} /></span>
+            <span className="nav2-orb leaf"><MissionScrollIcon size={38} /></span>
             <span className="nav2-label">ماموریت‌ها</span>
-          </button>
-          <button type="button" className="nav2-item" onClick={() => { Audio.sfxClick(); onSettings(); }}>
-            <span className="nav2-orb sky"><ImgIcon name="gear" size={32} /></span>
-            <span className="nav2-label">تنظیمات</span>
           </button>
         </nav>
       </div>

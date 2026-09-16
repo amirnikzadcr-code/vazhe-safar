@@ -8,7 +8,11 @@ import { Save } from "@/game/core/save";
 import { Audio } from "@/game/core/audio";
 import { bumpSave } from "@/components/game/useSave";
 
-/* ---------------- Pause ---------------- */
+/* ---------------- Pause ----------------
+ * Z (user: «دکمه هاش رنگی بی روحن — کارتونی خوشگل طرح دار بکن بهشون
+ * روح بده»): every button gets a chunky wooden-plank texture, a
+ * stitched inner border, its own cartoon glyph and a springy
+ * press-in feel (CSS .b3.fancy). */
 export function PauseModal({
   onResume, onRestart, onExit, onSettings,
 }: {
@@ -20,12 +24,54 @@ export function PauseModal({
   return (
     <Modal title="توقف" onClose={onResume}>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <Btn wide onClick={onResume}>ادامه بازی</Btn>
-        <Btn wide color="gold" onClick={onRestart}>شروع دوباره</Btn>
-        <Btn wide color="blue" onClick={onSettings}>تنظیمات</Btn>
-        <Btn wide color="red" onClick={onExit}>خروج به نقشه</Btn>
+        <Btn wide className="fancy" onClick={onResume}>
+          <PauseGlyph tone="#2ea648" />
+          ادامه بازی
+        </Btn>
+        <Btn wide color="gold" className="fancy" onClick={onRestart}>
+          <PauseGlyph tone="#e8940a" />
+          شروع دوباره
+        </Btn>
+        <Btn wide color="blue" className="fancy" onClick={onSettings}>
+          <PauseGlyph tone="#2a83d8" />
+          تنظیمات
+        </Btn>
+        <Btn wide color="red" className="fancy" onClick={onExit}>
+          <PauseGlyph tone="#d0342c" />
+          خروج به نقشه
+        </Btn>
       </div>
     </Modal>
+  );
+}
+
+/* Z — chunky cartoon glyphs for the pause buttons (flag / restart
+ * arrow / gear / door) so each action reads at a glance. */
+function PauseGlyph({ tone }: { tone: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden style={{ flex: "none" }}>
+      {tone === "#2ea648" && (
+        <path d="M8 5.5 18 12 8 18.5Z" fill={tone} stroke="#fff" strokeWidth="1.7" strokeLinejoin="round" />
+      )}
+      {tone === "#e8940a" && (
+        <g fill="none" stroke={tone} strokeWidth="2.6" strokeLinecap="round">
+          <path d="M19 12a7 7 0 1 1-2.1-5" />
+          <path d="M17.6 2.9l.3 4.2-4.1-.6" strokeLinejoin="round" />
+        </g>
+      )}
+      {tone === "#2a83d8" && (
+        <g fill="none" stroke={tone} strokeWidth="2.4" strokeLinecap="round">
+          <circle cx="12" cy="12" r="3.2" />
+          <path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.9 1.9M16.6 16.6l1.9 1.9M18.5 5.5l-1.9 1.9M7.4 16.6l-1.9 1.9" />
+        </g>
+      )}
+      {tone === "#d0342c" && (
+        <g fill="none" stroke={tone} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M13.5 3.5h-6a1.6 1.6 0 0 0-1.6 1.6v13.8a1.6 1.6 0 0 0 1.6 1.6h6" />
+          <path d="M10 12h11M17.5 8.5 21 12l-3.5 3.5" />
+        </g>
+      )}
+    </svg>
   );
 }
 

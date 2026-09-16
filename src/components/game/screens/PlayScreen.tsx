@@ -63,6 +63,26 @@ const LETTER_T0 = 800;
 const LETTER_STEP = 110;
 const WIN_EXTRA_MS = 620;
 
+/* SESSION Z — chapter-1 ONBOARDING (user: «اگر کلمه درست حدس زد
+ * تشویق شه بعد ی توضیحاتی بهش داده بشه»): every player-found word in
+ * chapter 1 pops a warm عمو دانا bubble — a CHEER for the guess
+ * followed by a short explanation of what just happened / what to
+ * try next. The lines rotate so the teaching never feels stuck. */
+const CH_CHEERS = [
+  "آفرین! دقیقاً همین‌طور! 🌟",
+  "عالی بود! ادامه بده! 🎉",
+  "چه واژه‌ی قشنگی ساختی! ⭐",
+  "ایول! تو یک واژه‌باز واقعی هستی! 🏆",
+  "درست حدس زدی! باز هم! ✨",
+];
+const CH_TEACH = [
+  "واژه‌ات الان داخل کادرِ جملات نشست — بقیهٔ واژه‌ها را هم پیدا کن!",
+  "واژه‌های بلندتر سکهٔ بیشتری می‌دهند؛ دنبال واژه‌های طولانی بگرد!",
+  "گاهی واژه‌های پنهان هم قایم شده‌اند — پیدایشان کنی سکهٔ اضافه می‌گیری!",
+  "اگر گیر کردی: لامپ یک حرف را آشکار می‌کند و «بُر بزن» جای حرف‌ها را عوض می‌کند.",
+  "حرف‌ها را روی چرخ بکش و رها کن؛ واژهٔ درست خودش می‌نشیند!",
+];
+
 /* ---- in-progress level snapshots (v1.20 session U) ----
  * OLD: a memory-only Map — a shop round-trip survived, but closing the
  * app mid-level wiped every guessed word (user: «وقتی کاربر وسط بازی
@@ -167,6 +187,11 @@ export function PlayScreen({
   const foundRef = useRef<Set<string>>(new Set());
   const pendingRef = useRef<Set<string>>(new Set());
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  /* Z — chapter-1 coach bubble (cheer + explanation after each find) */
+  const [coach, setCoach] = useState<{ cheer: string; tip: string; k: number } | null>(null);
+  const coachTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cheerIdxRef = useRef(0);
+  const teachIdxRef = useRef(0);
 
   /* keep refs in sync (effects only — never during render) */
   useEffect(() => { foundRef.current = found; }, [found]);
@@ -213,6 +238,22 @@ export function PlayScreen({
     });
   }, []);
   useEffect(() => () => { if (tutTimerRef.current) clearTimeout(tutTimerRef.current); }, []);
+  useEffect(() => () => { if (coachTimerRef.current) clearTimeout(coachTimerRef.current); }, []);
+
+  /* Z — the chapter-1 coach: CHEER first (user: «اگر کلمه درست حدس
+   * زد تشویق شه»), then a short TEACHING line («بعد ی توضیحاتی بهش
+   * داده بشه»). Auto-hides; the pop is WAAPI (compositor only). */
+  const showCoach = useCallback((word: string) => {
+    const cheer = CH_CHEERS[cheerIdxRef.current % CH_CHEERS.length];
+    const tip = CH_TEACH[teachIdxRef.current % CH_TEACH.length]
+      .replace("واژه‌ات", `«${word}»`);
+    cheerIdxRef.current += 1;
+    teachIdxRef.current += 1;
+    setCoach({ cheer, tip, k: cheerIdxRef.current + teachIdxRef.current });
+    if (coachTimerRef.current) clearTimeout(coachTimerRef.current);
+    coachTimerRef.current = setTimeout(() => setCoach(null), 4200);
+    Audio.sfxPraise();
+  }, []);
 
   const clearPending = useCallback(() => {
     for (const t of timersRef.current) clearTimeout(t);
@@ -266,14 +307,86 @@ export function PlayScreen({
     earnedRef.current = { ...earnedRef.current, words: earnedRef.current.words + 1 };
     Audio.sfxWordFound(foundRef.current.size + pendingRef.current.size);
     buzz([18, 30, 18], Save.data.settings.haptics);
-    if (byPlayer) dismissTutorial();
+    if (byPlayer) {
+      dismissTutorial();
+      if (ch === 1) showCoach(word); /* Z — chapter-1 encouragement */
+    }
     wheelRef.current?.celebrate(word, pays);
     const t = setTimeout(() => {
       wheelRef.current?.endCelebrate();
       commitFound(word);
     }, CELEBRATE_MS);
     timersRef.current.push(t);
-  }, [commitFound, dismissTutorial]);
+  }, [commitFound, dismissTutorial, showCoach, ch]);
+
+  /* Z — HIDDEN-WORD VICTORY LAP (user: «اگر واژه پنهان پیدا شد یک
+   * انیمیشن نرم روان ایجاد بشه اون کلمه ریخته بشه بره بالا تو
+   * پروفایل خیلی خوشگل»): the word MELTS out of the guess strip and
+   * glides up into the player's profile plate (a golden chip on a
+   * curved path), then the plate does a happy little pulse.
+   * Pure WAAPI on a detached node — zero React re-renders. */
+  const flyHiddenWord = useCallback((word: string) => {
+    const strip = guessRef.current;
+    const plate = document.querySelector<HTMLElement>(".hud-prof-btn");
+    if (!strip || !plate || typeof strip.animate !== "function") return;
+    const s = strip.getBoundingClientRect();
+    const t = plate.getBoundingClientRect();
+    const chip = document.createElement("div");
+    chip.className = "fly-word-chip";
+    chip.textContent = word;
+    chip.style.left = `${s.left + s.width / 2}px`;
+    chip.style.top = `${s.top + s.height / 2}px`;
+    document.body.appendChild(chip);
+    Audio.sfxFlyUp();
+    const dx = t.left + t.width / 2 - (s.left + s.width / 2);
+    const dy = t.top + t.height / 2 - (s.top + s.height / 2);
+    const anim = chip.animate(
+      [
+        { transform: "translate(-50%,-50%) scale(.5) rotate(0deg)", opacity: 0 },
+        { transform: `translate(calc(-50% + ${dx * 0.3}px), calc(-50% + ${dy * 0.3 - 26}px)) scale(1.22) rotate(-3deg)`, opacity: 1, offset: 0.32 },
+        { transform: `translate(calc(-50% + ${dx * 0.78}px), calc(-50% + ${dy * 0.78 - 8}px)) scale(0.95) rotate(2deg)`, opacity: 0.95, offset: 0.72, easing: "ease-in" },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.4)`, opacity: 0 },
+      ],
+      { duration: 1250, easing: "cubic-bezier(.3,.6,.35,1)", fill: "both" },
+    );
+    const done = () => {
+      chip.remove();
+      plate.animate(
+        [{ transform: "scale(1)" }, { transform: "scale(1.12)" }, { transform: "scale(1)" }],
+        { duration: 460, easing: "cubic-bezier(.2,1.6,.4,1)" },
+      );
+      Audio.sfxCoin();
+    };
+    if (typeof anim.finished?.then === "function") void anim.finished.then(done, done);
+    else setTimeout(done, 1250);
+  }, []);
+
+  /* Z — REPEAT-WORD HIGHLIGHT (user: «اگر شخص یک کلمه حدس زده بود
+   * از قبل ی هایلاتی بخوره ب کادر جمله و گرافیگی»): submitting an
+   * already-found word no longer lands silently — the word's row on
+   * the board gets a golden GLOW PULSE so the player sees exactly
+   * which sentence they had already built. One-shot WAAPI, no
+   * re-render, no forced reflow. */
+  const flashKnown = useCallback((word: string) => {
+    const groups = document.querySelectorAll<HTMLElement>(".wboard .wgroup.done");
+    for (const el of groups) {
+      if (el.textContent !== word || typeof el.animate !== "function") continue;
+      el.animate(
+        [
+          { transform: "scale(1)", filter: "brightness(1) saturate(1)" },
+          { transform: "scale(1.07)", filter: "brightness(1.4) saturate(1.45)", offset: 0.3 },
+          { transform: "scale(1)", filter: "brightness(1) saturate(1)" },
+        ],
+        { duration: 760, easing: "cubic-bezier(.3,1.4,.4,1)" },
+      );
+      el.animate(
+        { boxShadow: ["0 0 0 0 rgba(255,215,110,0)", "0 0 0 6px rgba(255,215,110,.8)", "0 0 0 0 rgba(255,215,110,0)"] },
+        { duration: 950, easing: "ease-out" },
+      );
+      break;
+    }
+    show("این واژه را قبلاً ساختی!");
+  }, [show]);
 
   /* words completed purely by hints → auto-found */
   useEffect(() => {
@@ -324,6 +437,7 @@ export function PlayScreen({
         celebrate(str, true);
         return "new";
       }
+      flashKnown(str); /* Z — golden highlight on the already-solved row */
       return "known";
     }
     const uniq = new Set(wordRows);
@@ -333,6 +447,7 @@ export function PlayScreen({
         Save.addCoins(REWARDS.perBonus);
         earnedRef.current = { ...earnedRef.current, bonus: earnedRef.current.bonus + 1 };
         Audio.sfxBonus();
+        flyHiddenWord(str); /* Z — the word melts up into the profile */
         show(`واژه پنهان! +${faNum(REWARDS.perBonus)} سکه`);
       } else {
         show("این واژهٔ پنهان را قبلاً یافتی!");
@@ -344,7 +459,7 @@ export function PlayScreen({
     buzz(40, Save.data.settings.haptics);
     setShaking(true);
     return false;
-  }, [wordRows, level, ch, lv, show, celebrate]);
+  }, [wordRows, level, ch, lv, show, celebrate, flashKnown, flyHiddenWord]);
 
   /* ------------ hint: reveal next letter of the first unfound word ------------ */
   const doHint = () => {
@@ -377,6 +492,89 @@ export function PlayScreen({
       { duration: 440, easing: "cubic-bezier(.3,.6,.3,1)" },
     );
   };
+
+  /* Z — the chapter-1 TEACHING DEMO: a beautiful hand GLIDES across
+   * the REAL wheel seats of the level's first word, spelling it into
+   * the guess strip letter-by-letter while each tile glows under the
+   * fingertip (user: «یک انیمیشن دست بیاد قشنگ یاد بده»). It loops
+   * calmly until the player's own first drag fades it away. */
+  const tutHandRef = useRef<HTMLSpanElement | null>(null);
+  const demoWord = wordRows[0] ?? "";
+  useEffect(() => {
+    if (!tutorial || tutFading) return;
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const later = (fn: () => void, ms: number) => {
+      const t = setTimeout(() => { if (!cancelled) fn(); }, ms);
+      timers.push(t);
+    };
+    const ls = letters(demoWord);
+    const runCycle = () => {
+      const wrap = document.querySelector<HTMLElement>(".wheel-wrap");
+      const hand = tutHandRef.current;
+      const g = guessRef.current;
+      if (!wrap || !hand || !g || ls.length < 2) return;
+      /* letter → seat (page coords). Duplicate letters consume seats
+       * one-by-one so «باران»'s two alefs land on two tiles. */
+      const tiles = Array.from(wrap.querySelectorAll<HTMLElement>(".tile"));
+      const seatFor = (ch: string): { x: number; y: number } | null => {
+        const i = tiles.findIndex((t) => t.getAttribute("aria-label") === ch);
+        if (i === -1) return null;
+        const el = tiles.splice(i, 1)[0];
+        const b = el.getBoundingClientRect();
+        return { x: b.left + b.width / 2, y: b.top + b.height / 2 - 34 };
+      };
+      const pts = ls.map(seatFor);
+      if (pts.some((p) => p === null)) return;
+      const P = pts as { x: number; y: number }[];
+      const t0 = wrap.getBoundingClientRect();
+      void t0;
+      const setT = (p: { x: number; y: number }) => { hand.style.transform = `translate(${p.x}px, ${p.y}px)`; };
+      setT(P[0]);
+      if (g.textContent !== "") { g.textContent = ""; g.parentElement?.classList.remove("live"); }
+      const HOP = 340;
+      P.forEach((p, i) => {
+        if (i === 0) return;
+        later(() => {
+          if (typeof hand.animate === "function") {
+            hand.animate(
+              [{ transform: `translate(${P[i - 1].x}px, ${P[i - 1].y}px)` }, { transform: `translate(${p.x}px, ${p.y}px)` }],
+              { duration: HOP, easing: "cubic-bezier(.4,.1,.4,1)", fill: "both" },
+            );
+          } else setT(p);
+          g.textContent = ls.slice(0, i + 1).join("");
+          g.parentElement?.classList.add("live");
+          const tile = Array.from(wrap.querySelectorAll<HTMLElement>(".tile")).find((t) => t.getAttribute("aria-label") === ls[i]);
+          /* glow WITHOUT transform — scaling the tile itself would
+           * shift the measured geometry mid-demo (audit + layout truth
+           * live in the rect); brightness + a gold ring reads just as
+           * clearly as "this tile lights under the fingertip". */
+          tile?.animate?.(
+            [
+              { filter: "brightness(1)", boxShadow: "0 0 0 0 rgba(255,215,110,0)" },
+              { filter: "brightness(1.45) saturate(1.3)", boxShadow: "0 0 0 7px rgba(255,215,110,.85)" },
+              { filter: "brightness(1)", boxShadow: "0 0 0 0 rgba(255,215,110,0)" },
+            ],
+            { duration: 320, easing: "ease-out" },
+          );
+          Audio.sfxLetter(Math.min(i, 5));
+        }, 380 + i * HOP);
+      });
+      /* hold the finished word, then melt it away and loop */
+      const total = 380 + P.length * HOP + 900;
+      later(() => {
+        if (g.textContent !== "") { g.textContent = ""; g.parentElement?.classList.remove("live"); }
+      }, total);
+      later(runCycle, total + 750);
+    };
+    later(runCycle, 650);
+    return () => {
+      cancelled = true;
+      for (const t of timers) clearTimeout(t);
+      const g = guessRef.current;
+      if (g) { g.textContent = ""; g.parentElement?.classList.remove("live"); }
+    };
+  }, [tutorial, tutFading, demoWord]);
 
   return (
     <Sheet bg={CHAPTERS[ch - 1]?.bg ?? "/assets/bg/play3.webp"} bgDim={0.1}>
@@ -477,18 +675,32 @@ export function PlayScreen({
         </button>
       </div>
 
-      {/* tutorial overlay (pointer-events none → wheel stays playable;
-       * fades away on the FIRST drag) */}
+      {/* Z — chapter-1 coach: cheer + explanation after each find */}
+      {coach && (
+        <div key={coach.k} className="pcoach rise-in" role="status">
+          <img src="/assets/char/thumb.webp" alt="عمو دانا" draggable={false} />
+          <div className="pcoach-body">
+            <b>{coach.cheer}</b>
+            <span>{coach.tip}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Z — the chapter-1 tutorial: veil + teaching card + a hand that
+          really DEMONSTRATES the drag on the actual wheel seats.
+          pointer-events none → the wheel stays fully playable and the
+          first real drag fades everything away. */}
       {tutorial && (
-        <div
-          className={`fade-in ${tutFading ? "tut-out" : ""}`}
-          style={{ position: "absolute", inset: 0, zIndex: 55, background: "rgba(10,26,46,.35)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: "36%", pointerEvents: "none" }}
-        >
-          <div style={{ textAlign: "center" }}>
-            <div className="bubble tut-ring" style={{ margin: "0 auto 10px", maxWidth: 260, fontSize: 15 }}>
-              حرف‌ها را به ترتیب لمس کن و واژه بساز!
-            </div>
+        <div className={`tut-veil fade-in ${tutFading ? "tut-out" : ""}`} aria-hidden>
+          <span ref={tutHandRef} className="tut-hand-fly">
             <HandSvg />
+          </span>
+          <div className="tut-card rise-in">
+            <img src="/assets/char/thumb.webp" alt="" draggable={false} />
+            <div className="tut-card-txt">
+              <b>با انگشتت حرف‌ها را بکش!</b>
+              <span>مثل دستِ من، حرف‌ها را روی چرخ به هم وصل کن تا واژهٔ «{demoWord}» ساخته شود…</span>
+            </div>
           </div>
         </div>
       )}

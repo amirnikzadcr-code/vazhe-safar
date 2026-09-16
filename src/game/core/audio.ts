@@ -760,7 +760,10 @@ class AudioEngine {
     const step = PENT[Math.min(Math.max(idx, 0), PENT.length - 1)];
     const det = 1 + (Math.random() * 0.008 - 0.004);        // humanize ±0.4%
     const f = 329.63 * Math.pow(2, step / 12) * det;        // E4 base — deep & warm
+    /* Z — «روح‌دار»: a soft sub-octave shadow under the body gives the
+     * tap a chest resonance (kalimba body feel) without any more top. */
     this.sfxOsc({ type: "sine", f0: f, f1: f * 0.982, dur: 0.17, vol: 0.15, curve: "lin", filter: 1900 }); // wooden body
+    this.sfxOsc({ type: "sine", f0: f * 0.5, dur: 0.13, vol: 0.05, filter: 900 });                      // sub-octave chest
     this.sfxOsc({ type: "sine", f0: f * 2.76, dur: 0.055, vol: 0.026, filter: 5200 });  // marimba partial
     this.sfxOsc({ type: "triangle", f0: f * 2, dur: 0.05, vol: 0.028, delay: 0.004, filter: 3400 }); // airy octave
     this.sfxNoise({ dur: 0.03, vol: 0.02, freq: 1150, q: 1.3 });                        // wooden tap
@@ -820,11 +823,14 @@ class AudioEngine {
     this.sfxNoise({ dur: 0.4, vol: 0.028, freq: 4600, q: 2.4, delay: 0.05 });
   }
 
-  /** shimmer for a letter revealed into a word slot */
+  /** shimmer for a letter revealed into a word slot — Z: a warm
+   * 3-note twinkle ladder + felt poof, the «راهنما» sound with a soul */
   sfxReveal(): void {
-    this.note(1046.5, 0.16, 0.35);
-    this.note(1318.5, 0.15, 0.45, 0.07);
-    this.sfxNoise({ dur: 0.38, vol: 0.026, freq: 6200, q: 4, delay: 0.04 });
+    this.note(784, 0.14, 0.3, 0);
+    this.note(1046.5, 0.14, 0.34, 0.07);
+    this.note(1318.5, 0.13, 0.45, 0.14);
+    this.sfxNoise({ dur: 0.34, vol: 0.022, freq: 5200, q: 3.4, delay: 0.05 });
+    this.sfxOsc({ type: "sine", f0: 262, dur: 0.22, vol: 0.05, filter: 800 }); // warm low body
   }
 
   /** v2.1 — soft airy WHOOSH + two wooden taps, matched to the FLIP
@@ -839,24 +845,38 @@ class AudioEngine {
     this.sfxNoise({ dur: 0.042, vol: 0.012, freq: 1150, q: 1.1, delay: 0.31 }); // felt pat
   }
 
-  /* v2.4 — LEVEL-COMPLETE FANFARE, fully recomposed (user: «وقتی بازی
-   * تموم میشه ستاره میده صداش رو مخه»). The old 1.5kHz star dings read
-   * harsh. Now: a warm santur-style arpeggio (C-G-A-C) with soft
-   * saturation-safe levels, then one gentle glassy "ding" PER STAR,
-   * each a minor third higher — sweet, never piercing. */
+  /* v2.4 — LEVEL-COMPLETE FANFARE, Z recomposition (user: «صدای جشن
+   * ستاره شدن … باکیفیت و روح دار»): a fast golden RUSH (pentatonic
+   * glissando) into the santur arpeggio, a soft synthesized crowd
+   * underneath, and each star gets a glassy ding WITH its own sparkle
+   * burst — a real celebration, still zero piercing tops. */
   sfxLevelComplete(stars: number): void {
+    /* 1) rising rush into the fanfare (5 quick pentatonic steps) */
+    [392, 440, 523.25, 587.33, 659.25].forEach((f, i) => {
+      this.sfxOsc({ type: "triangle", f0: f, dur: 0.16, vol: 0.075, delay: i * 0.045, filter: 3200 });
+    });
+    /* 2) warm santur-style arpeggio (C-G-A-C) */
     const seq = [523.25, 783.99, 880, 1046.5];
     seq.forEach((f, i) => {
-      this.sfxOsc({ type: "triangle", f0: f, dur: 0.5, vol: 0.2, delay: i * 0.13, filter: 3400 });
-      this.sfxOsc({ type: "sine", f0: f * 2, dur: 0.3, vol: 0.06, delay: i * 0.13 + 0.02, filter: 6200 });
+      this.sfxOsc({ type: "triangle", f0: f, dur: 0.5, vol: 0.2, delay: 0.26 + i * 0.13, filter: 3400 });
+      this.sfxOsc({ type: "sine", f0: f * 2, dur: 0.3, vol: 0.06, delay: 0.26 + i * 0.13 + 0.02, filter: 6200 });
     });
+    /* 3) soft crowd bed under the stars (human-ish clap flurry) */
+    for (let i = 0; i < 10; i++) {
+      this.sfxNoise({
+        dur: 0.045, vol: 0.022 + (i % 3) * 0.006,
+        freq: 1250 + (i % 4) * 380, q: 1.1, delay: 0.62 + ((i * 137) % 620) / 1000,
+      });
+    }
+    /* 4) one gentle glassy ding PER STAR + sparkle tail */
     const starDing = [1046.5, 1318.5, 1568];
     for (let i = 0; i < Math.min(3, stars); i++) {
       const f = starDing[i];
-      this.sfxOsc({ type: "sine", f0: f, dur: 0.55, vol: 0.14, delay: 0.72 + i * 0.22, filter: 5200 });
-      this.sfxOsc({ type: "sine", f0: f * 2.76, dur: 0.1, vol: 0.02, delay: 0.72 + i * 0.22, filter: 8000 });
+      this.sfxOsc({ type: "sine", f0: f, dur: 0.55, vol: 0.14, delay: 0.98 + i * 0.24, filter: 5200 });
+      this.sfxOsc({ type: "sine", f0: f * 2.76, dur: 0.1, vol: 0.02, delay: 0.98 + i * 0.24, filter: 8000 });
+      this.sfxNoise({ dur: 0.3, vol: 0.018, freq: 5800, q: 3, delay: 1.0 + i * 0.24 });
     }
-    this.sfxNoise({ dur: 0.8, vol: 0.03, freq: 6800, q: 3, delay: 0.7 });
+    this.sfxNoise({ dur: 0.8, vol: 0.03, freq: 6800, q: 3, delay: 1.0 });
   }
 
   sfxChapterUnlock(): void {
@@ -923,6 +943,27 @@ class AudioEngine {
     /* two bright hooray chirps */
     this.sfxOsc({ type: "triangle", f0: 620, f1: 990, dur: 0.32, vol: 0.085, delay: 0.34, filter: 2600 });
     this.sfxOsc({ type: "triangle", f0: 770, f1: 1190, dur: 0.42, vol: 0.075, delay: 0.68, filter: 3000 });
+  }
+
+  /* ---------------- Z additions (باکیفیت و روح‌دار) ---------------- */
+
+  /** Z — chapter-1 PRAISE chirp for the coach bubble: a tiny kalimba
+   * «آفرین» — two quick wooden notes + a soft low body. Warm, proud,
+   * never shrill. */
+  sfxPraise(): void {
+    this.sfxOsc({ type: "sine", f0: 659.25, f1: 650, dur: 0.14, vol: 0.13, filter: 2200 });
+    this.sfxOsc({ type: "sine", f0: 987.77, f1: 972, dur: 0.2, vol: 0.11, delay: 0.09, filter: 2600 });
+    this.sfxOsc({ type: "sine", f0: 329.63, dur: 0.24, vol: 0.05, filter: 1000 });
+    this.sfxNoise({ dur: 0.04, vol: 0.014, freq: 1200, q: 1.2 });
+  }
+
+  /** Z — HIDDEN-WORD TAKEOFF: a soft golden whoosh that lifts with the
+   * flying chip (rising filtered noise + a shy shimmer); the coin
+   * chime fires when the chip lands in the profile. */
+  sfxFlyUp(): void {
+    this.sfxNoise({ dur: 0.55, vol: 0.03, freq: 700, f1: 2600, q: 1.4, type: "bandpass" });
+    this.sfxOsc({ type: "sine", f0: 523.25, f1: 1046.5, dur: 0.5, vol: 0.06, curve: "exp", filter: 3200 });
+    this.sfxOsc({ type: "triangle", f0: 1568, dur: 0.14, vol: 0.03, delay: 0.4, filter: 4400 });
   }
 }
 

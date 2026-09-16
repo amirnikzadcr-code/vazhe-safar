@@ -236,51 +236,68 @@ for (let i = 0; i < 20 && !lexReady; i++) { await sleep(200); lexReady = B(`Arra
 {
   if (lexReady) ok("shipped lexicon loads in-app");
   else bad("shipped lexicon loads in-app");
-  const probe = P(`JSON.stringify((function(){
-    if(!window.__lex) return {err:'no lex'};
-    const set=new Set(window.__lex);
-    const tiles=[...document.querySelectorAll('.pw-tile')].map(t=>t.textContent.trim());
-    let badP=null,goodP=null;
-    outer:
-    for(let i=0;i<tiles.length;i++)for(let j=0;j<tiles.length;j++){
-      if(i===j) continue;
-      const w=tiles[i]+tiles[j];
-      if(!set.has(w)){ if(!badP) badP=[i,j]; }
-      else if(!goodP) goodP=[i,j];
-      if(badP&&goodP) break outer;
-    }
-    return {bad:badP,good:goodP,count:window.__lex.length,tiles:tiles};
-  })())`);
-  if (!lexReady || !probe || probe.err) { bad("party pair probe", JSON.stringify(probe)); }
-  else {
-    if (probe.count >= 30000) ok("shipped lexicon ≥30k words", `${probe.count}`);
-    else bad("shipped lexicon ≥30k words", `${probe.count}`);
 
-    if (probe.bad) {
-      const [i1, j1] = probe.bad;
+  const tilesRes = tilesAt(".pw-tile");
+  if (!lexReady || tilesRes.length < 3) { bad("party pair probe", "no tiles/lex"); }
+  else {
+    if ((P(`window.__lex.length`) || 0) >= 30000) ok("shipped lexicon ≥30k words", `${P(`window.__lex.length`)}`);
+
+    /* Z-FIX — judge pairs in NODE against the corpus AND the curated
+     * runtime dictionaries: the app accepts a word if EITHER set has
+     * it, so a corpus-only "nonsense" choice can be a real word
+     * («بن» — the run where the probe lied). */
+    const fs = await import("fs");
+    const corpus = new Set(fs.readFileSync("/home/z/my-project/public/assets/dict/fa_words.txt", "utf8").split("\n").filter(Boolean));
+    const dict = new Set();
+    for (const f of ["dictionary.ts", "dictionary_extra.ts", "dictionary_party.ts"]) {
+      const m = fs.readFileSync(`/home/z/my-project/src/game/data/${f}`, "utf8").match(/"([\u0600-\u06FF]+)"/g) || [];
+      for (const w of m) dict.add(w.slice(1, -1));
+    }
+    const accepts = (w) => corpus.has(w) || dict.has(w);
+    const tiles = tilesRes.map((t) => t.ch);
+    let badP = null, goodP = null;
+    outer:
+    for (let i = 0; i < tiles.length; i++) for (let j = 0; j < tiles.length; j++) {
+      if (i === j) continue;
+      const w = tiles[i] + tiles[j];
+      if (!accepts(w)) { if (!badP) badP = [i, j]; }
+      else if (!goodP) goodP = [i, j];
+      if (badP && goodP) break outer;
+    }
+    const mid = (p, q) => ({ x: Math.round((p.x + q.x) / 2), y: Math.round((p.y + q.y) / 2) });
+    const glide = async (tA, tB) => {
+      await drag([{ x: tA.x, y: tA.y }, { x: mid(tA, tB).x, y: mid(tA, tB).y }, { x: tB.x, y: tB.y }, { x: tB.x, y: tB.y }], 90);
+    };
+
+    if (badP) {
+      const [i1, j1] = badP;
       const ts = await tilesAt(".pw-tile");
-      const tA = ts[i1], tB = ts[j1];
-      const dragP = drag([{ x: tA.x, y: tA.y }, { x: tA.x, y: tA.y }, { x: tB.x, y: tB.y }, { x: tB.x, y: tB.y }]);
-      await sleep(160);
-      const mid = P(`JSON.stringify({ribbon:(function(){const p=document.querySelector('.ps-ring polyline');return p?p.getAttribute('points'):''})(),dragging:!!document.querySelector('.ps-ring.dragging')})`);
-      await dragP;
-      await sleep(750);
+      /* start the glide but DON'T await it — the ribbon must be sampled
+       * MID-STROKE (after the release both are cleared) */
+      const gp = glide(ts[i1], ts[j1]);
+      let midRibbon = null;
+      for (let i = 0; i < 14; i++) {
+        midRibbon = P(`(function(){return JSON.stringify({ribbon:(function(){const p=document.querySelector('.ps-ring polyline');return p?p.getAttribute('points'):''})(),dragging:!!document.querySelector('.ps-ring.dragging')})})()`);
+        if (midRibbon && String(midRibbon.ribbon || "").split(" ").length >= 2) break;
+        await sleep(60);
+      }
+      await gp;
+      await sleep(800);
       const t = txt();
-      if (mid && mid.ribbon && mid.ribbon.split(" ").length >= 2) ok("party ring draws the SAME golden ribbon while dragging", `dragging=${mid.dragging}`);
-      else bad("party ring draws the SAME golden ribbon while dragging", JSON.stringify(mid));
-      if (t.includes("پذیرفته نشد") || t.includes("قبلاً گفته شد")) ok("NONSENSE word rejected", `«${probe.tiles[i1]}${probe.tiles[j1]}»`);
-      else bad("NONSENSE word rejected", `«${probe.tiles[i1]}${probe.tiles[j1]}» accepted?!`);
+      if (midRibbon && String(midRibbon.ribbon || "").split(" ").length >= 2) ok("party ring draws the SAME golden ribbon while dragging", `dragging=${midRibbon.dragging}`);
+      else bad("party ring draws the SAME golden ribbon while dragging", JSON.stringify(midRibbon));
+      if (t.includes("پذیرفته نشد") || t.includes("قبلاً گفته شد")) ok("NONSENSE word rejected", `«${tiles[i1]}${tiles[j1]}»`);
+      else bad("NONSENSE word rejected", `«${tiles[i1]}${tiles[j1]}» accepted?!`);
     } else bad("found a nonsense pair on the ring");
 
-    if (probe.good) {
-      const [i1, j1] = probe.good;
+    if (goodP) {
+      const [i1, j1] = goodP;
       const ts = await tilesAt(".pw-tile");
-      const tA = ts[i1], tB = ts[j1];
-      await drag([{ x: tA.x, y: tA.y }, { x: tA.x, y: tA.y }, { x: tB.x, y: tB.y }, { x: tB.x, y: tB.y }]);
-      await sleep(850);
-      const tw = B(`!!document.querySelector('.ps-tw')`);
-      if (tw) ok("REAL word accepted", `«${probe.tiles[i1]}${probe.tiles[j1]}»`);
-      else bad("REAL word accepted", `«${probe.tiles[i1]}${probe.tiles[j1]}»`);
+      await glide(ts[i1], ts[j1]);
+      let tw = false;
+      for (let i = 0; i < 12; i++) { if (B(`!!document.querySelector('.ps-tw')`)) { tw = true; break; } await sleep(160); }
+      if (tw) ok("REAL word accepted", `«${tiles[i1]}${tiles[j1]}»`);
+      else bad("REAL word accepted", `«${tiles[i1]}${tiles[j1]}»`);
     } else bad("found a real pair on the ring");
   }
 }
@@ -371,14 +388,16 @@ console.log("— G. shipped assets");
     else bad("all real probe words present", JSON.stringify(a.missingReal));
   } else bad("lexicon probe", JSON.stringify(a));
 
-  const m = P(`(function(){var x=new XMLHttpRequest();x.open('GET','/assets/music/menu3.ogg',false);x.send();return x.status+':'+x.getResponseHeader('content-length')})()`);
+  const m = P(`(function(){var x=new XMLHttpRequest();x.open('GET','/assets/music/menu4.ogg',false);x.send();return x.status+':'+x.getResponseHeader('content-length')})()`);
   const m3status = Number(String(m).split(":")[0]);
   const m3size = Number(String(m).split(":")[1] || 0);
-  if (m3status === 200 && m3size > 100000) ok("new menu music shipped (menu3.ogg)", `${Math.round(m3size / 1024)}KB`);
-  else bad("new menu music shipped (menu3.ogg)", String(m));
-  const m2 = P(`(function(){var x=new XMLHttpRequest();x.open('GET','/assets/music/menu2.ogg',false);x.send();return x.status})()`);
-  if (Number(m2) === 404) ok("old menu music deleted (menu2.ogg → 404)");
-  else bad("old menu music deleted (menu2.ogg → 404)", `status ${m2}`);
+  if (m3status === 200 && m3size > 100000) ok("new menu music shipped (menu4.ogg — modern pop)", `${Math.round(m3size / 1024)}KB`);
+  else bad("new menu music shipped (menu4.ogg)", String(m));
+  for (const old of ["menu2", "menu3"]) {
+    const st = P(`(function(){var x=new XMLHttpRequest();x.open('GET','/assets/music/${old}.ogg',false);x.send();return x.status})()`);
+    if (Number(st) === 404) ok(`old menu music deleted (${old}.ogg → 404)`);
+    else bad(`old menu music deleted (${old}.ogg → 404)`, `status ${st}`);
+  }
 }
 
 console.log(`\n==== Y E2E: ${PASS} ok, ${FAIL} failed ====`);

@@ -104,6 +104,38 @@ await evalJSON(`(function(){window.__errs=[];window.addEventListener('error',fun
 /* welcome profile gate (first boot) → dismiss */
 await clickText("شروع سفر");
 await sleep(1200);
+/* Z-FIX — this suite plays ch20/level 220; the shared browser profile
+ * may be FRESH (another suite ran `close --all`), leaving every chapter
+ * locked. Unlock the path deterministically through localStorage: the
+ * unlock rules need ≥7 done levels in the previous chapter and the
+ * previous level done inside the chapter. Patch → reload → warm save. */
+{
+  const patched = await evalJSON(`(function(){
+    try{
+      const K='vazhe_safar_save_v1';
+      const d=JSON.parse(localStorage.getItem(K)||'null');
+      if(!d) return 'no-save';
+      for(let c=1;c<=19;c++){ for(let l=1;l<=7;l++) d.levels[c+':'+l]={stars:3,bonus:[],mistakes:0}; }
+      for(let l=1;l<=11;l++) d.levels['20:'+l]={stars:3,bonus:[],mistakes:0};
+      d.last={ch:20,lv:10};
+      localStorage.setItem(K,JSON.stringify(d));
+      /* save.ts flushes on pagehide — mute setItem for the save key so
+       * the navigation can't clobber the patch with stale memory */
+      const o=Storage.prototype.setItem;
+      Storage.prototype.setItem=function(k,v){ if(k===K) return; return o.call(this,k,v); };
+      return 'patched';
+    }catch(e){ return 'ERR:'+e.message }
+  })()`);
+  if (patched === "patched") {
+    ab(`open http://localhost:3000/`);
+    await sleep(2200);
+    for (let i = 0; i < 30; i++) {
+      const t = await evalJSON(`JSON.stringify(document.body.innerText)`);
+      if (typeof t === "string" && (t.includes("شروع بازی") || t.includes("ادامه بازی"))) break;
+      await sleep(500);
+    }
+  }
+}
 await assert("home loads with شروع بازی", async () =>
   (await evalJSON(`JSON.stringify(document.body.innerText.includes('شروع بازی')||document.body.innerText.includes('ادامه بازی'))`)) === true);
 

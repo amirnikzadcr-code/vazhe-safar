@@ -314,6 +314,10 @@ function Handoff({ p, round, rounds, total, onGo }: {
             </span>
           ))}
         </div>
+        {/* Z-FAIR (user: «نوبت رو عادلانه تر بکن تعداد کلمات برای هر
+         * فرد») — everyone plays the SAME letters this round, and the
+         * full word pool is fresh for every player. */}
+        <div className="ps-fair-note">⚖️ همه با همین حرف‌ها بازی می‌کنند — کاملاً عادلانه!</div>
         <button type="button" className="ps-hand-go" onClick={() => { Audio.sfxClick(); onGo(); }}>
           شروع!
         </button>
@@ -324,19 +328,27 @@ function Handoff({ p, round, rounds, total, onGo }: {
 
 /* ================= TURN ================= */
 function TurnGame({
-  p, round, rounds, golden, usedWords, usedWheelKeys, onWord, onTurnEnd, onExit,
+  p, round, rounds, golden, wheel, onWord, onTurnEnd, onExit,
 }: {
   p: PState;
   round: number; rounds: number;
   golden: boolean;
-  usedWords: React.MutableRefObject<Set<string>>;
-  usedWheelKeys: React.MutableRefObject<Set<string>>;
+  /** Z-FAIR — the ROUND wheel: every player in this round faces the
+   *  EXACT same letters (pass-and-play Boggle fairness), so the words
+   *  available («تعداد کلمات») are identical for each person. */
+  wheel: { key: string; ls: string[]; words: Set<string> };
   onWord: (pts: number, word: string) => void;
   onTurnEnd: (scored: boolean, words: { w: string; pts: number }[]) => void;
   onExit: () => void;
 }) {
-  const wheel = useMemo(() => pickWheel(usedWheelKeys.current), []);
   const levelWords = wheel.words;
+  /* Z-FAIR — words already said this TURN only. (The old global set
+   * meant player 2 lost every word player 1 found — with the shared
+   * round wheel that was a real handicap. Now each player faces the
+   * FULL pool of the same wheel: perfectly equal opportunity.)
+   * The component remounts every turn (key=round:turnIdx) so a plain
+   * ref is naturally per-turn. */
+  const usedWords = useRef<Set<string>>(new Set());
   /* X-FIX — the «تعداد واژه‌های موجود» counter is GONE (user request).
    * The FULL-dictionary scan it used to run (~۸٬۸۰۰ canBuild checks per
    * wheel, on the render path) was also pure wasted phone CPU — a nice
@@ -360,17 +372,17 @@ function TurnGame({
   const cheer = useMemo(() => pick(TURN_CHEERS).replace("{n}", p.name), [p.name]);
 
   /* v1.22 — DRAGGABLE PARTY RING (user: «اونجا هم کلمات رو کشیدنی
-   * بکن»): the same pointer-stroke the main wheel uses — pointerdown
-   * starts the stroke, moving over tiles collects them in order,
-   * and releasing with ≥2 letters auto-submits. A quick TAP still
-   * toggles one letter (old behavior) for precise edits.
-   * SESSION Y (user: «اون دایره کلمه ها گرافیگ نواری نداره… اون خط
-   * نوار هم اضافه بکن وقتی میکشی»): the golden 3-layer RIBBON + the
-   * glowing finger-bead now draw through the stroke EXACTLY like the
-   * main wheel, and the drag is rAF-COALESCEd — pointermove only
-   * records the finger position; the single rAF tick does the
-   * hit-test + painting (multiple move events per frame cost one
-   * paint, so weak phones stay smooth). */
+   * بکن»): the same pointer-stroke the main wheel uses.
+   * SESSION Y: the golden 3-layer RIBBON + the glowing finger-bead
+   * draw through the stroke exactly like the main wheel, and the
+   * drag is rAF-COALESCEd — pointermove only records the finger;
+   * the single rAF tick does the hit-test + painting.
+   * SESSION Z (user: «وقتی یبار میزنی روی کلمه انتخاب میشه هایلات
+   * میشه این رو درست بکن و فقط با کشیدن کلمات انتخاب شن»): the
+   * tap-to-select/toggle behavior is GONE — pointerdown NO LONGER
+   * lights a tile, and a quick tap does NOTHING. A letter joins the
+   * word ONLY when the finger DRAGS through its path (the segment
+   * catch below). */
   const ringRef = useRef<HTMLDivElement | null>(null);
   const rectRef = useRef<DOMRect | null>(null);
   const centersRef = useRef<{ i: number; x: number; y: number }[]>([]);
@@ -417,6 +429,7 @@ function TurnGame({
     }
     return best;
   };
+  void hitTile; /* Z — taps never select; kept for potential tooling */
   const addToSel = (i: number) => {
     if (selRef.current.includes(i)) return false;
     Audio.sfxLetter(selRef.current.length % 3);
@@ -469,6 +482,12 @@ function TurnGame({
   const catchUpTo = (pt: { x: number; y: number } | null) => {
     if (!dragRef.current || !pt) return;
     const from = prevPtRef.current ?? pt;
+    /* Z — DRAG-ONLY: a stationary finger catches NOTHING (a segment of
+     * ~zero length would sit ON the pressed tile at distance 0 and
+     * light it up on a mere tap). Any real movement immediately
+     * catches the tile under the path start — so drags still begin
+     * naturally from the press point. */
+    if (Math.hypot(pt.x - from.x, pt.y - from.y) < 3) { prevPtRef.current = pt; return; }
     const T = catchRRef.current * catchRRef.current;
     let best: number | null = null;
     let bestD = T;
@@ -588,23 +607,19 @@ function TurnGame({
 
   const ringDown = (e: React.PointerEvent) => {
     if (endedRef.current || checkingRef.current) return;
-    const R = measure();
+    measure();
     const r = rectRef.current!;
     const lx = e.clientX - r.left, ly = e.clientY - r.top;
-    const i = hitTile(lx, ly, R);
-    strokeRef.current = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false, before: [...selRef.current], tile: i };
+    /* Z — a press NEVER selects: it only arms the stroke. The first
+     * caught letter is whichever tile the finger PATH passes through
+     * (the pressed tile itself is at distance 0 from the start point,
+     * so beginning the drag ON a tile still picks it up naturally). */
+    strokeRef.current = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false, before: [...selRef.current], tile: null };
     dragRef.current = true;
     ringRef.current?.classList.add("dragging");
     try { ringRef.current?.setPointerCapture(e.pointerId); } catch { /* noop */ }
-    if (i !== null) {
-      addToSel(i);
-      const c = centersRef.current.find((c) => c.i === i)!;
-      tipCurRef.current = { x: c.x, y: c.y };
-      prevPtRef.current = { x: c.x, y: c.y }; /* catch segments start from the pressed tile */
-    } else {
-      tipCurRef.current = { x: lx, y: ly };
-      prevPtRef.current = { x: lx, y: ly };
-    }
+    tipCurRef.current = { x: lx, y: ly };
+    prevPtRef.current = { x: lx, y: ly }; /* catch segments start at the touch point */
     tipTargetRef.current = { x: lx, y: ly };
     lastPtRef.current = { x: lx, y: ly };
     ensureRaf();
@@ -630,15 +645,13 @@ function TurnGame({
     dragRef.current = false;
     ringRef.current?.classList.remove("dragging");
     const st = strokeRef.current;
+    /* Z — a quick tap WITHOUT movement selects nothing and does
+     * nothing (the old tap-toggle is gone): just retract the bead. */
     if (!st.moved && Date.now() - st.t < 400) {
-      /* quick tap = toggle (old behavior): a tile that was ALREADY
-       * selected is removed; a fresh tile stays for the next taps */
-      if (st.tile !== null && st.before.includes(st.tile)) {
-        setSelBoth(selRef.current.filter((x) => x !== st.tile));
-        Audio.sfxClick();
-        tipTargetRef.current = null; tipCurRef.current = null; paintLine();
-      }
-      return; /* a single tap never auto-submits */
+      tipTargetRef.current = null;
+      tipCurRef.current = null;
+      paintLine();
+      return;
     }
     /* tail retracts into the last caught tile while the verdict plays */
     const cur = selRef.current;
@@ -732,10 +745,9 @@ function TurnGame({
           ))}
         </div>
 
-        {/* actions — X-FIX: the drag ring IS the input (build → release
-            auto-submits; a quick tap toggles a letter), exactly like the
-            main game — the old ثبت/پاک buttons are GONE (user request).
-            Only the calm «پایان نوبت» remains. */}
+        {/* actions — the drag ring IS the input: build by DRAGGING →
+            release auto-submits (Z: taps never select). The old
+            ثبت/پاک buttons are gone; only «پایان نوبت» remains. */}
         <div className="ps-actions">
           <button type="button" className="ps-act finish" onClick={() => { Audio.sfxClick(); endNow(turnWordsRef.current.length > 0); }}>
             پایان نوبت
@@ -916,6 +928,11 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
   const [recap, setRecap] = useState<{ pIdx: number; words: { w: string; pts: number }[]; gained: number; last: boolean } | null>(null);
   const usedWords = useRef<Set<string>>(new Set());
   const usedWheelKeys = useRef<Set<string>>(new Set());
+  /* Z-FAIR — ONE wheel per ROUND, shared by every player's turn in
+   * that round (the same letters, the same opportunities). A fresh
+   * wheel is drawn for each new round, and every turn's used-word
+   * pool resets, so nobody is penalized for going after a friend. */
+  const [roundWheel, setRoundWheel] = useState<{ key: string; ls: string[]; words: Set<string> } | null>(null);
 
   const n = players.length;
   const golden = n > 0 && turnIdx % n === n - 1; /* last turn of every round */
@@ -928,6 +945,7 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
     setRecap(null);
     usedWords.current = new Set();
     usedWheelKeys.current = new Set();
+    setRoundWheel(pickWheel(usedWheelKeys.current));
     setPhase("handoff");
   };
 
@@ -949,7 +967,10 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
     const last = isLastOfRound && round >= rounds;
     if (!last) {
       setTurnIdx((t) => t + 1);
-      if (isLastOfRound) setRound((r) => r + 1);
+      if (isLastOfRound) {
+        setRound((r) => r + 1);
+        setRoundWheel(pickWheel(usedWheelKeys.current)); /* Z-FAIR: fresh shared wheel per round */
+      }
     }
     setRecap({ pIdx: me, words, gained, last });
     setPhase("recap");
@@ -964,6 +985,7 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
           setPlayers((ps) => ps.map((p) => ({ ...p, score: 0, streak: 0, best: 0, words: 0 })));
           setRound(1); setTurnIdx(0); setRecap(null);
           usedWords.current = new Set(); usedWheelKeys.current = new Set();
+          setRoundWheel(pickWheel(usedWheelKeys.current));
           setPhase("handoff");
         }}
         onNewPlayers={() => setPhase("setup")}
@@ -988,7 +1010,7 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
     );
   }
   const cur = players[turnIdx % Math.max(1, n)];
-  if (!cur) return null;
+  if (!cur || !roundWheel) return null;
   if (phase === "handoff") {
     return (
       <Handoff
@@ -1005,8 +1027,7 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
         p={cur}
         round={round} rounds={rounds}
         golden={golden}
-        usedWords={usedWords}
-        usedWheelKeys={usedWheelKeys}
+        wheel={roundWheel}
         onWord={onWord}
         onTurnEnd={onTurnEnd}
         onExit={onExit}
