@@ -54,7 +54,12 @@ for (let ch = 1; ch <= CH; ch++) {
      * roomier (hard tier); the runtime board renders words as separate
      * rows, so grid density is an aesthetic bound only. */
     const hard = ch >= 11;
-    const areaFactor = hard ? 3.4 : (lv.words.length >= 6 ? 2.4 : 2.25);
+    /* session AA: session Z deliberately made ch1-3 EASY (2-3 word
+     * levels like «باران/انار» → tiny cell counts, airy crosswords).
+     * The runtime board renders one row per word, so density stays an
+     * aesthetic bound — widen it for small early boards. */
+    const easy = ch < 11 && lv.words.length <= 3;
+    const areaFactor = hard ? 3.4 : (lv.words.length >= 6 ? 2.4 : (easy ? 2.7 : 2.25));
     if (area > cells * areaFactor) {
       console.log(`✗ ${tag}: scattered layout ${layout.cols}x${layout.rows} (area ${area} vs ${cells} cells)`);
       errors++;
