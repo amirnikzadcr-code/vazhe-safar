@@ -15,6 +15,7 @@ import { PlayerHud } from "@/components/game/ui/kit";
 import { ChestIcon, MissionScrollIcon } from "@/components/game/icons";
 import { Save } from "@/game/core/save";
 import { isDecoded } from "@/game/core/preload";
+import { isLowFx } from "@/game/core/perf";
 import { faNum } from "@/game/core/utils";
 import { Audio } from "@/game/core/audio";
 import { CHAPTERS } from "@/game/data/chapters";
@@ -53,8 +54,12 @@ export function HomeScreen({
 
         {/* AA — living-scene ambience: drifting clouds, lazy sun rays,
             falling petals, golden motes + a fluttering butterfly — all
-            compositor-only (transform/opacity), all shed under .lowfx */}
-        <HomeAmbience />
+            compositor-only (transform/opacity), all shed under .lowfx.
+            v5 PERF: in the APK (.lowfx forced at boot) the whole layer
+            UNMOUNTS — the 14 always-on composited nodes (rotating 64vw
+            sun, drop-shadow clouds, shadowed petals/motes) were the
+            single biggest idle GPU drain inside the WebView. */}
+        {!isLowFx() && <HomeAmbience />}
 
         {/* logo — painted banner + crisp golden text */}
         <div className="logo-wrap">

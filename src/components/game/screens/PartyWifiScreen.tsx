@@ -30,12 +30,20 @@ import { Save } from "@/game/core/save";
 import { TurnTimer } from "@/components/game/ui/turntimer";
 import {
   PartyNet, NetState, NetReview,
-  NetPlayer,
+  NetPlayer, isLanTransport,
 } from "@/game/net/partyNet";
 
 type UiPhase = "menu" | "lobby" | "round" | "review" | "over";
 
 const REACTS = ["🔥", "😂", "😍", "👏"];
+
+/* v5 — LAN (hotspot) tips replace the room-code tip (no codes there) */
+const WIFI_TIPS_LAN = [
+  "هیچ اینترنتی لازم نیست — همه از هات‌اسپات میزبان وصل می‌شن!",
+  "اولین نفری که یک واژه را بسازد، مالک آن واژه می‌شود — هر واژه فقط یک بار!",
+  "واژه‌های بلندتر امتیاز بیشتری دارند — هر حرف ۱۰ امتیاز!",
+  "همه با یک چرخِ یکسان مسابقه می‌دهید — کاملاً عادلانه!",
+];
 
 const WIFI_TIPS = [
   "کدِ ۴ حرفیِ اتاق را به دوستانت بده تا همزمان داخل بشن!",
@@ -75,6 +83,7 @@ function ReactionBubble({ emoji, name }: { emoji: string; name: string }) {
 
 /* ================= ROOT ================= */
 export function WifiRoot({ onExit, onHome }: { onExit: () => void; onHome: () => void }) {
+  const LAN = isLanTransport();
   const [ui, setUi] = useState<UiPhase>("menu");
   const [state, setState] = useState<NetState | null>(null);
   const [roundInfo, setRoundInfo] = useState<{ round: number; of: number; ls: string[]; seconds: number } | null>(null);
@@ -86,6 +95,23 @@ export function WifiRoot({ onExit, onHome }: { onExit: () => void; onHome: () =>
   const inRoom = useRef(false);
   /* v5 BB — remember the room code so a network blip can silently rejoin */
   const lastCode = useRef("");
+
+  /* v5 — عمو دانا tutorial: auto-opens the first time the player
+   * reaches the WiFi menu; re-openable from the menu button.
+   * Persistence is a tiny localStorage flag (no Save-schema churn). */
+  const [tutOpen, setTutOpen] = useState(false);
+  const tutAuto = useRef(false);
+  useEffect(() => {
+    if (!LAN) return;
+    let seen = false;
+    try { seen = !!localStorage.getItem("vz_wifi_tut_v1"); } catch { seen = false; }
+    if (!seen) { tutAuto.current = true; setTutOpen(true); }
+  }, [LAN]);
+  const closeTut = () => {
+    setTutOpen(false);
+    try { localStorage.setItem("vz_wifi_tut_v1", "1"); } catch { /* private mode */ }
+  };
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   /* identity defaults from the player profile */
   const [name, setName] = useState(Save.data.profile.name);
@@ -223,11 +249,14 @@ export function WifiRoot({ onExit, onHome }: { onExit: () => void; onHome: () =>
           menuErr={menuErr}
           onCreate={create} onJoin={join}
           onExit={onExit}
+          lan={LAN}
+          onOpenTut={() => { Audio.sfxClick(); setTutOpen(true); }}
+          onOpenRules={() => { Audio.sfxClick(); setRulesOpen(true); }}
         />
       )}
       {ui === "lobby" && state && (
         <WifiLobby
-          state={state} amHost={amHost}
+          state={state} amHost={amHost} lan={LAN}
           onCfg={(rounds, seconds) => PartyNet.setCfg(rounds, seconds)}
           onStart={() => {
             const wheel = pickWheelLive(new Set());
@@ -235,6 +264,7 @@ export function WifiRoot({ onExit, onHome }: { onExit: () => void; onHome: () =>
           }}
           onLeave={() => leaveTo("menu")}
           reacts={reacts}
+          onOpenRules={() => { Audio.sfxClick(); setRulesOpen(true); }}
         />
       )}
       {ui === "round" && state && roundInfo && (
@@ -265,13 +295,26 @@ export function WifiRoot({ onExit, onHome }: { onExit: () => void; onHome: () =>
           onHome={() => leaveTo("home")}
         />
       )}
+
+      {/* v5 — عمو دانا walkthrough + rules sheet (overlay above all) */}
+      {tutOpen && <WifiTut onClose={closeTut} />}
+      {rulesOpen && <WifiRules onClose={() => setRulesOpen(false)} />}
     </>
   );
 }
 
-/* ================= MENU (create / join) ================= */
+/* ================= MENU (create / join) =================
+ * v5 — TWO FLOWS:
+ *   • LAN (APK over a hotspot): «میزبان باش» boots the device's own
+ *     room server (LanLink + LanHub); «مهمون باش» walks the player
+ *     through joining the host hotspot (settings deep-link → UDP
+ *     discovery → auto-join). NO room codes anywhere.
+ *   • Browser/dev: the original 4-char-code flow against the
+ *     party-hub mini service (kept intact for QA).
+ * ------------------------------------------------------------------ */
 function WifiMenu({
   name, setName, avatar, setAvatar, netUp, menuErr, onCreate, onJoin, onExit,
+  lan, onOpenTut, onOpenRules,
 }: {
   name: string; setName: (s: string) => void;
   avatar: string; setAvatar: (s: string) => void;
@@ -280,17 +323,47 @@ function WifiMenu({
   onCreate: () => void;
   onJoin: (code: string) => Promise<string>;
   onExit: () => void;
+  lan: boolean;
+  onOpenTut: () => void;
+  onOpenRules: () => void;
 }) {
   const [code, setCode] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [tip] = useState(() => pick(WIFI_TIPS));
+  const tips = lan ? WIFI_TIPS_LAN : WIFI_TIPS;
+  const [tip] = useState(() => pick(tips));
+
+  /* guest LAN scanner: null | "step1" | "scanning" | err-string */
+  const [guest, setGuest] = useState<null | "step1" | "scanning" | string>(null);
+  const scanRef = useRef(0); /* cancel token */
 
   const cycleAvatar = () => {
     Audio.sfxClick();
     const order = AVATARS;
     const i = order.findIndex((a) => a.id === avatar);
     setAvatar(order[(i + 1) % order.length].id);
+  };
+
+  const doHost = async () => {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    onCreate();
+    /* onCreate's lobby switch is driven by room:state; the busy flag
+     * simply guards double-taps for the room-create roundtrip */
+    setTimeout(() => setBusy(false), 2600);
+  };
+
+  const doGuest = async () => {
+    const token = ++scanRef.current;
+    setGuest("scanning");
+    setErr("");
+    PartyNet.setHello(name, avatar);
+    const e = await onJoin(""); /* LAN join: code is irrelevant */
+    if (scanRef.current !== token) return; /* cancelled meanwhile */
+    setGuest(e ? e : null);
+    setErr(e);
+    setBusy(false);
   };
 
   const doJoin = async () => {
@@ -302,6 +375,139 @@ function WifiMenu({
     setErr(e);
   };
 
+  /* ---------- LAN variant ---------- */
+  if (lan) {
+    return (
+      <Sheet bg="/assets/bg/map2b.webp" bgDim={0.3}>
+        <div className="ps-top">
+          <button type="button" className="ps-x" aria-label="بازگشت" onClick={onExit}>✕</button>
+          <div className="sheet-title" style={{ fontSize: 16, padding: "7px 22px" }}>دورهمی وای‌فای</div>
+          <span style={{ width: 40 }} />
+        </div>
+
+        <div className="scrolly">
+          <div className="wf-net-badge" aria-live="polite">
+            <span className={`wf-dot ${netUp ? "on" : ""}`} />
+            {netUp ? "آمادهٔ بازی محلی — بدون اینترنت" : "در حال آماده‌سازی…"}
+          </div>
+
+          <div className="panel rise-in" style={{ borderRadius: 22, padding: 14 }}>
+            <div className="ps-row-label">تو کی هستی؟</div>
+            <div className="ps-player">
+              <button type="button" className="ps-pavatar" onClick={cycleAvatar} aria-label="تغییر آواتار">
+                <AvatarFace id={avatar} size={44} />
+              </button>
+              <input
+                className="name-input"
+                style={{ flex: 1, margin: 0 }}
+                value={name}
+                maxLength={12}
+                placeholder="اسم تو"
+                onChange={(e) => setName(e.target.value)}
+                aria-label="اسم تو"
+              />
+            </div>
+          </div>
+
+          {/* the two LAN roles — host = the boss, guest = join the boss */}
+          <div className="wf-mode-cards" style={{ marginTop: 12 }}>
+            <button type="button" className="wf-mcard host" disabled={busy} onClick={() => { Audio.sfxClick(); void doHost(); }}>
+              <span className="wf-mic" aria-hidden>📡</span>
+              <span className="wf-mt">میزبان باش</span>
+              <span className="wf-md">هات‌اسپات گوشیت رو روشن کن؛ دوستان بهت وصل می‌شن و اتاق روی گوشی خودت ساخته می‌شه</span>
+              <span className="wf-go">ساخت اتاق ‹</span>
+            </button>
+            <button type="button" className="wf-mcard guest" disabled={busy} onClick={() => { Audio.sfxClick(); setGuest("step1"); }}>
+              <span className="wf-mic" aria-hidden>🤝</span>
+              <span className="wf-mt">مهمون باش</span>
+              <span className="wf-md">به هات‌اسپات میزبان وصل شو؛ بازی خودش میزبان رو پیدا می‌کنه</span>
+              <span className="wf-go">پیدا کردن میزبان ‹</span>
+            </button>
+          </div>
+          {menuErr && <div className="wf-err" style={{ textAlign: "center", marginTop: 8 }}>{menuErr}</div>}
+
+          <div className="wf-menu-links">
+            <button type="button" className="wf-link-btn" onClick={onOpenTut}>
+              🎓 آموزش با عمو دانا
+            </button>
+            <button type="button" className="wf-link-btn" onClick={onOpenRules}>
+              📜 قوانین بازی
+            </button>
+          </div>
+
+          <div className="wf-tip">{tip}</div>
+          <div style={{ height: 24 }} />
+        </div>
+
+        {/* ---------- guest scanner overlay ---------- */}
+        {guest && (
+          <div className="wf-scan-veil">
+            <div className="wf-scan-card rise-in">
+              {guest === "step1" && (
+                <>
+                  <div className="wf-scan-badge">قدم ۱ از ۲</div>
+                  <div className="wf-scan-t">به هات‌اسپات میزبان وصل شو</div>
+                  <div className="wf-scan-d">
+                    میزبان هات‌اسپات (نقطه اتصال) گوشیش را روشن کرده؛ از تنظیمات وای‌فای،
+                    به اسم هات‌اسپات او وصل شو — مثل وقتی که به وای‌فای خونه وصل می‌شی.
+                  </div>
+                  <div className="wf-scan-art" aria-hidden>
+                    <span className="wf-phone" /><span className="wf-waves w1" /><span className="wf-waves w2" /><span className="wf-waves w3" />
+                  </div>
+                  <button type="button" className="ps-act start" style={{ width: "100%" }}
+                    onClick={() => { Audio.sfxClick(); void PartyNet.openWifiSettings?.(); }}>
+                    باز کردن تنظیمات وای‌فای
+                  </button>
+                  <button type="button" className="ps-act go" style={{ width: "100%" }}
+                    onClick={() => { Audio.sfxClick(); setGuest("scanning"); void doGuest(); }}>
+                    وصل شدم — میزبان رو پیدا کن
+                  </button>
+                  <button type="button" className="wf-scan-cancel" onClick={() => { Audio.sfxClick(); setGuest(null); }}>
+                    انصراف
+                  </button>
+                </>
+              )}
+              {guest === "scanning" && (
+                <>
+                  <div className="wf-scan-badge">قدم ۲ از ۲</div>
+                  <div className="wf-scan-t">دنبال میزبان می‌گردیم…</div>
+                  <div className="wf-radar" aria-hidden>
+                    <span className="wf-radar-ring r1" />
+                    <span className="wf-radar-ring r2" />
+                    <span className="wf-radar-ring r3" />
+                    <span className="wf-radar-dot" />
+                  </div>
+                  <div className="wf-scan-d" style={{ textAlign: "center" }}>
+                    اگر پیدا نشد: مطمئن شو وای‌فای تو روشنه و به هات‌اسپات میزبان وصلی،
+                    بعد دوباره تلاش کن.
+                  </div>
+                  <button type="button" className="wf-scan-cancel"
+                    onClick={() => { scanRef.current++; Audio.sfxClick(); setGuest(null); }}>
+                    لغو جست‌وجو
+                  </button>
+                </>
+              )}
+              {guest !== "step1" && guest !== "scanning" && (
+                <>
+                  <div className="wf-scan-t">پیدا نشد!</div>
+                  <div className="wf-scan-d">{guest}</div>
+                  <button type="button" className="ps-act go" style={{ width: "100%" }}
+                    onClick={() => { setGuest("scanning"); void doGuest(); }}>
+                    تلاش دوباره
+                  </button>
+                  <button type="button" className="wf-scan-cancel" onClick={() => { Audio.sfxClick(); setGuest(null); }}>
+                    بازگشت
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </Sheet>
+    );
+  }
+
+  /* ---------- browser/dev variant (room codes, party-hub) ---------- */
   return (
     <Sheet bg="/assets/bg/map2b.webp" bgDim={0.3}>
       <div className="ps-top">
@@ -371,18 +577,24 @@ function WifiMenu({
   );
 }
 
-/* ================= LOBBY ================= */
+/* ================= LOBBY =================
+ * v5 — LAN variant swaps the room-code plate for the HOTSPOT plate:
+ * the user's flow is «هات‌اسپات روشن → دوستان وصل می‌شن → لیست
+ * دستگاه‌ها» — the gathering point is the hotspot, not a code.
+ * ------------------------------------------------------------------ */
 function WifiLobby({
-  state, amHost, onCfg, onStart, onLeave, reacts,
+  state, amHost, lan, onCfg, onStart, onLeave, reacts, onOpenRules,
 }: {
   state: NetState;
   amHost: boolean;
+  lan: boolean;
   onCfg: (rounds?: number, seconds?: number) => void;
   onStart: () => void;
   onLeave: () => void;
   reacts: { id: number; emoji: string; name: string }[];
+  onOpenRules: () => void;
 }) {
-  const [tip, setTip] = useState(() => pick(WIFI_TIPS));
+  const [tip, setTip] = useState(() => pick(lan ? WIFI_TIPS_LAN : WIFI_TIPS));
   const copy = async () => {
     Audio.sfxClick();
     try {
@@ -403,19 +615,34 @@ function WifiLobby({
       </div>
 
       <div className="scrolly">
-        {/* the room code — the «نقطه اتصال» everyone gathers around */}
-        <div className="wf-code-plate rise-in">
-          <div className="wf-code-label">کد اتاق</div>
-          <div className="wf-code">{state.code.split("").map((c, i) => <b key={i}>{c}</b>)}</div>
-          <button type="button" className="wf-copy" onClick={() => void copy()}>
-            {copied ? "کپی شد! ✓" : "کپی کد"}
-          </button>
-          <div className="wf-code-hint">دوستانت با این کد از گوشی خودشان وارد شوند</div>
-        </div>
+        {/* the gathering point: LAN = hotspot plate · web = code plate */}
+        {lan ? (
+          <div className="wf-hs-plate rise-in">
+            <span className="wf-hs-ic" aria-hidden>📡</span>
+            <div className="wf-hs-t">{amHost ? "اتاق روی گوشی تو فعاله" : "وصل شدی به میزبان ✓"}</div>
+            <div className="wf-hs-d">
+              {amHost
+                ? "هات‌اسپاتت روشن بمونه؛ هرکی وصل شه همین‌جا به لیست اضافه می‌شه"
+                : "هر وقت میزبان بازی رو شروع کنه، دور برات باز می‌شه"}
+            </div>
+            <span className={`wf-hs-count ${canStart ? "ok" : ""}`}>
+              {faNum(state.players.length)} دستگاه وصل شد
+            </span>
+          </div>
+        ) : (
+          <div className="wf-code-plate rise-in">
+            <div className="wf-code-label">کد اتاق</div>
+            <div className="wf-code">{state.code.split("").map((c, i) => <b key={i}>{c}</b>)}</div>
+            <button type="button" className="wf-copy" onClick={() => void copy()}>
+              {copied ? "کپی شد! ✓" : "کپی کد"}
+            </button>
+            <div className="wf-code-hint">دوستانت با این کد از گوشی خودشان وارد شوند</div>
+          </div>
+        )}
 
         <div className="panel rise-in" style={{ borderRadius: 22, padding: 14 }}>
           <div className="ps-row-label">
-            بازیکن‌ها <span className="ps-row-hint">({faNum(state.players.length)} از {faNum(6)})</span>
+            {lan ? "دستگاه‌ها" : "بازیکن‌ها"} <span className="ps-row-hint">({faNum(state.players.length)} از {faNum(6)})</span>
           </div>
           <div className="wf-roster">
             {state.players.map((p) => (
@@ -423,6 +650,12 @@ function WifiLobby({
                 <AvatarFace id={p.avatar} size={34} />
                 <bdi>{p.name}</bdi>
                 {p.id === state.hostId && <i className="wf-crown" aria-label="میزبان">👑</i>}
+              </span>
+            ))}
+            {/* v5 — pulsing placeholder so the host SEES the room growing */}
+            {lan && !canStart && Array.from({ length: 2 - state.players.length }, (_, i) => (
+              <span key={`slot${i}`} className="wf-player slot" aria-hidden>
+                <span className="wf-slot-ph" />در انتظار…
               </span>
             ))}
           </div>
@@ -468,9 +701,12 @@ function WifiLobby({
           <div className="wf-wait" style={{ textAlign: "center", padding: 14 }}>منتظر شروع مسابقه…</div>
         )}
 
-        <button type="button" className="ps-tip-next" style={{ margin: "10px auto 0" }} onClick={() => { Audio.sfxClick(); setTip(pick(WIFI_TIPS)); }}>
+        <button type="button" className="ps-tip-next" style={{ margin: "10px auto 0" }} onClick={() => { Audio.sfxClick(); setTip(pick(lan ? WIFI_TIPS_LAN : WIFI_TIPS)); }}>
           {tip}
         </button>
+        <div className="wf-menu-links" style={{ marginTop: 10 }}>
+          <button type="button" className="wf-link-btn" onClick={onOpenRules}>📜 قوانین بازی</button>
+        </div>
         <div style={{ height: 24 }} />
       </div>
     </Sheet>
@@ -1024,6 +1260,108 @@ function WifiOver({
           <button type="button" className="ps-act back" onClick={onLeave}>اتاق</button>
           <button type="button" className="ps-act finish" onClick={onHome}>صفحه اصلی</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= عمو دانا — WiFi WALKTHROUGH =================
+ * v5 (user: «با عمو دانا آموزشش بده کامل») — a 5-step storybook
+ * overlay: veil + card with the grandpa art, progress dots and
+ * next/back. Auto-opens the first time the LAN menu is reached;
+ * reopening lives behind the «آموزش با عمو دانا» button.
+ * Transform/opacity animations only; skips nothing under lowfx (it
+ * is interaction-gated, never idle-running). */
+const TUT_STEPS: { t: string; d: string; art: string }[] = [
+  {
+    t: "سلام! من عمو دانام 👋",
+    d: "این بازی دورهمیِ وای‌فای اینترنتی نمی‌خواد! همه با وای‌فایِ گوشیِ هم به هم وصل می‌شن و روی یک گوشی بازی می‌کنن.",
+    art: "/assets/char/hello.webp",
+  },
+  {
+    t: "قدم ۱ — میزبان اتاق رو می‌سازه",
+    d: "یک نفر «میزبان باش» رو می‌زنه و بعد نقطه اتصال (هات‌اسپات) گوشیش رو از تنظیمات وای‌فای روشن می‌کنه. اتاق بازی روی همین گوشی ساخته می‌شه.",
+    art: "/assets/char/point.webp",
+  },
+  {
+    t: "قدم ۲ — دوستان وصل می‌شن",
+    d: "بقیه «مهمون باش» رو می‌زنن، از تنظیمات وای‌فای به هات‌اسپات میزبان وصل می‌شن — بازی خودش میزبان رو پیدا می‌کنه و اسمشون میاد تو لیست دستگاه‌ها.",
+    art: "/assets/char/thumb.webp",
+  },
+  {
+    t: "قدم ۳ — میزبان بازی رو شروع می‌کنه",
+    d: "میزبان تعداد دورها و زمان هر دور رو انتخاب می‌کنه و «شروع مسابقه» رو می‌زنه. همه همزمان روی یک چرخِ یکسان مسابقه می‌دید!",
+    art: "/assets/char/cheer.webp",
+  },
+  {
+    t: "قانون طلایی ⭐",
+    d: "دست بکش روی حروف، واژه بساز و رها کن. اولین نفری که یک واژه رو بسازه مالکشه — هر واژه فقط یک بار! آخر بازی هم سکوی قهرمانی منتظرتونه.",
+    art: "/assets/char/hello.webp",
+  },
+];
+
+function WifiTut({ onClose }: { onClose: () => void }) {
+  const [i, setI] = useState(0);
+  const s = TUT_STEPS[i];
+  const next = () => {
+    Audio.sfxClick();
+    if (i + 1 >= TUT_STEPS.length) onClose();
+    else setI(i + 1);
+  };
+  return (
+    <div className="wf-tut-veil" role="dialog" aria-label="آموزش دورهمی وای‌فای">
+      <div className="wf-tut-card">
+        <div className="wf-tut-art" style={{ backgroundImage: `url(${s.art})` }} aria-hidden />
+        <div className="wf-tut-step">آموزش {faNum(i + 1)} از {faNum(TUT_STEPS.length)}</div>
+        <div className="wf-tut-t">{s.t}</div>
+        <div className="wf-tut-d">{s.d}</div>
+        <div className="wf-tut-dots" aria-hidden>
+          {TUT_STEPS.map((_, k) => (
+            <span key={k} className={`wf-tut-dot ${k === i ? "on" : ""} ${k < i ? "done" : ""}`} />
+          ))}
+        </div>
+        <div className="wf-tut-btns">
+          {i > 0 && (
+            <button type="button" className="ps-act back" onClick={() => { Audio.sfxClick(); setI(i - 1); }}>
+              قبلی
+            </button>
+          )}
+          <button type="button" className="ps-act go" onClick={next}>
+            {i + 1 >= TUT_STEPS.length ? "فهمیدم، بریم! 🎉" : "بعدی ‹"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= RULES SHEET ================= */
+const RULES: { t: string; d: string }[] = [
+  { t: "📡 اتصال", d: "میزبان هات‌اسپاتش رو روشن می‌کنه؛ بقیه بهش وصل می‌شن. هیچ اینترنتی لازم نیست — فقط وای‌فای بین گوشی‌ها." },
+  { t: "🎡 چرخ مشترک", d: "هر دور همه با حروف یک چرخ یکسان مسابقه می‌دن — کاملاً عادلانه." },
+  { t: "✋ ساخت واژه", d: "انگشتت رو روی حروف بکش تا یک واژه بسازه و رها کن. واژه باید معنادار باشه (واژه‌نامه تو گوشی خودته)." },
+  { t: "⚡ اولویت با سریع‌تره", d: "اولین نفری که یک واژه رو بسازه مالکش می‌شه؛ بقیه «این واژه قبلاً گرفته شد!» می‌بینن." },
+  { t: "💯 امتیاز", d: "هر حرف ۱۰ امتیاز — واژه‌های بلندتر طلا شدن!" },
+  { t: "⏱ زمان", d: "هر دور زمان محدود داره؛ وقت تموم شه میزبان دور رو می‌بنده و مرور امتیازها میاد." },
+  { t: "🏆 پایان", d: "بعد از آخرین دور، سکوی قهرمانی نشان می‌ده که کی پادشاه واژه‌هاست!" },
+];
+
+function WifiRules({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="wf-tut-veil" role="dialog" aria-label="قوانین بازی">
+      <div className="wf-tut-card rules">
+        <div className="wf-tut-t" style={{ marginTop: 0 }}>📜 قوانین دورهمی</div>
+        <div className="wf-rules-list">
+          {RULES.map((r) => (
+            <div key={r.t} className="wf-rule-row">
+              <div className="wf-rule-t">{r.t}</div>
+              <div className="wf-rule-d">{r.d}</div>
+            </div>
+          ))}
+        </div>
+        <button type="button" className="ps-act go" style={{ width: "100%" }} onClick={() => { Audio.sfxClick(); onClose(); }}>
+          فهمیدم!
+        </button>
       </div>
     </div>
   );

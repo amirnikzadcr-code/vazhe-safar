@@ -172,9 +172,56 @@ class PartyNetClient {
   }
 }
 
-export const PartyNet = new PartyNetClient();
+export const PartyNetClientClass = PartyNetClient;
+
+/* ------------------------------------------------------------------
+ * v5 — UNIFIED TRANSPORT SELECTOR.
+ *   • APK (native) → LanPartyNet: the host device IS the server,
+ *     over its own hotspot. No internet, no hub service, no codes —
+ *     guests find the host by UDP broadcast on the hotspot LAN.
+ *   • Browser (dev / QA) → the original socket.io client talking to
+ *     the party-hub mini service through the gateway (unchanged).
+ * Both satisfy PartyNetApi 1:1, so the screens are transport-blind.
+ * ------------------------------------------------------------------ */
+import { Capacitor } from "@capacitor/core";
+import { LanPartyNet } from "./lanNet";
+
+export interface PartyNetApi {
+  readonly connected: boolean;
+  readonly id: string;
+  lastError: string;
+  connect(): void;
+  setHello(name: string, avatar: string): void;
+  on(ev: string, fn: (payload: any) => void): () => void;
+  createRoom(): Promise<{ ok: boolean; code?: string }>;
+  joinRoom(code: string): Promise<{ ok: boolean; code?: string }>;
+  setCfg(rounds?: number, seconds?: number): void;
+  loadRound(wheel: { ls: string[]; words: string[] }): void;
+  claimWord(word: string): void;
+  endRound(): void;
+  endGame(): void;
+  rematch(): void;
+  react(emoji: string): void;
+  leave(): void;
+  openWifiSettings?(): Promise<void>;
+}
+
+export const isLanTransport = (): boolean => {
+  try {
+    /* QA override: ?lanqa=1 renders the LAN (hotspot) UI in a plain
+     * browser — bridge calls fail gracefully, but the flow/screens
+     * become reviewable without an APK (screenshots, layout QA). */
+    if (typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).has("lanqa")) return true;
+    return Capacitor.isNativePlatform();
+  } catch { return false; }
+};
+
+export const PartyNet: PartyNetApi = isLanTransport()
+  ? (new LanPartyNet() as unknown as PartyNetApi)
+  : (new PartyNetClient() as unknown as PartyNetApi);
 
 /* dev debugging handle (harmless in prod, invaluable in browser QA) */
 if (typeof window !== "undefined") {
-  (window as unknown as { __pNet?: PartyNetClient }).__pNet = PartyNet;
+  (window as unknown as { __pNet?: PartyNetApi }).__pNet = PartyNet;
 }

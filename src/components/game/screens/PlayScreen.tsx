@@ -34,7 +34,17 @@ import { getProgress, setProgress, clearProgress } from "@/game/core/progress";
 import { WinModal } from "@/components/game/modals/WinModal";
 import { CHAPTERS } from "@/game/data/chapters";
 import { PauseModal } from "@/components/game/modals/Overlays";
-import { armGameplayProbe } from "@/game/core/perf";
+import { armGameplayProbe, isLowFx } from "@/game/core/perf";
+
+/* v5 PERF/COMPAT — Element.getAnimations() needs Chrome 84+; old
+ * Android System WebViews (minSdk 22 era) throw on it. Every cancel
+ * pass is best-effort: a stale overlapping animation is harmless, a
+ * crash inside the guess frame is not. */
+function cancelAnims(...els: (Element | null | undefined)[]): void {
+  for (const el of els) {
+    try { el?.getAnimations?.().forEach((a) => a.cancel()); } catch { /* old WebView */ }
+  }
+}
 
 /* celebration duration BEFORE the word applies to the board (ms).
  * v2.1: was 1150 — the player read it as “the word applies too late”.
@@ -366,22 +376,22 @@ export function PlayScreen({
    * already-found word no longer lands silently — the word's row on
    * the board gets a golden GLOW PULSE so the player sees exactly
    * which sentence they had already built. One-shot WAAPI, no
-   * re-render, no forced reflow. */
+   * re-render, no forced reflow.
+   * v5 PERF: the old keyframes animated `filter` + `boxShadow` — both
+   * are PAINT-heavy inside the Android WebView and this fires exactly
+   * on an input frame. Transform-only scale pop now: same readability,
+   * pure compositor work. */
   const flashKnown = useCallback((word: string) => {
     const groups = document.querySelectorAll<HTMLElement>(".wboard .wgroup.done");
     for (const el of groups) {
       if (el.textContent !== word || typeof el.animate !== "function") continue;
       el.animate(
         [
-          { transform: "scale(1)", filter: "brightness(1) saturate(1)" },
-          { transform: "scale(1.07)", filter: "brightness(1.4) saturate(1.45)", offset: 0.3 },
-          { transform: "scale(1)", filter: "brightness(1) saturate(1)" },
+          { transform: "scale(1)" },
+          { transform: "scale(1.07)", offset: 0.3 },
+          { transform: "scale(1)" },
         ],
-        { duration: 760, easing: "cubic-bezier(.3,1.4,.4,1)" },
-      );
-      el.animate(
-        { boxShadow: ["0 0 0 0 rgba(255,215,110,0)", "0 0 0 6px rgba(255,215,110,.8)", "0 0 0 0 rgba(255,215,110,0)"] },
-        { duration: 950, easing: "ease-out" },
+        { duration: 620, easing: "cubic-bezier(.3,1.4,.4,1)" },
       );
       break;
     }
@@ -547,16 +557,21 @@ export function PlayScreen({
           const tile = Array.from(wrap.querySelectorAll<HTMLElement>(".tile")).find((t) => t.getAttribute("aria-label") === ls[i]);
           /* glow WITHOUT transform — scaling the tile itself would
            * shift the measured geometry mid-demo (audit + layout truth
-           * live in the rect); brightness + a gold ring reads just as
-           * clearly as "this tile lights under the fingertip". */
-          tile?.animate?.(
-            [
-              { filter: "brightness(1)", boxShadow: "0 0 0 0 rgba(255,215,110,0)" },
-              { filter: "brightness(1.45) saturate(1.3)", boxShadow: "0 0 0 7px rgba(255,215,110,.85)" },
-              { filter: "brightness(1)", boxShadow: "0 0 0 0 rgba(255,215,110,0)" },
-            ],
-            { duration: 320, easing: "ease-out" },
-          );
+           * live in the rect).
+           * v5 PERF: the old keyframes animated `filter` + `boxShadow`
+           * per letter every ~380 ms — a repaint storm inside the
+           * WebView during the tutorial. A pure OPACITY blink now
+           * (compositor-only), skipped entirely under .lowfx. */
+          if (tile && !isLowFx() && typeof tile.animate === "function") {
+            tile.animate(
+              [
+                { opacity: 1 },
+                { opacity: 0.35, offset: 0.45 },
+                { opacity: 1 },
+              ],
+              { duration: 320, easing: "ease-out" },
+            );
+          }
           Audio.sfxLetter(Math.min(i, 5));
         }, 380 + i * HOP);
       });
@@ -1033,12 +1048,12 @@ function replayWordBanner(root: HTMLElement): void {
   const ribbon = root.querySelector<HTMLElement>(".wb-ribbon");
   const starL = root.querySelector<HTMLElement>(".wb-star.l");
   const starR = root.querySelector<HTMLElement>(".wb-star.r");
-  for (const el of [ribbon, starL, starR]) el?.getAnimations().forEach((a) => a.cancel());
+  for (const el of [ribbon, starL, starR]) cancelAnims(el);
   ribbon?.animate(KF_RIBBON, { duration: BANNER_MS, fill: "both" });
   starL?.animate(KF_STAR_L, { duration: BANNER_MS, fill: "both" });
   starR?.animate(KF_STAR_R, { duration: BANNER_MS, fill: "both" });
   root.querySelectorAll<HTMLElement>(".wb-dust i").forEach((el, i) => {
-    el.getAnimations().forEach((a) => a.cancel());
+    cancelAnims(el);
     el.animate(
       KF_DUST(el.style.getPropertyValue("--dx"), el.style.getPropertyValue("--dy")),
       { duration: 1500, delay: i * 55, easing: "ease-out", fill: "both" },
@@ -1450,12 +1465,11 @@ const Wheel = memo(forwardRef(function Wheel({
     if (b && typeof b.animate === "function") {
       const ring = b.querySelector<HTMLElement>(".wb-ring");
       const flash = b.querySelector<HTMLElement>(".wb-flash");
-      ring?.getAnimations().forEach((a) => a.cancel());
-      flash?.getAnimations().forEach((a) => a.cancel());
+      cancelAnims(ring, flash);
       ring?.animate(KF_RING, { duration: 580, easing: "ease-out", fill: "both" });
       flash?.animate(KF_FLASH, { duration: 400, easing: "ease-out", fill: "both" });
       b.querySelectorAll<HTMLElement>("i").forEach((el, i) => {
-        el.getAnimations().forEach((a) => a.cancel());
+        cancelAnims(el);
         el.animate(
           KF_SPARK(el.style.getPropertyValue("--dx"), el.style.getPropertyValue("--dy")),
           { duration: 600, delay: i * 24, easing: "ease-out", fill: "both" },
@@ -1464,7 +1478,7 @@ const Wheel = memo(forwardRef(function Wheel({
     }
     const c = coinFxRef.current;
     if (c && showCoin && typeof c.animate === "function") {
-      c.getAnimations().forEach((a) => a.cancel());
+      cancelAnims(c);
       c.animate(KF_COIN, { duration: 620, easing: "ease-out", fill: "both" });
     }
   }, []);

@@ -1,26 +1,34 @@
 /* ------------------------------------------------------------------
- *  واژه‌سفر — core/perf.ts  (v4)
+ *  واژه‌سفر — core/perf.ts  (v5 — "APK همیشه روان")
  *  FPS GUARD + automatic LOW-POWER mode
- *  (user: «توی موبایل همش لگه … یک دیباگ کامل بکن برای موبایل»)
+ *  (user v5: «توی موبایل apk خیلی کنده … ی راهی پیدا بکن خیلی خیلی
+ *   روی موبایل بهینه کنی نرم روان»)
  *
- *  WHY v4? The v3 probe ran only during the SPLASH — the splash is an
- *  idle screen, so even genuinely weak phones passed it and then
- *  lagged during real gameplay. Also `deviceMemory <= 2` almost never
- *  matches on Android (WebViews report 8 regardless of real RAM).
+ *  WHY v5? v4's static sniff could never fire inside the Android APK
+ *  (WebViews report deviceMemory=8 and >=4 cores regardless of real
+ *  hardware), so the whole .lowfx shed-list was effectively DEAD on
+ *  the exact device the user plays on — every blur/shadow/particle
+ *  layer ran at full strength inside the WebView and the game felt
+ *  "افتضاح کنده".
  *
- *  v4 gets weak phones into lowfx RELIABLY:
- *   • deviceMemory ≤ 4 → degrade immediately;
- *   • splash probe (150 frames) — kept, catches very slow boots;
- *   • GAMEPLAY probe (armGameplayProbe) — runs through the first level
- *     entries + interactions (where the real bottleneck lives) and
- *     flips lowfx if >30% of frames miss the 30fps budget;
- *   • re-armed after each navigation for the first few screens — a
- *     phone that stutters across screens gets degraded even if a
- *     single sample window happened to look OK.
+ *  v5 rules, in order:
+ *   1. NATIVE (Capacitor APK) → lowfx IMMEDIATELY at module load.
+ *      The WebView is a constrained environment: 1 rendering thread,
+ *      shared GPU with the system, no devtools profilers. The dress
+ *      (ambience/sun/clouds/petals, blur shadows, transition fades,
+ *      confetti storms) is the first thing a weak phone pays for —
+ *      so the APK always runs the shed-list and keeps gameplay at
+ *      60fps. Smoothness beats decoration (user's explicit ask).
+ *   2. Desktop / mobile-browser keeps the v4 behaviour: static sniff
+ *      (tiny RAM/cores — user reported the browser build feels
+ *      smooth, so phones in a real browser keep the full tier and
+ *      rely on probes) plus the 150-frame splash probe and the 6×
+ *      gameplay probes.
  *
- *  lowfx sheds ONLY decorative work (floats, pulses, sheens, extra
- *  particles) — core gameplay rendering stays untouched.
+ *  lowfx sheds ONLY decorative work — core gameplay rendering stays
+ *  untouched. See game.css `.lowfx` blocks (v5 adds a harder tier-2).
  * ------------------------------------------------------------------ */
+import { Capacitor } from "@capacitor/core";
 
 let started = false;
 let gameplayArms = 0;
@@ -37,14 +45,29 @@ export function enableLowFx(): void {
   }
 }
 
-/* quick static sniff — cheap cores / old renderer → don't even wait
- * for a probe to fail before shedding decorative work */
-function staticWeak(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const nav = navigator as Navigator & { deviceMemory?: number };
-  if (typeof nav.deviceMemory === "number" && nav.deviceMemory > 0 && nav.deviceMemory <= 4) return true;
-  if ((nav.hardwareConcurrency ?? 8) <= 3) return true;
-  return false;
+/* v5 — decide the tier BEFORE the first paint. Synchronous, safe to
+ * call from module scope: Capacitor.isNativePlatform() reads a build
+ *-time bridge flag (no async init needed). */
+function decideTier(): "native" | "browser" {
+  try {
+    if (Capacitor.isNativePlatform()) return "native";
+  } catch { /* core not ready — fall through to UA sniffing */ }
+  return "browser";
+}
+
+/* eager self-init: perf.ts is imported by GameApp at module scope, so
+ * this runs before the splash paints — the APK NEVER sees the heavy
+ * tier at all. Browsers (desktop AND phone) keep the v4 probe path:
+ * the user explicitly reported the web build feels smooth, so we do
+ * not strip decoration there. */
+if (typeof document !== "undefined") {
+  /* QA override: ?lowfx=1 previews the APK tier in a plain browser */
+  let qaLow = false;
+  try { qaLow = new URLSearchParams(window.location.search).has("lowfx"); } catch { /* noop */ }
+  if (decideTier() === "native" || qaLow) {
+    enableLowFx();
+    try { console.info("[perf] lowfx forced at boot:", qaLow ? "qa" : "native APK"); } catch { /* noop */ }
+  }
 }
 
 interface ProbeResult { total: number; slow: number }
@@ -74,28 +97,25 @@ const onProbe = (r: ProbeResult) => {
 };
 
 /**
- * Watch the first frames after boot; flip to low-power on slow devices.
- * Fire-and-forget; safe to call multiple times (only the first wins).
+ * Kept for API compatibility (GameApp calls it on boot). v5: native
+ * and mobile-web were already degraded at module load; only a DESKTOP
+ * browser runs the probes now.
  */
 export function startFpsGuard(): void {
   if (started || typeof window === "undefined") return;
   started = true;
-  if (staticWeak()) { enableLowFx(); return; }
+  if (isLowFx()) return; /* already forced at boot — nothing to learn */
   runProbe(150, onProbe);
 }
 
 /**
- * v4 — probe DURING REAL GAMEPLAY. PlayScreen calls this on mount for
- * the first few sessions' screens; the window intentionally covers the
- * heaviest moments (board + wheel + FX + audio all live at once).
- * Armed up to 6 times per session; each arm samples ~2.5s.
+ * Gameplay probe — desktop-only now (v5). Native/mobile already run
+ * the shed-list, and the probe window itself costs frames there.
  */
 export function armGameplayProbe(): void {
   if (typeof window === "undefined") return;
   if (isLowFx()) return;              /* already degraded — nothing to learn */
   if (gameplayArms >= 6) return;
   gameplayArms += 1;
-  /* slight delay so the mount itself (layout+paint of the screen) is
-   * inside the window — that IS the cost phones feel */
   setTimeout(() => runProbe(150, onProbe), 60);
 }

@@ -1038,14 +1038,23 @@ button:active { transition-duration: .05s; }
    (outer = entrance, inner = sway) so they never fight. Transform +
    opacity only; everything sheds under .lowfx. */
 .ch-banner {
-  position: absolute; top: 10px; left: 50%; z-index: 12;
+  position: absolute; top: 10px; left: 50%;
+  /* v5 FIX: z 12 → 8. The «شما اینجایید» node wrapper is z-15, so the
+   * badge and the current-node pulse now paint OVER the banner
+   * instead of sliding underneath it (user-reported overlap). */
+  z-index: 8;
   width: min(88%, 330px); pointer-events: none;
   transform: translateX(-50%);
   animation: cbIn .72s cubic-bezier(.22,1.35,.36,1) both;
 }
 .cb-plate {
   position: relative; text-align: center;
-  padding: 13px 14px 11px; border-radius: 18px;
+  /* v5 FIX (user: «شماره فصل با اسم فصل تداخل داره»): the 42px medal
+   * is absolutely positioned at top:-22px → its bottom lands at
+   * plate-local y≈24px, which used to paint over the title's first
+   * line (title box started at y=13). padding-top 30px pushes the
+   * title/subtitle clear of the medal for good. */
+  padding: 30px 14px 11px; border-radius: 18px;
   background:
     radial-gradient(120% 90% at 50% 0%, rgba(255,255,255,.5), rgba(255,255,255,0) 55%),
     linear-gradient(180deg, #f9edd2 0%, #eed9ac 55%, #e3cd9a 100%);
@@ -1064,7 +1073,7 @@ button:active { transition-duration: .05s; }
   pointer-events: none;
 }
 .cb-medal {
-  position: absolute; top: -19px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
   width: 42px; height: 42px; border-radius: 999px;
   display: flex; align-items: center; justify-content: center;
   background: radial-gradient(circle at 36% 30%, #fff3b8, #ffd76e 55%, #eda32a);
@@ -2339,6 +2348,28 @@ body { background: #5cb2ef; }
 .lowfx .pw-tile { transition: none !important; }
 .lowfx .ps-champ-ava::before { animation: none !important; }
 
+/* ═══════════════════════════════════════════════════════════════
+   v5 PERF — TIER-2 SHED LIST (the APK tier: html.lowfx is now
+   FORCED on native at boot — perf.ts v5 — so these rules are the
+   WebView's default state). WebView-grade killers that survived
+   tier-1:
+   • infinite box-shadow pings (tut-ring) repaint every frame;
+   • confetti storms above 8 pieces spike layer counts on the win
+     frame — the single heaviest moment of the game;
+   • eased scroll-behavior + long transitions cost main-thread time
+     on every tap; the APK runs the whole UI on touch.
+   Gameplay FX (one-shot, composited) remain untouched. */
+.lowfx .tut-ring { animation: none !important; }
+.lowfx .confetti i:nth-child(n + 9),
+.lowfx .ps-confetti i:nth-child(n + 9),
+.lowfx .celeb-confetti i:nth-child(n + 9),
+.lowfx .wb-dust i:nth-child(n + 3),
+.lowfx .wheel-burst i:nth-child(n + 4),
+.lowfx .wsparkles i:nth-child(n + 2) { display: none !important; }
+.lowfx * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.lowfx .home-sun, .lowfx .home-cloud, .lowfx .home-petal,
+.lowfx .home-mote, .lowfx .home-butterfly, .lowfx .pb-balloons { display: none !important; }
+
 /* ═══════════════════════════════════════════════════════════════════
    v3 SHOP — premium night-gold market (exclusive identity).
    PERF: no backdrop-blur, no filters; entrance = one-shot composited
@@ -3231,3 +3262,213 @@ img { -webkit-user-drag: none; }
 @keyframes btnSheen { 0% { right: -60px; } 60%, 100% { right: 120%; } }
 .lowfx .ms-float, .lowfx .ms-pbar i::after, .lowfx .ms-claim, .lowfx .ms-dot,
 .lowfx .ch-hero-flame.lit, .lowfx .ch-chip-wiggle, .lowfx .ch-start::after { animation: none; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v5 — دورهمی WIFI HOTSPOT UI (LanLink + LanHub)
+   Two role cards (host/guest), the guest scanner (settings → radar
+   discovery), the hotspot lobby plate with device slots, the عمو دانا
+   walkthrough + rules sheet. ALL animations are transform/opacity
+   (compositor-only) so the WebView stays smooth; everything important
+   also reads with animations fully off (.lowfx).
+   ═══════════════════════════════════════════════════════════════════ */
+.wf-mode-cards { display: grid; gap: 11px; }
+.wf-mcard {
+  position: relative; overflow: hidden; text-align: right; cursor: pointer;
+  display: flex; flex-direction: column; gap: 3px; width: 100%;
+  padding: 13px 14px 12px; border-radius: 20px;
+  border: 2.5px solid #fff; font-family: inherit;
+  animation: riseIn .5s cubic-bezier(.22,1.35,.36,1) both;
+  transition: transform .12s ease;
+}
+.wf-mcard:active { transform: translateY(2px) scale(.99); }
+.wf-mcard:disabled { filter: saturate(.4) brightness(.92); }
+.wf-mcard.host {
+  background: linear-gradient(165deg, #ffe9b8 0%, #ffd78e 55%, #f6b95c 100%);
+  outline: 2.5px solid #a8701f;
+  box-shadow: 0 5px 0 #a8701f, 0 12px 20px rgba(90,50,0,.28), inset 0 2px 0 #fff8e2;
+}
+.wf-mcard.guest {
+  background: linear-gradient(165deg, #d9f3c4 0%, #b7e79a 55%, #86cf6b 100%);
+  outline: 2.5px solid #3f8f2a;
+  box-shadow: 0 5px 0 #3f8f2a, 0 12px 20px rgba(20,70,0,.25), inset 0 2px 0 #efffe2;
+}
+.wf-mic {
+  position: absolute; top: 10px; left: 12px; font-size: 30px; line-height: 1;
+  filter: drop-shadow(0 2px 2px rgba(60,30,0,.25));
+}
+.wf-mt { font-size: 17.5px; font-weight: 800; color: #5a3a08; text-shadow: 0 1px 0 rgba(255,255,255,.6); }
+.wf-mcard.guest .wf-mt { color: #1f5c10; }
+.wf-md { font-size: 12px; font-weight: 700; color: #7a5a2e; line-height: 1.55; }
+.wf-mcard.guest .wf-md { color: #2c6418; }
+.wf-go {
+  margin-top: 7px; align-self: flex-start;
+  font-size: 13px; font-weight: 800; color: #fff;
+  background: rgba(90,58,8,.9); border-radius: 999px; padding: 4px 12px;
+  text-shadow: 0 1px 0 rgba(0,0,0,.3);
+}
+.wf-mcard.guest .wf-go { background: rgba(31,92,16,.9); }
+.lowfx .wf-mcard { animation: none; }
+
+.wf-menu-links { display: flex; gap: 8px; justify-content: center; }
+.wf-link-btn {
+  cursor: pointer; font-family: inherit; font-weight: 800; font-size: 12.5px;
+  color: #6b4a12; background: #fff7dd; border: 2px solid #e2c07c;
+  border-radius: 999px; padding: 7px 14px;
+  box-shadow: 0 2px 0 rgba(160,110,30,.35);
+  transition: transform .12s ease;
+}
+.wf-link-btn:active { transform: translateY(2px); }
+
+/* ---------- guest scanner overlay ---------- */
+.wf-scan-veil {
+  position: absolute; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center; padding: 18px;
+  background: rgba(28,18,6,.55);
+}
+.wf-scan-card {
+  width: min(92%, 340px); background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255,255,255,.55), rgba(255,255,255,0) 55%),
+    linear-gradient(180deg, #fdf3d8 0%, #f3e0b2 60%, #e9d29c 100%);
+  border: 2.5px solid #fff; outline: 3px solid #8a6a3e; border-radius: 22px;
+  padding: 18px 16px; display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 8px 0 #7a5a34, 0 18px 30px rgba(30,18,4,.4);
+}
+.wf-scan-badge {
+  align-self: center; font-size: 11px; font-weight: 800; color: #8a6a3e;
+  background: #fff7dd; border: 1.5px solid #dcc084; border-radius: 999px; padding: 3px 12px;
+}
+.wf-scan-t { text-align: center; font-size: 18px; font-weight: 800; color: #5d3a12; }
+.wf-scan-d { font-size: 12.5px; font-weight: 700; color: #7a5a2e; line-height: 1.75; }
+.wf-scan-cancel {
+  cursor: pointer; font-family: inherit; font-weight: 800; font-size: 13px;
+  background: none; border: none; color: #8a6a3e; text-decoration: underline; padding: 4px;
+}
+/* mini phone + wifi waves illustration */
+.wf-scan-art { position: relative; height: 64px; }
+.wf-phone {
+  position: absolute; right: 50%; top: 8px; transform: translateX(50%);
+  width: 26px; height: 44px; border-radius: 7px;
+  background: linear-gradient(180deg, #6f4a12, #4a2f08);
+  border: 2.5px solid #8a6a3e; box-shadow: inset 0 0 0 2px #2c1c04;
+}
+.wf-waves {
+  position: absolute; right: 50%; top: 12px;
+  border: 3px solid rgba(255,190,80,.85); border-radius: 50%;
+  transform: translateX(50%);
+  animation: wfWave 1.8s ease-out infinite;
+}
+.wf-waves.w1 { width: 22px; height: 22px; }
+.wf-waves.w2 { width: 40px; height: 40px; animation-delay: .3s; }
+.wf-waves.w3 { width: 58px; height: 58px; animation-delay: .6s; }
+@keyframes wfWave {
+  0% { opacity: 0; transform: translateX(50%) scale(.4); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(50%) scale(1.25); }
+}
+.lowfx .wf-waves { animation-duration: 2.6s; }
+/* discovery radar */
+.wf-radar { position: relative; height: 96px; }
+.wf-radar-ring {
+  position: absolute; right: 50%; top: 50%;
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 3px solid #58b7ff; transform: translate(50%,-50%);
+  animation: wfRadar 2.1s ease-out infinite;
+}
+.wf-radar-ring.r2 { animation-delay: .5s; }
+.wf-radar-ring.r3 { animation-delay: 1s; }
+.wf-radar-dot {
+  position: absolute; right: 50%; top: 50%; width: 14px; height: 14px;
+  border-radius: 50%; transform: translate(50%,-50%);
+  background: radial-gradient(circle at 35% 30%, #cdefff, #38a4f5 60%, #1b78c9);
+  box-shadow: 0 0 0 3px #fff, 0 0 10px rgba(56,164,245,.8);
+}
+@keyframes wfRadar {
+  0% { opacity: 0; width: 12px; height: 12px; }
+  30% { opacity: 1; }
+  100% { opacity: 0; width: 88px; height: 88px; }
+}
+.lowfx .wf-radar-ring { animation-duration: 3.2s; }
+
+/* ---------- LAN hotspot lobby plate ---------- */
+.wf-hs-plate {
+  position: relative; text-align: center; padding: 16px 14px 13px; border-radius: 20px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255,255,255,.5), rgba(255,255,255,0) 55%),
+    linear-gradient(180deg, #2e4a68 0%, #223a54 60%, #1b2f45 100%);
+  border: 2.5px solid #fff; outline: 3px solid #14263a;
+  box-shadow: 0 6px 0 #14263a, 0 13px 22px rgba(10,20,35,.45), inset 0 0 0 1.5px rgba(255,255,255,.14);
+  animation: riseIn .5s cubic-bezier(.22,1.35,.36,1) both;
+}
+.wf-hs-ic { font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
+.wf-hs-t { margin-top: 5px; font-size: 16.5px; font-weight: 800; color: #ffe9b8; text-shadow: 0 1.5px 0 rgba(0,0,0,.4); }
+.wf-hs-d { margin-top: 4px; font-size: 11.5px; font-weight: 700; color: #b8d0e8; line-height: 1.65; }
+.wf-hs-count {
+  display: inline-block; margin-top: 9px; font-size: 12px; font-weight: 800;
+  color: #8a6a3e; background: #ffe9b8; border: 2px solid #fff;
+  border-radius: 999px; padding: 4px 14px;
+  box-shadow: 0 2px 0 rgba(0,0,0,.35);
+}
+.wf-hs-count.ok { color: #1f5c10; background: #c8f0ac; }
+.lowfx .wf-hs-plate { animation: none; }
+
+/* waiting device slots — soft breathing placeholder */
+.wf-player.slot {
+  color: #b9a582; border-style: dashed; background: rgba(255,255,255,.35);
+}
+.wf-slot-ph {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 2.5px dashed #cdb488;
+  animation: wfSlotPulse 1.6s ease-in-out infinite alternate;
+}
+@keyframes wfSlotPulse { from { opacity: .45; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
+.lowfx .wf-slot-ph { animation: none; }
+
+/* ---------- عمو دانا walkthrough + rules ---------- */
+.wf-tut-veil {
+  position: absolute; inset: 0; z-index: 70;
+  display: flex; align-items: center; justify-content: center; padding: 18px;
+  background: rgba(28,18,6,.62);
+}
+.wf-tut-card {
+  width: min(92%, 350px); max-height: 92%; overflow-y: auto;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255,255,255,.55), rgba(255,255,255,0) 55%),
+    linear-gradient(180deg, #fdf3d8 0%, #f3e0b2 60%, #e9d29c 100%);
+  border: 2.5px solid #fff; outline: 3px solid #8a6a3e; border-radius: 24px;
+  padding: 16px 16px 15px; display: flex; flex-direction: column; gap: 9px;
+  box-shadow: 0 8px 0 #7a5a34, 0 18px 30px rgba(30,18,4,.4);
+  animation: riseIn .45s cubic-bezier(.22,1.35,.36,1) both;
+}
+.wf-tut-art {
+  align-self: center; width: 92px; height: 92px; border-radius: 50%;
+  background-size: cover; background-position: center top;
+  border: 3px solid #fff; outline: 3px solid #d9b26a;
+  box-shadow: 0 6px 14px rgba(90,50,0,.35);
+}
+.wf-tut-step {
+  align-self: center; font-size: 10.5px; font-weight: 800; color: #8a6a3e;
+  background: #fff7dd; border: 1.5px solid #dcc084; border-radius: 999px; padding: 3px 12px;
+}
+.wf-tut-t { text-align: center; font-size: 17.5px; font-weight: 800; color: #5d3a12; line-height: 1.4; }
+.wf-tut-d { text-align: center; font-size: 12.5px; font-weight: 700; color: #6b4a1e; line-height: 1.85; }
+.wf-tut-dots { display: flex; gap: 6px; justify-content: center; margin-top: 2px; }
+.wf-tut-dot {
+  width: 9px; height: 9px; border-radius: 50%; background: #d9c194;
+  border: 1.5px solid #b4965e; transition: transform .15s ease;
+}
+.wf-tut-dot.on { background: #ffb943; transform: scale(1.3); border-color: #8a6a3e; }
+.wf-tut-dot.done { background: #9ed482; }
+.wf-tut-btns { display: flex; gap: 8px; margin-top: 2px; }
+.wf-rules-list { display: flex; flex-direction: column; gap: 8px; }
+.wf-rule-row {
+  background: rgba(255,251,232,.85); border: 1.5px solid #dcc084;
+  border-radius: 14px; padding: 8px 11px;
+}
+.wf-rule-t { font-size: 13px; font-weight: 800; color: #5d3a12; }
+.wf-rule-d { margin-top: 2px; font-size: 11.5px; font-weight: 700; color: #6b4a1e; line-height: 1.7; }
+.lowfx .wf-tut-card { animation: none; }
+.lowfx .wf-tut-dot { transition: none; }
+
+/* ps-act green/blue variants used by the scanner + tutorial cards */
+.ps-act.go { background: linear-gradient(180deg,#8fe06a,#379c24); outline: 2px solid #2f8f1f; box-shadow: 0 4px 0 #2f8f1f; }
+.ps-act.start { background: linear-gradient(180deg,#7cc9ff,#2a83d8); outline: 2px solid #1b5da0; box-shadow: 0 4px 0 #1b5da0; }

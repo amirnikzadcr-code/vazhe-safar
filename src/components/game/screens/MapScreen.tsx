@@ -26,6 +26,7 @@ import { Save } from "@/game/core/save";
 import { faNum } from "@/game/core/utils";
 import { CHAPTERS } from "@/game/data/chapters";
 import { isDecoded, preloadImage } from "@/game/core/preload";
+import { isLowFx } from "@/game/core/perf";
 import { Audio } from "@/game/core/audio";
 import { lvPerCh, globalLevel } from "@/game/data/levelsIndex";
 
@@ -208,13 +209,17 @@ export function MapScreen({
     idle(() => { void preloadImage(realmSrc(ch)); });
     /* Y — warm THIS chapter's play backdrop + track too: entering a
      * level (map → play) then costs zero fetch/decode work, even on
-     * a fresh install where nothing is cached yet. */
+     * a fresh install where nothing is cached yet.
+     * v5 PERF: under .lowfx the audio decode warm is SKIPPED —
+     * decodeAudioData of a full OGG on the mount/flip frame was a
+     * visible hitch on weak phones; the track then decodes on the
+     * natural play call instead (one small beat, once). */
     idle(() => { void preloadImage(`/assets/bg/ch${String(ch).padStart(2, "0")}.webp`); });
-    idle(() => { Audio.preloadTrack(`ch${String(ch).padStart(2, "0")}`); });
+    if (!isLowFx()) idle(() => { Audio.preloadTrack(`ch${String(ch).padStart(2, "0")}`); });
     if (ch < CHAPTERS.length) {
       idle(() => { void preloadImage(realmSrc(ch + 1)); });
       idle(() => { void preloadImage(`/assets/bg/ch${String(ch + 1).padStart(2, "0")}.webp`); });
-      idle(() => { Audio.preloadTrack(`ch${String(ch + 1).padStart(2, "0")}`); });
+      if (!isLowFx()) idle(() => { Audio.preloadTrack(`ch${String(ch + 1).padStart(2, "0")}`); });
     }
     if (ch > 1) idle(() => { void preloadImage(realmSrc(ch - 1)); });
   }, [ch]);
@@ -229,8 +234,9 @@ export function MapScreen({
     void preloadImage(realmSrc(c));
     void preloadImage(`/assets/bg/ch${String(c).padStart(2, "0")}.webp`);
     /* Y — the track decodes alongside the art on the POINTERDOWN
-     * frame → a flip never starts a chapter with a silent/janky beat */
-    Audio.preloadTrack(`ch${String(c).padStart(2, "0")}`);
+     * frame → a flip never starts a chapter with a silent/janky beat
+     * (v5: skipped under .lowfx — same decode-on-play tradeoff) */
+    if (!isLowFx()) Audio.preloadTrack(`ch${String(c).padStart(2, "0")}`);
   };
 
   /* navigation */
@@ -336,8 +342,15 @@ export function MapScreen({
             const unlocked = unlockedCh && Save.levelUnlocked(ch, lv);
             const isCur = unlocked && lv === curLv;
             const done = !!rec;
+            /* v5 FIX (user: «اونیم ک نوشته شما اینجایید تداخل داره میره
+                زیر اون کادر نوشته های فصل»): the node wrapper sits at
+                z-15 — ABOVE the chapter banner (z-8) — so the
+                «شما اینجایید» pill and the current-node pulse always
+                paint OVER the banner instead of sliding under it.
+                (The tag's own z-index never mattered: this wrapper's
+                stacking context is what the banner used to beat.) */
             return (
-              <div key={lv} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", zIndex: 10 }}>
+              <div key={lv} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", zIndex: 15 }}>
                 {isCur && <span className="cur-tag">شما اینجایید</span>}
                 <button
                   type="button"
