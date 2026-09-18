@@ -351,12 +351,20 @@ for (const ch of CHAPTERS) {
  *  ney answers, Karplus oud murmurs, master LP 5.3 kHz / peak 0.7.
  *  Harmony is still bullet-proof drone practice (root+fifth+octave).
  *  Renders to menu6.ogg via scripts/render_menu_v6.py — seamless
- *  87.3s loop. menu5.ogg is DELETED. */
+ *  87.3s loop. menu5.ogg is DELETED.
+ *
+ * HH — LOBBY RE-SCORE (user: «موزیک صفحه اصلی رو مثل فصل‌هایی که
+ * تغییر دادیم بکن ولی مخصوص لابی»): the slow shur mood piece is RETIRED
+ * for the lobby. The new main-screen theme is the BRIGHT chapter
+ * family the user loved — luminous rast, dancing 6/8 daf, santur
+ * lead — with its OWN original melody (not a chapter clone) at a
+ * welcoming 108 BPM. Renders to lobby.ogg via scripts/render_lobby.py
+ * — seamless 13.3s loop, 48 kHz. menu6.ogg stays on disk unused. */
 export const MENU_MUSIC: MusicConfig & { scale: ScaleName } = {
-  track: "menu6", scale: "shur", root: 293.66, cents: [...SCALES.shur], bpm: 66, meter: 4,
-  perc: "none", lead: "santur", octave: 0, drone: 0.35,
-  motif: [[0,4],[3,2],[5,2],[7,3],[5,2],[3,2],[0,1],[10,4],[7,2],[5,2],[7,4],[5,2],[3,2],[8,3],[7,2],[5,3],[5,2],[3,2],[1,1],[0,3]],
-  motifB: [[8,2],[7,2],[5,2],[3,2],[3,2],[1,2],[0,4],[5,4],[7,2],[8,2],[10,3],[8,2],[7,3],[8,4],[7,2],[5,2],[7,2],[5,2],[3,2],[0,2]],
+  track: "lobby", scale: "rast", root: 329.63, cents: [...SCALES.rast], bpm: 108, meter: 6,
+  perc: "daf", lead: "santur", octave: 1, drone: 0.45,
+  motif: [[0,1],[1,0.5],[2,0.5],[3,1],[4,1],[3,0.5],[2,0.5],[4,1.5],[3,0.5],[5,1],[4,1],[2,1.5]],
+  motifB: [[7,1],[5,0.5],[4,0.5],[5,1],[3,1],[2,0.5],[3,0.5],[4,2],[0,1]],
 };
 
 /** بازی دورهمی — festive 6/8 rast, daf-driven party mood (renders to party.ogg) */

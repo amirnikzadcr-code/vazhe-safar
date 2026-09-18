@@ -31,7 +31,7 @@ import { GiftModal, SettingsModal, ExitConfirmModal } from "@/components/game/mo
 import { NameAskModal, ProfileModal } from "@/components/game/modals/ProfileModals";
 import { PartyScreen } from "@/components/game/screens/PartyScreen";
 import { ImgPool } from "@/components/game/ImgPool";
-import { startDeferredPreload } from "@/game/core/preload";
+import { startDeferredPreload, preloadImage } from "@/game/core/preload";
 import { startFpsGuard } from "@/game/core/perf";
 import { startStageScaler } from "@/game/core/stage";
 
@@ -238,8 +238,23 @@ export function GameApp() {
   /* ----- navigation helpers ----- */
   const boot = () => {
     /* v2.4 — chapter realm art + poses keep loading in the background
-     * AFTER the game is interactive (boot is never blocked by them) */
-    startDeferredPreload();
+     * AFTER the game is interactive (boot is never blocked by them).
+     * HH — but NOT in the same second as the first home paint: the
+     * deferred waves used to start immediately on boot and competed
+     * with the user's first taps (»وقتی برای اولین بار وارد بازی میشی
+     * لگیه«). A 1.6s grace lets the home screen settle first. */
+    setTimeout(() => { startDeferredPreload(); }, 1600);
+    /* HH — prewarm the player's CURRENT chapter (play backdrop + music
+     * OGG) during idle: the first map→play entry then paints and sings
+     * with zero decode stalls on weak phones. */
+    const warmCh = Save.data.last?.ch ?? 1;
+    const warm = () => {
+      void preloadImage(`/assets/bg/ch${String(warmCh).padStart(2, "0")}.webp`);
+      const m = CHAPTERS[warmCh - 1]?.music;
+      if (m?.track) Audio.preloadTrack(m.track);
+    };
+    if (typeof requestIdleCallback === "function") requestIdleCallback(warm, { timeout: 3000 });
+    else setTimeout(warm, 1400);
     const d = Save.data;
     const away = d.lastSeen > 0 && Date.now() - d.lastSeen > 4 * 3600_000;
     if (!d.profile.name) {

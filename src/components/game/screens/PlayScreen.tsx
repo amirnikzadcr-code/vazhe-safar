@@ -47,6 +47,27 @@ function cancelAnims(...els: (Element | null | undefined)[]): void {
   }
 }
 
+/* HH — SELF-RELEASING FX (user: «وقتی کلمه حدس میزنی یخورده لگ میزنه»):
+ * every one-shot WAAPI replay used to stay ALIVE forever with
+ * fill:"both" — ~24 dead animations + their reserved compositor
+ * layers piled up on EVERY guess and the WebView slowed progressively
+ * across a level. Every FX in this file ends at opacity:0 / scale(1)
+ * — exactly its base style — so cancelling on finish is visually a
+ * no-op while the GPU layer is freed immediately. The rejection path
+ * (a newer replay already cancelled us) is a harmless noop. */
+function replayFX(
+  el: Element | null | undefined,
+  kf: Keyframe[] | PropertyIndexedKeyframes,
+  opts: KeyframeAnimationOptions,
+): void {
+  if (!el || typeof el.animate !== "function") return;
+  let a: Animation;
+  try { a = el.animate(kf, opts); } catch { return; }
+  if (a.finished?.then) {
+    a.finished.then(() => { a.cancel(); }).catch(() => { /* superseded */ });
+  }
+}
+
 /* celebration duration BEFORE the word applies to the board (ms).
  * v2.1: was 1150 — the player read it as “the word applies too late”.
  * 550 keeps a juicy beat but feels instant. v1.20: 480 + the wheel no
@@ -389,10 +410,9 @@ export function PlayScreen({
     );
     const done = () => {
       chip.remove();
-      plate.animate(
-        [{ transform: "scale(1)" }, { transform: "scale(1.12)" }, { transform: "scale(1)" }],
-        { duration: 460, easing: "cubic-bezier(.2,1.6,.4,1)" },
-      );
+      replayFX(plate, [
+        { transform: "scale(1)" }, { transform: "scale(1.12)" }, { transform: "scale(1)" },
+      ], { duration: 460, easing: "cubic-bezier(.2,1.6,.4,1)" });
       Audio.sfxCoin();
     };
     if (typeof anim.finished?.then === "function") void anim.finished.then(done, done);
@@ -414,16 +434,14 @@ export function PlayScreen({
     for (const el of groups) {
       if (el.textContent !== word || typeof el.animate !== "function") continue;
       /* EE — a friendlier gold pulse: pop + a tiny happy tilt so the
-       * row visibly «greetings» the repeated guess (compositor only) */
-      el.animate(
-        [
-          { transform: "scale(1) rotate(0deg)" },
-          { transform: "scale(1.07) rotate(-1.2deg)", offset: 0.3 },
-          { transform: "scale(1.03) rotate(1deg)", offset: 0.62 },
-          { transform: "scale(1) rotate(0deg)" },
-        ],
-        { duration: 640, easing: "cubic-bezier(.3,1.4,.4,1)" },
-      );
+       * row visibly «greetings» the repeated guess (compositor only,
+       * HH: self-releasing — no dead animation left behind) */
+      replayFX(el, [
+        { transform: "scale(1) rotate(0deg)" },
+        { transform: "scale(1.07) rotate(-1.2deg)", offset: 0.3 },
+        { transform: "scale(1.03) rotate(1deg)", offset: 0.62 },
+        { transform: "scale(1) rotate(0deg)" },
+      ], { duration: 640, easing: "cubic-bezier(.3,1.4,.4,1)" });
       break;
     }
     showDup(word, "قبلاً ساختی!");
@@ -1096,12 +1114,13 @@ function replayWordBanner(root: HTMLElement): void {
   const starL = root.querySelector<HTMLElement>(".wb-star.l");
   const starR = root.querySelector<HTMLElement>(".wb-star.r");
   for (const el of [ribbon, starL, starR]) cancelAnims(el);
-  ribbon?.animate(KF_RIBBON, { duration: BANNER_MS, fill: "both" });
-  starL?.animate(KF_STAR_L, { duration: BANNER_MS, fill: "both" });
-  starR?.animate(KF_STAR_R, { duration: BANNER_MS, fill: "both" });
+  replayFX(ribbon, KF_RIBBON, { duration: BANNER_MS, fill: "both" });
+  replayFX(starL, KF_STAR_L, { duration: BANNER_MS, fill: "both" });
+  replayFX(starR, KF_STAR_R, { duration: BANNER_MS, fill: "both" });
   root.querySelectorAll<HTMLElement>(".wb-dust i").forEach((el, i) => {
     cancelAnims(el);
-    el.animate(
+    replayFX(
+      el,
       KF_DUST(el.style.getPropertyValue("--dx"), el.style.getPropertyValue("--dy")),
       { duration: 1500, delay: i * 55, easing: "ease-out", fill: "both" },
     );
@@ -1540,11 +1559,12 @@ const Wheel = memo(forwardRef(function Wheel({
       const ring = b.querySelector<HTMLElement>(".wb-ring");
       const flash = b.querySelector<HTMLElement>(".wb-flash");
       cancelAnims(ring, flash);
-      ring?.animate(KF_RING, { duration: 580, easing: "ease-out", fill: "both" });
-      flash?.animate(KF_FLASH, { duration: 400, easing: "ease-out", fill: "both" });
+      replayFX(ring, KF_RING, { duration: 580, easing: "ease-out", fill: "both" });
+      replayFX(flash, KF_FLASH, { duration: 400, easing: "ease-out", fill: "both" });
       b.querySelectorAll<HTMLElement>("i").forEach((el, i) => {
         cancelAnims(el);
-        el.animate(
+        replayFX(
+          el,
           KF_SPARK(el.style.getPropertyValue("--dx"), el.style.getPropertyValue("--dy")),
           { duration: 600, delay: i * 24, easing: "ease-out", fill: "both" },
         );
@@ -1553,7 +1573,7 @@ const Wheel = memo(forwardRef(function Wheel({
     const c = coinFxRef.current;
     if (c && showCoin && typeof c.animate === "function") {
       cancelAnims(c);
-      c.animate(KF_COIN, { duration: 620, easing: "ease-out", fill: "both" });
+      replayFX(c, KF_COIN, { duration: 620, easing: "ease-out", fill: "both" });
     }
   }, []);
   const endCelebrate = useCallback(() => {

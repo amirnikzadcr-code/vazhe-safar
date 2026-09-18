@@ -69,9 +69,15 @@ export function WelcomeScreen({
  *  • FONT GATE — the wordmark/character never paint in a fallback
  *    font: the splash waits for the preloaded Vazirmatn weights
  *    (bounded 2s so a stuck font never blocks boot);
- *  • BRANDING HOLD — minimum 1.7s so the screen is actually SEEN;
- *  • SMOOTH EXIT — the splash fades+scales out over ~420ms BEFORE the
- *    home screen mounts (no more instant jump «سریع میره تو بازی»). */
+ *  • BRANDING HOLD — minimum 800ms so the scene is SEEN without
+ *    wasting the user's time (HH: «لودینگ اولیه کند است» — the old
+ *    1.7s hold made boot feel sluggish on top of asset decoding);
+ *  • SMOOTH EXIT — the splash fades+scales out over ~330ms BEFORE the
+ *    home screen mounts (no more instant jump «سریع میره تو بازی»);
+ *  • HH — CLOUDS-OPEN ENTRANCE + floating letters: the sky visibly
+ *    blooms open on mount (staggered cloud pop) and luminous Persian
+ *    letters drift up through it — pure transform/opacity compositor
+ *    motion, frozen on the lowfx tier. */
 export function Splash({ onDone }: { onDone: () => void }) {
   const doneRef = useRef(onDone);
   const fillRef = useRef<HTMLDivElement>(null);
@@ -85,13 +91,13 @@ export function Splash({ onDone }: { onDone: () => void }) {
     let assetsDone = false;
     let fontsDone = false;
     const t0 = Date.now();
-    const MIN = 1700; /* branding hold — the splash is a scene, not a flash */
+    const MIN = 800; /* HH — branding hold, halved: scene is seen, boot stays snappy */
 
     const finish = () => {
       targetRef.current = 1;
       if (fillRef.current) fillRef.current.style.transform = "scaleX(1)";
-      setOut(true); /* 420ms fade+scale curtain, THEN the game mounts */
-      setTimeout(() => { doneRef.current(); }, 430);
+      setOut(true); /* 330ms fade+scale curtain, THEN the game mounts */
+      setTimeout(() => { doneRef.current(); }, 340);
     };
     const maybeFinish = () => {
       if (finished || !assetsDone || !fontsDone) return;
@@ -171,6 +177,25 @@ export function Splash({ onDone }: { onDone: () => void }) {
         <i className="clw c4"><b className="cl" /></i>
         <i className="clw c5"><b className="cl" /></i>
         <i className="clw c6"><b className="cl" /></i>
+      </div>
+
+      {/* HH — floating Persian letters drifting up through the sky
+           (transform/opacity only, lowfx-hidden) */}
+      <div className="sky-letters" aria-hidden>
+        {["ا", "ب", "پ", "ت", "س", "ک", "گ"].map((ch, i) => (
+          <b
+            key={i}
+            style={{
+              ["--x" as string]: `${9 + i * 12.5}%`,
+              ["--d" as string]: `${9.5 + (i % 3) * 2.2}s`,
+              ["--dl" as string]: `${i * 0.9}s`,
+              ["--sz" as string]: `${15 + (i % 3) * 7}px`,
+              ["--o" as string]: `${0.42 - (i % 3) * 0.07}`,
+            }}
+          >
+            {ch}
+          </b>
+        ))}
       </div>
 
       <div className="sky-hero">

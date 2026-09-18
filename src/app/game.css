@@ -2198,13 +2198,21 @@ body { background: #bfe7ff; }
 /* cloud PUFF — one element, five shading lobes via box-shadow:
  * painted once, then only transformed (compositor). */
 .sky-clouds { position: absolute; inset: 0; pointer-events: none; }
-.clw { position: absolute; left: 0; right: 0; height: 0; will-change: transform; }
-.clw.c1 { top: 9%;  transform: scale(1.18); }
-.clw.c2 { top: 21%; transform: scale(0.85); }
-.clw.c3 { top: 34%; transform: scale(1.02); }
-.clw.c4 { top: 55%; transform: scale(1.3); }
-.clw.c5 { top: 71%; transform: scale(0.78); }
-.clw.c6 { top: 86%; transform: scale(1.45); }
+/* HH — each layer carries its resting scale in --s so the ENTRANCE
+ * keyframe can bloom from a puff to the exact final size. */
+.clw { position: absolute; left: 0; right: 0; height: 0; will-change: transform;
+  transform: scale(var(--s, 1)); animation: cloudOpen .9s cubic-bezier(.22,1.35,.36,1) both; }
+.clw.c1 { top: 9%;  --s: 1.18; animation-delay: .05s; }
+.clw.c2 { top: 21%; --s: 0.85; animation-delay: .18s; }
+.clw.c3 { top: 34%; --s: 1.02; animation-delay: .11s; }
+.clw.c4 { top: 55%; --s: 1.3;  animation-delay: .24s; }
+.clw.c5 { top: 71%; --s: 0.78; animation-delay: .32s; }
+.clw.c6 { top: 86%; --s: 1.45; animation-delay: .4s; }
+@keyframes cloudOpen {
+  from { transform: scale(calc(var(--s, 1) * .35)) translateY(22px); opacity: 0; }
+  62%  { opacity: 1; }
+  to   { transform: scale(var(--s, 1)) translateY(0); opacity: 1; }
+}
 .cl {
   display: block; position: absolute; top: 0; left: 0;
   width: 150px; height: 44px; border-radius: 999px; background: #fff;
@@ -2218,12 +2226,14 @@ body { background: #bfe7ff; }
   animation: cloudDrift linear infinite;
   will-change: transform;
 }
-.clw.c1 .cl { animation-duration: 47s; animation-delay: -13s; }
-.clw.c2 .cl { animation-duration: 61s; animation-delay: -39s; opacity: .68; }
-.clw.c3 .cl { animation-duration: 41s; animation-delay: -26s; opacity: .55; }
-.clw.c4 .cl { animation-duration: 53s; animation-delay: -7s;  opacity: .85; }
-.clw.c5 .cl { animation-duration: 45s; animation-delay: -31s; opacity: .6; }
-.clw.c6 .cl { animation-duration: 64s; animation-delay: -50s; opacity: .78; }
+/* HH — livelier drift: the hold is now 800ms, so a 47-64s crawl read
+ * as «غیر انیمیشن طور». ~40% faster keeps the sky visibly alive. */
+.clw.c1 .cl { animation-duration: 30s; animation-delay: -9s; }
+.clw.c2 .cl { animation-duration: 38s; animation-delay: -24s; opacity: .68; }
+.clw.c3 .cl { animation-duration: 26s; animation-delay: -16s; opacity: .55; }
+.clw.c4 .cl { animation-duration: 33s; animation-delay: -5s;  opacity: .85; }
+.clw.c5 .cl { animation-duration: 28s; animation-delay: -20s; opacity: .6; }
+.clw.c6 .cl { animation-duration: 40s; animation-delay: -31s; opacity: .78; }
 @keyframes cloudDrift {
   from { transform: translateX(-36vw); }
   to   { transform: translateX(112vw); }
@@ -2256,8 +2266,26 @@ body { background: #bfe7ff; }
   position: absolute; bottom: 22px; color: #2b5d86; font-weight: 700;
   font-size: 13px; opacity: .85;
 }
+/* HH — floating Persian letters drifting up through the sky: soft,
+ * luminous, transform/opacity-only compositor motion. */
+.sky-letters { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.sky-letters b {
+  position: absolute; bottom: -8%; left: var(--x, 10%);
+  font-weight: 800; font-size: var(--sz, 20px); color: #3f7fb8;
+  opacity: 0; will-change: transform, opacity;
+  animation: letterFloat var(--d, 11s) linear var(--dl, 0s) infinite;
+}
+@keyframes letterFloat {
+  0%   { transform: translateY(0) translateX(0) rotate(-6deg); opacity: 0; }
+  12%  { opacity: var(--o, .4); }
+  50%  { transform: translateY(-46vh) translateX(10px) rotate(5deg); }
+  86%  { opacity: var(--o, .4); }
+  100% { transform: translateY(-92vh) translateX(-8px) rotate(-4deg); opacity: 0; }
+}
 /* fallback tier: freeze the loops (clouds rest mid-sky, still pretty) */
 .lowfx .sky-sun, .lowfx .cl, .lowfx .sky-hero { animation: none; }
+.lowfx .clw { animation: none; }
+.lowfx .sky-letters { display: none; }
 
 /* ---------- unified profile plate (HUD) — Y: compact, level chip is
    a STANDALONE inline badge (no longer docked on the avatar face) */
