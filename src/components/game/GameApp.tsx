@@ -33,6 +33,7 @@ import { PartyScreen } from "@/components/game/screens/PartyScreen";
 import { ImgPool } from "@/components/game/ImgPool";
 import { startDeferredPreload } from "@/game/core/preload";
 import { startFpsGuard } from "@/game/core/perf";
+import { startStageScaler } from "@/game/core/stage";
 
 type View =
   | { k: "splash" }
@@ -72,6 +73,7 @@ export function GameApp() {
   const [playKey, setPlayKey] = useState(0);
   const { toast, show } = useToast();
   const musicRef = useRef<string>("");
+  const musicTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewRef = useRef<View>(view);
   const modalRef = useRef<ModalKind>(modal);
   /* v2.0 — where to go back when leaving the shop (play / map
@@ -127,6 +129,9 @@ export function GameApp() {
     /* v3 — automatic low-power tier on weak phones (kills residual
      * decorative animations so the game NEVER lags) */
     startFpsGuard();
+    /* v7 — Unity-style canvas scaler: identical proportions on every
+     * phone (user: «سایز بندی گوشی‌های مختلف فرق داره») */
+    startStageScaler();
     return () => window.removeEventListener("pointerdown", resume);
   }, []);
 
@@ -134,6 +139,7 @@ export function GameApp() {
   useEffect(() => {
     if (view.k === "home") Save.markSeen();
   }, [view]);
+  useEffect(() => () => { if (musicTimerRef.current) clearTimeout(musicTimerRef.current); }, []);
 
   /* ----- music per SECTION (user: «موسیقی بساز برای هربخش») -----
    * • صفحه اصلی + منوها → warm menu theme (menu.ogg)
@@ -154,8 +160,19 @@ export function GameApp() {
     if (!cfg) return;
     if (musicRef.current !== key) {
       musicRef.current = key;
-      Audio.setMusicConfig(cfg);
-      Audio.startMusic(cfg);
+      /* v7 PERF — the section-switch frame is the most expensive frame
+       * in the game (whole screen remount). setMusicConfig→playTrack
+       * fetch+decode the OGG ON that frame (the APK's lowfx tier skips
+       * the idle pre-warm, so the decode always landed here) and froze
+       * weak phones on EVERY page switch. Defer the whole swap a beat —
+       * the screen paints first, the track fades in ~0.4s later (a
+       * natural crossfade beat). */
+      if (musicTimerRef.current) clearTimeout(musicTimerRef.current);
+      musicTimerRef.current = setTimeout(() => {
+        musicTimerRef.current = null;
+        Audio.setMusicConfig(cfg);
+        Audio.startMusic(cfg);
+      }, 400);
     }
   }, [view]);
 

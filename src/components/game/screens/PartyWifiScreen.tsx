@@ -32,6 +32,7 @@ import {
   PartyNet, NetState, NetReview,
   NetPlayer, isLanTransport,
 } from "@/game/net/partyNet";
+import { stageZoom } from "@/game/core/stage";
 
 type UiPhase = "menu" | "lobby" | "round" | "review" | "over";
 
@@ -478,8 +479,9 @@ function WifiMenu({
                     <span className="wf-radar-dot" />
                   </div>
                   <div className="wf-scan-d" style={{ textAlign: "center" }}>
-                    اگر پیدا نشد: مطمئن شو وای‌فای تو روشنه و به هات‌اسپات میزبان وصلی،
-                    بعد دوباره تلاش کن.
+                    اول امواج وای‌فای، بعد پویش کامل شبکه — تا چند ثانیه طول می‌کشد.
+                    <br />
+                    اگر پیدا نشد: مطمئن شو وای‌فای تو روشنه و به هات‌اسپات میزبان وصلی، بعد دوباره تلاش کن.
                   </div>
                   <button type="button" className="wf-scan-cancel"
                     onClick={() => { scanRef.current++; Audio.sfxClick(); setGuest(null); }}>
@@ -628,6 +630,14 @@ function WifiLobby({
             <span className={`wf-hs-count ${canStart ? "ok" : ""}`}>
               {faNum(state.players.length)} دستگاه وصل شد
             </span>
+            {/* v7 — the host's #1 trip-up is a hotspot that never got
+                turned on: put the settings shortcut right here */}
+            {amHost && !canStart && (
+              <button type="button" className="wf-hs-btn"
+                onClick={() => { Audio.sfxClick(); void PartyNet.openWifiSettings?.(); }}>
+                📡 روشن کردن نقطه اتصال
+              </button>
+            )}
           </div>
         ) : (
           <div className="wf-code-plate rise-in">
@@ -855,6 +865,8 @@ function WifiRing({
   const centersRef = useRef<{ i: number; x: number; y: number }[]>([]);
   const dragRef = useRef(false);
   const strokeRef = useRef({ x: 0, y: 0, t: 0, moved: false });
+  /* v7 — full coalesced pointer trail (same as the main Wheel) */
+  const trailRef = useRef<{ x: number; y: number }[]>([]);
   const auraRef = useRef<SVGPolylineElement | null>(null);
   const coreRef = useRef<SVGPolylineElement | null>(null);
   const shineRef = useRef<SVGPolylineElement | null>(null);
@@ -871,15 +883,19 @@ function WifiRing({
     const ring = ringRef.current!;
     const r = ring.getBoundingClientRect();
     rectRef.current = r;
+    let tilePx = 46 * stageZoom(); /* design fallback → real px */
     const els = ring.querySelectorAll<HTMLElement>(".pw-tile");
     centersRef.current = Array.from(els).map((el) => {
       const b = el.getBoundingClientRect();
+      if (b.width > 0) tilePx = b.width;
       return { i: Number(el.dataset.i), x: b.left + b.width / 2 - r.left, y: b.top + b.height / 2 - r.top };
     });
     const ringR = 0.38 * r.width;
     const n = Math.max(3, centersRef.current.length);
     const clear = ringR * (1 - Math.cos((2 * Math.PI) / n));
-    catchRRef.current = Math.max(14, Math.min(19.3, clear * 0.85));
+    /* v7 — the old cap (19.3px) made catches feel «hard» — size the
+     * catch to the real tile and keep the pass-through clearance */
+    catchRRef.current = Math.max(18, Math.min(tilePx * 0.52, clear * 0.92));
   };
 
   const paintLine = () => {
@@ -923,42 +939,57 @@ function WifiRing({
     return true;
   };
 
+  /* v7 — CATCH THE WHOLE STROKE (mirrors the main Wheel): one frame
+   * can register a whole run of tiles IN ORDER, so fast strokes never
+   * skip seats or feel sticky (Word-Cookies catch). */
   const catchUpTo = (pt: { x: number; y: number } | null) => {
     if (!dragRef.current || !pt) return;
     const from = prevPtRef.current ?? pt;
     if (Math.hypot(pt.x - from.x, pt.y - from.y) < 3) { prevPtRef.current = pt; return; }
     const T = catchRRef.current * catchRRef.current;
-    let best: number | null = null;
-    let bestD = T;
-    const cur = selRef.current;
-    for (const c of centersRef.current) {
-      if (cur.includes(c.i)) continue;
-      const d = distToSeg(c.x, c.y, from.x, from.y, pt.x, pt.y);
-      if (d * d < bestD) { bestD = d * d; best = c.i; }
+    let played = false;
+    for (let guard = 0; guard < 14; guard++) {
+      const cur = selRef.current;
+      const seg = prevPtRef.current ?? pt;
+      let best: number | null = null;
+      let bestD = T;
+      for (const c of centersRef.current) {
+        if (cur.includes(c.i)) continue;
+        const d = distToSeg(c.x, c.y, seg.x, seg.y, pt.x, pt.y);
+        if (d * d < bestD) { bestD = d * d; best = c.i; }
+      }
+      if (best === null) break;
+      if (!played) { Audio.sfxLetter(selRef.current.length % 3); played = true; }
+      addToSel(best);
+      const c = centersRef.current.find((c) => c.i === best)!;
+      tipCurRef.current = { x: c.x, y: c.y };
+      prevPtRef.current = { x: c.x, y: c.y };
+      const el = ringRef.current?.querySelector<HTMLElement>(`.pw-tile[data-i="${best}"]`);
+      if (el && typeof el.animate === "function") {
+        el.animate(
+          [{ transform: "translate(-50%,-50%) scale(1.26)" }, { transform: "translate(-50%,-50%) scale(1.07)" }],
+          { duration: 200, easing: "cubic-bezier(.2,1.6,.4,1)" },
+        );
+      }
+      if (Math.abs(pt.x - c.x) < 1 && Math.abs(pt.y - c.y) < 1) break;
     }
-    if (best === null) { prevPtRef.current = pt; return; }
-    addToSel(best);
-    const c = centersRef.current.find((c) => c.i === best)!;
-    tipCurRef.current = { x: c.x, y: c.y };
-    prevPtRef.current = { x: c.x, y: c.y };
-    const el = ringRef.current?.querySelector<HTMLElement>(`.pw-tile[data-i="${best}"]`);
-    if (el && typeof el.animate === "function") {
-      el.animate(
-        [{ transform: "translate(-50%,-50%) scale(1.26)" }, { transform: "translate(-50%,-50%) scale(1.07)" }],
-        { duration: 200, easing: "cubic-bezier(.2,1.6,.4,1)" },
-      );
-    }
+    prevPtRef.current = pt;
   };
 
   const tick = () => {
+    /* v7 — consume the coalesced trail IN ORDER before the lerp */
+    const trail = trailRef.current;
+    if (trail.length > 0) {
+      if (dragRef.current) for (const pt of trail) catchUpTo(pt);
+      trail.length = 0;
+    }
     const tipT = tipTargetRef.current;
     const tipC = tipCurRef.current;
     if (tipT && tipC) {
-      tipC.x += (tipT.x - tipC.x) * 0.32;
-      tipC.y += (tipT.y - tipC.y) * 0.32;
+      tipC.x += (tipT.x - tipC.x) * 0.42;
+      tipC.y += (tipT.y - tipC.y) * 0.42;
       if (Math.abs(tipT.x - tipC.x) < 0.5 && Math.abs(tipT.y - tipC.y) < 0.5) { tipC.x = tipT.x; tipC.y = tipT.y; }
     }
-    catchUpTo(lastPtRef.current);
     paintLine();
     const settled = !dragRef.current && tipT && tipC && tipT.x === tipC.x && tipT.y === tipC.y;
     if (settled) { rafRef.current = 0; return; }
@@ -1032,13 +1063,29 @@ function WifiRing({
     if (!r) return;
     const st = strokeRef.current;
     if (Math.hypot(e.clientX - st.x, e.clientY - st.y) > 6) st.moved = true;
+    /* v7 — record every coalesced sample; the tick catches along the
+     * true path so quick curved strokes never cut a corner */
+    const nat = e.nativeEvent as PointerEvent;
+    let evs: PointerEvent[] | null = null;
+    try { evs = typeof nat.getCoalescedEvents === "function" ? nat.getCoalescedEvents() : null; } catch { evs = null; }
+    if (evs && evs.length > 1) {
+      for (const ce of evs) trailRef.current.push({ x: ce.clientX - r.left, y: ce.clientY - r.top });
+    }
     const lx = e.clientX - r.left, ly = e.clientY - r.top;
+    trailRef.current.push({ x: lx, y: ly });
     tipTargetRef.current = { x: lx, y: ly };
     lastPtRef.current = { x: lx, y: ly };
     ensureRaf();
   };
   const ringUp = () => {
     if (!dragRef.current) return;
+    /* v7 — flush the trail first: a fast stroke ending between two
+     * frames still registers every seat it passed */
+    const trail = trailRef.current;
+    if (trail.length > 0) {
+      for (const pt of trail) catchUpTo(pt);
+      trail.length = 0;
+    }
     catchUpTo(lastPtRef.current);
     dragRef.current = false;
     ringRef.current?.classList.remove("dragging");
@@ -1275,17 +1322,17 @@ function WifiOver({
 const TUT_STEPS: { t: string; d: string; art: string }[] = [
   {
     t: "سلام! من عمو دانام 👋",
-    d: "این بازی دورهمیِ وای‌فای اینترنتی نمی‌خواد! همه با وای‌فایِ گوشیِ هم به هم وصل می‌شن و روی یک گوشی بازی می‌کنن.",
+    d: "این بازی دورهمی اینترنتی نمی‌خواد! هر کدوم با گوشی خودتون بازی می‌کنید و فقط وای‌فایِ گوشی‌ها به هم وصل می‌شه.",
     art: "/assets/char/hello.webp",
   },
   {
     t: "قدم ۱ — میزبان اتاق رو می‌سازه",
-    d: "یک نفر «میزبان باش» رو می‌زنه و بعد نقطه اتصال (هات‌اسپات) گوشیش رو از تنظیمات وای‌فای روشن می‌کنه. اتاق بازی روی همین گوشی ساخته می‌شه.",
+    d: "یک نفر «میزبان باش» رو می‌زنه و نقطه اتصال (هات‌اسپات) گوشیش رو روشن می‌کنه. اتاق بازی روی همین گوشی ساخته می‌شه و هات‌اسپات باید روشن بمونه.",
     art: "/assets/char/point.webp",
   },
   {
     t: "قدم ۲ — دوستان وصل می‌شن",
-    d: "بقیه «مهمون باش» رو می‌زنن، از تنظیمات وای‌فای به هات‌اسپات میزبان وصل می‌شن — بازی خودش میزبان رو پیدا می‌کنه و اسمشون میاد تو لیست دستگاه‌ها.",
+    d: "بقیه «مهمون باش» رو می‌زنن، از تنظیمات وای‌فای به هات‌اسپات میزبان وصل می‌شن — بازی خودش میزبان رو پیدا می‌کنه. اگر پیدا نشد: چک کن وای‌فای‌ت روشنه و هنوز به هات‌اسپات میزبان وصلی، بعد دوباره تلاش کن.",
     art: "/assets/char/thumb.webp",
   },
   {

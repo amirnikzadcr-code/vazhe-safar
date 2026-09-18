@@ -246,7 +246,11 @@ class LanPartyNet {
       this.role = "guest";
       const found = await this.findHost();
       if (!found) { this.lastError = "میزبان پیدا نشد — مطمئن شو به هات‌اسپات میزبان وصلی"; return { ok: false }; }
-      /* the fallback path may have ALREADY opened the socket */
+      /* v7 — the discovery fallback may have ALREADY opened the socket,
+       * and a connect() to the SAME host now resolves inside the plugin
+       * instead of rejecting (the old «already connected» reject made
+       * the join flow race its own live link and report a failure that
+       * was not one). Every path below waits for net:up calmly. */
       if (!this.linkUp) {
         try {
           await LanLink.connect({ host: found.ip, port: found.port });
@@ -276,13 +280,15 @@ class LanPartyNet {
   }
 
   private async findHost(): Promise<{ ip: string; port: number } | null> {
-    /* 3 discovery rounds — first via UDP broadcast, then direct pokes
-     * at the classic hotspot gateways (some ROMs block broadcast rx) */
-    for (let attempt = 0; attempt < 3; attempt++) {
+    /* v7 — two tuned rounds (the plugin's discoverHost now combines the
+     * UDP broadcast AND a subnet sweep in one call). Worst case ≈10s
+     * with useful work at every step, instead of the old 3×(3.5+3.5)s
+     * stall that read as «هیچی نمی‌شه». */
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const r = await LanLink.discoverHost({ timeoutMs: 3500 });
+        const r = await LanLink.discoverHost({ timeoutMs: attempt === 0 ? 3500 : 1800 });
         if (r?.ip) return { ip: r.ip, port: r.port ?? 48765 };
-      } catch { /* fall through */ }
+      } catch { /* fall through to the direct pokes */ }
       for (const ip of FALLBACK_HOSTS) {
         try {
           await LanLink.connect({ host: ip, port: 48765 });

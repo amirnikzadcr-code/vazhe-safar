@@ -1037,8 +1037,13 @@ button:active { transition-duration: .05s; }
    settle + a lazy idle sway. The two layered transforms are separated
    (outer = entrance, inner = sway) so they never fight. Transform +
    opacity only; everything sheds under .lowfx. */
+/* chapter banner — v7 OVERLAP FIX (user: «بالا عدد فصل تداخل داره با
+ * بالای صفحه»): the medal pokes 22px ABOVE the plate — at top:10px its
+ * upper half crossed the scene's top edge (clipped by overflow:hidden)
+ * and collided with the map top bar. The banner now starts 30px into
+ * the scene: the medal is fully inside, clear of the top bar. */
 .ch-banner {
-  position: absolute; top: 10px; left: 50%;
+  position: absolute; top: 30px; left: 50%;
   /* v5 FIX: z 12 → 8. The «شما اینجایید» node wrapper is z-15, so the
    * badge and the current-node pulse now paint OVER the banner
    * instead of sliding underneath it (user-reported overlap). */
@@ -1073,7 +1078,7 @@ button:active { transition-duration: .05s; }
   pointer-events: none;
 }
 .cb-medal {
-  position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
   width: 42px; height: 42px; border-radius: 999px;
   display: flex; align-items: center; justify-content: center;
   background: radial-gradient(circle at 36% 30%, #fff3b8, #ffd76e 55%, #eda32a);
@@ -1275,6 +1280,10 @@ button:active { transition-duration: .05s; }
   padding: 2px 10px; border-radius: 999px; white-space: nowrap;
   box-shadow: 0 3px 0 #dcb87a, 0 6px 10px rgba(0,0,0,.25); z-index: 13;
 }
+/* v7 — first-row nodes sit directly under the chapter banner: their
+ * «شما اینجایید» tag flips BELOW the node so it can never tangle with
+ * the banner plate on any screen height (user-reported overlap). */
+.cur-tag.below { bottom: auto; top: 46px; }
 
 /* dotted stone trail between level nodes (static decoration, zero cost) */
 .path-stone {
@@ -2328,7 +2337,13 @@ body { background: #5cb2ef; }
 .lowfx .prof-xpbar > i,
 .lowfx .plate-xpbar > i { transition: none !important; }
 .lowfx .page-enter.fwd,
-.lowfx .page-enter.back { animation: none !important; }
+.lowfx .page-enter.back { animation: pageFadeSoft .14s ease both !important; }
+/* v7 — the screen-swap frame IS expensive (whole screen mounts); the
+ * old v5 “no animation at all” made that cost visible as a silent
+ * frozen hitch («سوئیچ بین صفحات ب شدت لگ داره»). A 140ms opacity-only
+ * fade is nearly free (compositor) and turns the same work into a
+ * soft beat — masking the mount instead of exposing it. */
+@keyframes pageFadeSoft { from { opacity: 0; } to { opacity: 1; } }
 /* v1.19 — paged-map + celebration opt-outs for weak phones */
 .lowfx .ch-scene.in-fwd,
 .lowfx .ch-scene.in-back { animation: none !important; }
@@ -3472,3 +3487,51 @@ img { -webkit-user-drag: none; }
 /* ps-act green/blue variants used by the scanner + tutorial cards */
 .ps-act.go { background: linear-gradient(180deg,#8fe06a,#379c24); outline: 2px solid #2f8f1f; box-shadow: 0 4px 0 #2f8f1f; }
 .ps-act.start { background: linear-gradient(180deg,#7cc9ff,#2a83d8); outline: 2px solid #1b5da0; box-shadow: 0 4px 0 #1b5da0; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v7 PERF — TIER-3 SHADOW DIET (APK default tier; html.lowfx is forced
+   natively at boot). Blurred box-shadows + text-shadows are the most
+   expensive paint primitives left on the WebView's single rendering
+   thread: every .sel toggle, catch pop, board fill, timer tick and
+   score bump re-rasterizes them. The diet KEEPS the chunky hard offset
+   shadows (the «toy 3D» look, zero blur radius = cheap) and drops only
+   the blurry glow parts + all text shadows. Visual delta: minimal.
+   Frame time on weak GPUs: substantially lower.
+   ═══════════════════════════════════════════════════════════════════ */
+.lowfx * { text-shadow: none !important; }
+.lowfx .tile { box-shadow: 0 3.5px 0 #c9a35e; }
+.lowfx .wheel-wood { box-shadow: 0 10px 0 rgba(95,58,20,.42); }
+.lowfx .wheel-hub { box-shadow: 0 4px 0 #b47708; }
+.lowfx .wtile { box-shadow: 0 2.5px 0 var(--tile-shadow,#d9b87a) !important; }
+.lowfx .wtile.empty { box-shadow: inset 0 2px 0 rgba(120,80,20,.22) !important; }
+.lowfx .pw-tile { box-shadow: 0 4px 0 #8a5a2e; }
+.lowfx .b3 { box-shadow: inset 0 2px 1px rgba(255,255,255,.7), 0 5px 0 var(--b3-edge,#1d7c33) !important; }
+.lowfx .b3:active { box-shadow: 0 1px 0 var(--b3-edge,#1d7c33) !important; }
+.lowfx .panel { box-shadow: 0 7px 0 var(--panel-shadow,#d9bd85) !important; }
+.lowfx .map-node { box-shadow: 0 5px 0 #2c3a48 !important; }
+.lowfx .map-node.open { box-shadow: 0 5px 0 var(--acc-dk,#2f7a30) !important; }
+.lowfx .ch-arrow { box-shadow: 0 5px 0 #b47708 !important; }
+.lowfx .ch-arrow.locked { box-shadow: 0 5px 0 #4a5560 !important; }
+.lowfx .cb-plate { box-shadow: 0 6px 0 #7a5a34 !important; }
+.lowfx .cb-medal { box-shadow: 0 4px 0 #a06508 !important; }
+.lowfx .map-back { box-shadow: 0 4px 0 #6b4218 !important; }
+.lowfx .guess-strip { box-shadow: 0 5px 0 rgba(122,74,0,.35) !important; }
+.lowfx .hud-avatar-wrap { filter: none !important; }
+.lowfx .guide-avatar { box-shadow: 0 4px 0 rgba(122,74,0,.45) !important; }
+.lowfx .fab-hint, .lowfx .fab-shuffle { box-shadow: 0 4px 0 rgba(95,58,20,.45) !important; }
+.lowfx .coinpill, .lowfx .chip { box-shadow: 0 3px 0 rgba(95,58,20,.4) !important; }
+.lowfx .lvl-banner, .lowfx .sheet-title { box-shadow: 0 4px 0 rgba(95,58,20,.4) !important; }
+.lowfx button { transition-property: transform, opacity; }
+
+/* v7 — host lobby: one-tap hotspot settings shortcut */
+.wf-hs-btn {
+  display: block; margin: 10px auto 0; cursor: pointer;
+  border: 2px solid #fff; outline: 2px solid #b47708; border-radius: 999px;
+  background: linear-gradient(180deg, #ffe08a, #f0a92c);
+  color: #5d3a12; font-family: inherit; font-weight: 800; font-size: 13.5px;
+  padding: 8px 20px; box-shadow: 0 3px 0 #b47708;
+  animation: hsPulse 1.6s ease-in-out infinite alternate;
+}
+.wf-hs-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b47708; }
+@keyframes hsPulse { from { transform: scale(1); } to { transform: scale(1.05); } }
+.lowfx .wf-hs-btn { animation: none !important; }

@@ -26,7 +26,6 @@ import { Save } from "@/game/core/save";
 import { faNum } from "@/game/core/utils";
 import { CHAPTERS } from "@/game/data/chapters";
 import { isDecoded, preloadImage } from "@/game/core/preload";
-import { isLowFx } from "@/game/core/perf";
 import { Audio } from "@/game/core/audio";
 import { lvPerCh, globalLevel } from "@/game/data/levelsIndex";
 
@@ -52,7 +51,9 @@ export function nodePos(lv: number, total: number): { x: number; y: number } {
   const second = (lv - 1) % 2 === 1;
   const evenRow = row % 2 === 0;
   const x = evenRow ? (second ? COL_X.r : COL_X.l) : (second ? COL_X.l : COL_X.r);
-  const top = 30, bottom = 93;
+  /* v7 — top 30→33: the chapter banner grew a clearance zone (medal fix),
+   * the first node row keeps its distance from it on short screens */
+  const top = 33, bottom = 93;
   const y = rows === 1 ? top : top + ((bottom - top) * row) / (rows - 1);
   return { x, y };
 }
@@ -210,16 +211,16 @@ export function MapScreen({
     /* Y — warm THIS chapter's play backdrop + track too: entering a
      * level (map → play) then costs zero fetch/decode work, even on
      * a fresh install where nothing is cached yet.
-     * v5 PERF: under .lowfx the audio decode warm is SKIPPED —
-     * decodeAudioData of a full OGG on the mount/flip frame was a
-     * visible hitch on weak phones; the track then decodes on the
-     * natural play call instead (one small beat, once). */
+     * v7 PERF — the v5 lowfx skip was WRONG: it pushed the track decode
+     * onto the actual navigation frame (the most expensive frame there
+     * is) and froze weak APK phones on every page switch. Idle-time
+     * decode costs nothing — always warm. */
     idle(() => { void preloadImage(`/assets/bg/ch${String(ch).padStart(2, "0")}.webp`); });
-    if (!isLowFx()) idle(() => { Audio.preloadTrack(`ch${String(ch).padStart(2, "0")}`); });
+    idle(() => { Audio.preloadTrack(`ch${String(ch).padStart(2, "0")}`); });
     if (ch < CHAPTERS.length) {
       idle(() => { void preloadImage(realmSrc(ch + 1)); });
       idle(() => { void preloadImage(`/assets/bg/ch${String(ch + 1).padStart(2, "0")}.webp`); });
-      if (!isLowFx()) idle(() => { Audio.preloadTrack(`ch${String(ch + 1).padStart(2, "0")}`); });
+      idle(() => { Audio.preloadTrack(`ch${String(ch + 1).padStart(2, "0")}`); });
     }
     if (ch > 1) idle(() => { void preloadImage(realmSrc(ch - 1)); });
   }, [ch]);
@@ -235,8 +236,9 @@ export function MapScreen({
     void preloadImage(`/assets/bg/ch${String(c).padStart(2, "0")}.webp`);
     /* Y — the track decodes alongside the art on the POINTERDOWN
      * frame → a flip never starts a chapter with a silent/janky beat
-     * (v5: skipped under .lowfx — same decode-on-play tradeoff) */
-    if (!isLowFx()) Audio.preloadTrack(`ch${String(c).padStart(2, "0")}`);
+     * (v7: always — pointerdown-time work is invisible, nav-frame work
+     * is the «لگ» the user feels) */
+    Audio.preloadTrack(`ch${String(c).padStart(2, "0")}`);
   };
 
   /* navigation */
@@ -351,7 +353,9 @@ export function MapScreen({
                 stacking context is what the banner used to beat.) */
             return (
               <div key={lv} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", zIndex: 15 }}>
-                {isCur && <span className="cur-tag">شما اینجایید</span>}
+                {/* v7 — first-row nodes render the tag BELOW the node:
+                    it can never tangle with the chapter banner above */}
+                {isCur && <span className={`cur-tag ${Math.floor((lv - 1) / 2) === 0 ? "below" : ""}`}>شما اینجایید</span>}
                 <button
                   type="button"
                   disabled={!unlocked}

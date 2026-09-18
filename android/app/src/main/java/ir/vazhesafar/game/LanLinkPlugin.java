@@ -18,16 +18,19 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Enumeration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * LanLink — دورهمی WiFi over a phone HOTSPOT (no internet, no server).
@@ -38,9 +41,26 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   HOST  = the phone whose hotspot everyone joins. startHost() opens
  *           a TCP ServerSocket (game protocol: newline-delimited JSON)
  *           plus a UDP responder that answers discovery broadcasts.
- *   GUEST = connect()s to the host (IP found via discoverHost UDP
- *           broadcast, or a direct fallback IP), then speaks the same
- *           newline-JSON line protocol.
+ *   GUEST = connect()s to the host (IP found via discoverHost: UDP
+ *           broadcast → v7 SUBNET TCP SCAN → direct fallback IP), then
+ *           speaks the same newline-JSON line protocol.
+ *
+ * v7 BUG-FIX ROUND (user: «قسمت دورهمی نقطه اتصال درست کار نمیکنه،
+ * پر باگه»):
+ *   1. discoverHost no longer NPEs when called before any host/connect
+ *      call created the executor (guests hit exactly this path → the
+ *      JS promise never settled → «هیچ اتفاقی نمی‌افته»).
+ *   2. discoverHost now ALSO sweeps the device's own /24 subnet for
+ *      the game TCP port — modern ROMs randomize the hotspot subnet
+ *      (192.168.x.1), the old UDP/192.168.43.1-only discovery missed
+ *      them entirely.
+ *   3. startHost walks a small port range when 48765 is busy (a stale
+ *      previous session no longer bricks room creation) and reports
+ *      the ACTUAL bound port back to JS.
+ *   4. connect() to the SAME host:port while already linked now
+ *      RESOLVES instead of rejecting — the join flow could race its
+ *      own live socket and report a failure that wasn't one.
+ *   5. openWifiSettings opens the TETHER (hotspot) panel first.
  *
  * The plugin is transport-DUMB: it moves UTF-8 text lines and reports
  * lifecycle events. ALL game logic (rooms, roster, word claims) lives
@@ -71,7 +91,16 @@ public class LanLinkPlugin extends Plugin {
     private DatagramSocket udpSocket;
     private WifiManager.MulticastLock multicastLock;
     private ExecutorService pool;
+    private volatile String lastHost = null;
+    private volatile int lastPort = -1;
     private final Map<String, PrintWriter> writers = new ConcurrentHashMap<>();
+
+    /** lazily-created executor — v7 fix: EVERY method may be the first
+     * user of the pool (guests call discoverHost before anything else) */
+    private synchronized ExecutorService exec() {
+        if (pool == null) pool = Executors.newCachedThreadPool();
+        return pool;
+    }
 
     /* ------------------------------------------------------------------
      * HOST
@@ -80,31 +109,39 @@ public class LanLinkPlugin extends Plugin {
     @PluginMethod
     public void startHost(PluginCall call) {
         if (hosting.get()) { call.resolve(); return; }
-        int port = call.getInt("port", DEFAULT_TCP_PORT);
-        pool = Executors.newCachedThreadPool();
-        try {
-            acquireMulticastLock();
-            hosting.set(true);
-            final int tcpPort = port;
-            pool.execute(() -> runUdpResponder(tcpPort));
-            pool.execute(() -> runTcpServer(tcpPort, call));
-        } catch (Exception e) {
-            hosting.set(false);
-            call.reject("startHost failed: " + e.getMessage());
-        }
+        exec();
+        acquireMulticastLock();
+        hosting.set(true);
+        pool.execute(() -> runTcpServer(call.getInt("port", DEFAULT_TCP_PORT), call));
     }
 
     private void runTcpServer(int port, PluginCall call) {
         try {
-            serverSocket = new ServerSocket();
-            serverSocket.setReuseAddress(true);
-            serverSocket.bind(new InetSocketAddress(port));
+            ServerSocket ss = new ServerSocket();
+            ss.setReuseAddress(true);
+            /* v7 — bind with a small port walk: a lingering previous
+             * session (or another app) on 48765 must not brick the room */
+            int bound = -1;
+            for (int i = 0; i < 12; i++) {
+                try { ss.bind(new InetSocketAddress(port + i)); bound = port + i; break; }
+                catch (Exception e) { /* next port */ }
+            }
+            if (bound < 0) {
+                try { ss.close(); } catch (Exception ignored) {}
+                hosting.set(false);
+                call.reject("no port available");
+                return;
+            }
+            serverSocket = ss;
             JSObject ready = new JSObject();
-            ready.put("port", port);
+            ready.put("port", bound);
             notifyListeners("hostReady", ready);
-            call.resolve();
-            while (hosting.get() && !serverSocket.isClosed()) {
-                final Socket s = serverSocket.accept();
+            JSObject out = new JSObject();
+            out.put("port", bound);
+            call.resolve(out);
+            pool.execute(() -> runUdpResponder(bound));
+            while (hosting.get() && !ss.isClosed()) {
+                final Socket s = ss.accept();
                 final String id = "p" + nextId.getAndIncrement();
                 s.setTcpNoDelay(true);
                 PrintWriter w = new PrintWriter(new OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8), true);
@@ -139,19 +176,20 @@ public class LanLinkPlugin extends Plugin {
     /** answer discovery broadcasts so guests can find this hotspot's boss */
     private void runUdpResponder(final int tcpPort) {
         try {
-            udpSocket = new DatagramSocket(null);
-            udpSocket.setReuseAddress(true);
-            udpSocket.setBroadcast(true);
-            udpSocket.bind(new InetSocketAddress(UDP_PORT));
+            DatagramSocket us = new DatagramSocket(null);
+            us.setReuseAddress(true);
+            us.setBroadcast(true);
+            us.bind(new InetSocketAddress(UDP_PORT));
+            udpSocket = us;
             byte[] buf = new byte[64];
-            while (hosting.get() && !udpSocket.isClosed()) {
+            while (hosting.get() && !us.isClosed()) {
                 DatagramPacket pkt = new DatagramPacket(buf, buf.length);
-                udpSocket.receive(pkt);
+                us.receive(pkt);
                 String msg = new String(pkt.getData(), 0, pkt.getLength(), StandardCharsets.UTF_8).trim();
                 if (!PING.equals(msg)) continue;
                 byte[] pong = (PONG_PREFIX + tcpPort).getBytes(StandardCharsets.UTF_8);
                 DatagramPacket res = new DatagramPacket(pong, pong.length, pkt.getAddress(), pkt.getPort());
-                udpSocket.send(res);
+                us.send(res);
             }
         } catch (Exception ignored) { /* responder dies with the host */ }
     }
@@ -163,60 +201,147 @@ public class LanLinkPlugin extends Plugin {
     @PluginMethod
     public void discoverHost(final PluginCall call) {
         final int timeout = call.getInt("timeoutMs", 4000);
+        exec();
         pool.execute(() -> {
-            DatagramSocket ds = null;
-            try {
-                acquireMulticastLock();
-                ds = new DatagramSocket();
-                ds.setSoTimeout(600);
-                ds.setBroadcast(true);
-                byte[] ping = PING.getBytes(StandardCharsets.UTF_8);
-                long deadline = System.currentTimeMillis() + timeout;
-                while (System.currentTimeMillis() < deadline) {
-                    try {
-                        DatagramPacket pkt = new DatagramPacket(
-                                ping, ping.length,
-                                InetAddress.getByName("255.255.255.255"), UDP_PORT);
-                        ds.send(pkt);
-                        /* one directed retry to the classic hotspot gateway */
-                        try {
-                            DatagramPacket pkt2 = new DatagramPacket(
-                                    ping, ping.length,
-                                    InetAddress.getByName("192.168.43.1"), UDP_PORT);
-                            ds.send(pkt2);
-                        } catch (Exception ignored) {}
-                    } catch (Exception ignored) {}
-                    byte[] buf = new byte[64];
-                    try {
-                        DatagramPacket res = new DatagramPacket(buf, buf.length);
-                        ds.receive(res);
-                        String msg = new String(res.getData(), 0, res.getLength(), StandardCharsets.UTF_8).trim();
-                        if (msg.startsWith(PONG_PREFIX)) {
-                            JSObject out = new JSObject();
-                            out.put("ip", res.getAddress().getHostAddress());
-                            out.put("port", Integer.parseInt(msg.substring(PONG_PREFIX.length()).trim()));
-                            call.resolve(out);
-                            ds.close();
-                            return;
-                        }
-                    } catch (Exception ignored) { /* keep waiting */ }
-                }
-                call.reject("host not found");
-            } catch (Exception e) {
-                call.reject("discover failed: " + e.getMessage());
-            } finally {
-                if (ds != null && !ds.isClosed()) ds.close();
+            try { acquireMulticastLock(); } catch (Exception ignored) {}
+            /* pass 1 — UDP broadcast (fast when it works) */
+            if (udpProbe(call, timeout)) return;
+            /* pass 2 — v7 SUBNET SWEEP: hotspot subnets vary by ROM
+             * (192.168.43.x / 192.168.157.x / …). Probe every address
+             * of the device's OWN /24 for the game port — the boss is
+             * always the hotspot gateway on the guest's subnet. */
+            String hit = tcpScan(DEFAULT_TCP_PORT);
+            if (hit != null) {
+                JSObject out = new JSObject();
+                out.put("ip", hit);
+                out.put("port", DEFAULT_TCP_PORT);
+                call.resolve(out);
+                return;
             }
+            call.reject("host not found");
         });
+    }
+
+    /** UDP ping/pong discovery; resolves the call and returns true on hit */
+    private boolean udpProbe(PluginCall call, int timeout) {
+        DatagramSocket ds = null;
+        try {
+            ds = new DatagramSocket();
+            ds.setSoTimeout(600);
+            ds.setBroadcast(true);
+            byte[] ping = PING.getBytes(StandardCharsets.UTF_8);
+            long deadline = System.currentTimeMillis() + timeout;
+            while (System.currentTimeMillis() < deadline) {
+                try {
+                    DatagramPacket pkt = new DatagramPacket(
+                            ping, ping.length,
+                            InetAddress.getByName("255.255.255.255"), UDP_PORT);
+                    ds.send(pkt);
+                    /* one directed retry to the classic hotspot gateway */
+                    try {
+                        DatagramPacket pkt2 = new DatagramPacket(
+                                ping, ping.length,
+                                InetAddress.getByName("192.168.43.1"), UDP_PORT);
+                        ds.send(pkt2);
+                    } catch (Exception ignored) {}
+                } catch (Exception ignored) {}
+                byte[] buf = new byte[64];
+                try {
+                    DatagramPacket res = new DatagramPacket(buf, buf.length);
+                    ds.receive(res);
+                    String msg = new String(res.getData(), 0, res.getLength(), StandardCharsets.UTF_8).trim();
+                    if (msg.startsWith(PONG_PREFIX)) {
+                        JSObject out = new JSObject();
+                        out.put("ip", res.getAddress().getHostAddress());
+                        out.put("port", Integer.parseInt(msg.substring(PONG_PREFIX.length()).trim()));
+                        call.resolve(out);
+                        return true;
+                    }
+                } catch (java.net.SocketTimeoutException ignored) { /* keep waiting */ }
+            }
+        } catch (Exception ignored) { /* fall through to the subnet sweep */ }
+        finally {
+            if (ds != null && !ds.isClosed()) ds.close();
+        }
+        return false;
+    }
+
+    /** sweep for the boss: the gateway (.1) is probed on the game port
+     * AND its walk-neighbours first (startHost may have shifted the
+     * port when 48765 was busy), then every /24 address on the game
+     * port (~32 probes in parallel, 90ms connect timeout — a full pass
+     * costs ≈1.2s). Returns the winning IP or null. */
+    private String tcpScan(int port) {
+        String self = localIpv4();
+        if (self == null) return null;
+        String[] oct = self.split("\\.");
+        if (oct.length != 4) return null;
+        String prefix = oct[0] + "." + oct[1] + "." + oct[2] + ".";
+        /* gateway first — cheapest high-probability hit, port range too */
+        String gw = prefix + "1";
+        for (int k = 0; k < 4; k++) if (probeTcp(gw, port + k)) return gw;
+        final AtomicReference<String> hit = new AtomicReference<>(null);
+        ExecutorService sp = Executors.newFixedThreadPool(32);
+        try {
+            for (int i = 2; i <= 254 && hit.get() == null; i++) {
+                final String ip = prefix + i;
+                final int p = port;
+                sp.execute(() -> {
+                    if (hit.get() != null) return;
+                    if (probeTcp(ip, p)) hit.compareAndSet(null, ip);
+                });
+            }
+            /* wait up to 1.8s for a hit */
+            long end = System.currentTimeMillis() + 1800;
+            while (hit.get() == null && System.currentTimeMillis() < end) {
+                try { Thread.sleep(40); } catch (Exception ignored) {}
+            }
+        } finally {
+            sp.shutdownNow();
+        }
+        return hit.get();
+    }
+
+    private boolean probeTcp(String ip, int port) {
+        Socket s = new Socket();
+        try {
+            s.connect(new InetSocketAddress(ip, port), 90);
+            return true;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            try { s.close(); } catch (Exception ignored) {}
+        }
+    }
+
+    /** the device's own site-local IPv4 (hotspot client side) */
+    private String localIpv4() {
+        try {
+            Enumeration<NetworkInterface> nis = NetworkInterface.getNetworkInterfaces();
+            while (nis != null && nis.hasMoreElements()) {
+                Enumeration<InetAddress> addrs = nis.nextElement().getInetAddresses();
+                while (addrs.hasMoreElements()) {
+                    InetAddress a = addrs.nextElement();
+                    if (a.isSiteLocalAddress() && !a.isLoopbackAddress() && a.getHostAddress().indexOf(':') < 0) {
+                        return a.getHostAddress();
+                    }
+                }
+            }
+        } catch (Exception ignored) { /* no wifi yet */ }
+        return null;
     }
 
     @PluginMethod
     public void connect(final PluginCall call) {
-        if (clientUp.get()) { call.reject("already connected"); return; }
         final String host = call.getString("host", "");
         final int port = call.getInt("port", DEFAULT_TCP_PORT);
         if (host == null || host.length() == 0) { call.reject("host ip required"); return; }
-        if (pool == null) pool = Executors.newCachedThreadPool();
+        /* v7 — reconnecting to the SAME host:port while linked is a
+         * success (the join flow can race its own live socket); a
+         * DIFFERENT target tears the old link down first */
+        if (clientUp.get() && host.equals(lastHost) && port == lastPort) { call.resolve(); return; }
+        if (clientUp.get()) stopAll();
+        exec();
         acquireMulticastLock();
         pool.execute(() -> {
             try {
@@ -224,6 +349,8 @@ public class LanLinkPlugin extends Plugin {
                 s.connect(new InetSocketAddress(host, port), 3500);
                 s.setTcpNoDelay(true);
                 clientUp.set(true);
+                lastHost = host;
+                lastPort = port;
                 PrintWriter w = new PrintWriter(new OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8), true);
                 writers.put("host", w);
                 final BufferedReader r = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
@@ -260,6 +387,7 @@ public class LanLinkPlugin extends Plugin {
         final String text = call.getString("text", "");
         final String peerId = call.getString("peerId");
         if (text.length() == 0) { call.resolve(); return; }
+        exec();
         pool.execute(() -> {
             if (peerId != null && peerId.length() > 0) {
                 PrintWriter w = writers.get(peerId);
@@ -277,23 +405,27 @@ public class LanLinkPlugin extends Plugin {
         call.resolve();
     }
 
-    /** open Android's WiFi settings so the user can toggle the hotspot */
-    @PluginMethod
-    public void openWifiSettings(PluginCall call) {
+    private boolean tryStart(String action) {
         try {
-            Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
+            Intent intent = new Intent(action);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getActivity().startActivity(intent);
-            call.resolve();
+            return true;
         } catch (Exception e) {
-            try {
-                Intent intent = new Intent(Settings.ACTION_SETTINGS);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                getActivity().startActivity(intent);
-                call.resolve();
-            } catch (Exception e2) {
-                call.reject("settings unavailable");
-            }
+            return false;
+        }
+    }
+
+    /** open Android's hotspot/wifi settings — v7: the TETHER (نقطه اتصال)
+     * panel first, then wireless, then general settings */
+    @PluginMethod
+    public void openWifiSettings(PluginCall call) {
+        if (tryStart("android.settings.TETHER_SETTINGS")
+                || tryStart(Settings.ACTION_WIRELESS_SETTINGS)
+                || tryStart(Settings.ACTION_SETTINGS)) {
+            call.resolve();
+        } else {
+            call.reject("settings unavailable");
         }
     }
 
@@ -311,6 +443,8 @@ public class LanLinkPlugin extends Plugin {
     private void stopAll() {
         hosting.set(false);
         clientUp.set(false);
+        lastHost = null;
+        lastPort = -1;
         try { if (serverSocket != null && !serverSocket.isClosed()) serverSocket.close(); } catch (Exception ignored) {}
         try { if (udpSocket != null && !udpSocket.isClosed()) udpSocket.close(); } catch (Exception ignored) {}
         for (PrintWriter w : writers.values()) { try { w.close(); } catch (Exception ignored) {} }

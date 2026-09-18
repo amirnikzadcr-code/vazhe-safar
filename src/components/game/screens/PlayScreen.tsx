@@ -35,6 +35,7 @@ import { WinModal } from "@/components/game/modals/WinModal";
 import { CHAPTERS } from "@/game/data/chapters";
 import { PauseModal } from "@/components/game/modals/Overlays";
 import { armGameplayProbe, isLowFx } from "@/game/core/perf";
+import { stageZoom } from "@/game/core/stage";
 
 /* v5 PERF/COMPAT — Element.getAnimations() needs Chrome 84+; old
  * Android System WebViews (minSdk 22 era) throw on it. Every cancel
@@ -339,17 +340,22 @@ export function PlayScreen({
     const strip = guessRef.current;
     const plate = document.querySelector<HTMLElement>(".hud-prof-btn");
     if (!strip || !plate || typeof strip.animate !== "function") return;
+    /* v7 — the chip is position:fixed and placed with real-px coords,
+     * but it lives inside the zoomed .vz-phone stage: Chrome multiplies
+     * its local px by the stage zoom → divide by stageZoom() to land on
+     * the intended real-px spot on every phone. */
+    const z = stageZoom() || 1;
     const s = strip.getBoundingClientRect();
     const t = plate.getBoundingClientRect();
     const chip = document.createElement("div");
     chip.className = "fly-word-chip";
     chip.textContent = word;
-    chip.style.left = `${s.left + s.width / 2}px`;
-    chip.style.top = `${s.top + s.height / 2}px`;
+    chip.style.left = `${(s.left + s.width / 2) / z}px`;
+    chip.style.top = `${(s.top + s.height / 2) / z}px`;
     document.body.appendChild(chip);
     Audio.sfxFlyUp();
-    const dx = t.left + t.width / 2 - (s.left + s.width / 2);
-    const dy = t.top + t.height / 2 - (s.top + s.height / 2);
+    const dx = (t.left + t.width / 2 - (s.left + s.width / 2)) / z;
+    const dy = (t.top + t.height / 2 - (s.top + s.height / 2)) / z;
     const anim = chip.animate(
       [
         { transform: "translate(-50%,-50%) scale(.5) rotate(0deg)", opacity: 0 },
@@ -537,9 +543,11 @@ export function PlayScreen({
       const pts = ls.map(seatFor);
       if (pts.some((p) => p === null)) return;
       const P = pts as { x: number; y: number }[];
-      const t0 = wrap.getBoundingClientRect();
-      void t0;
-      const setT = (p: { x: number; y: number }) => { hand.style.transform = `translate(${p.x}px, ${p.y}px)`; };
+      /* v7 — the hand is position:fixed inside the zoomed stage: its
+       * local px are multiplied by the stage zoom → divide the real-px
+       * targets by stageZoom() so the fingertip lands ON the seats. */
+      const z = stageZoom() || 1;
+      const setT = (p: { x: number; y: number }) => { hand.style.transform = `translate(${p.x / z}px, ${p.y / z}px)`; };
       setT(P[0]);
       if (g.textContent !== "") { g.textContent = ""; g.parentElement?.classList.remove("live"); }
       const HOP = 340;
@@ -548,7 +556,7 @@ export function PlayScreen({
         later(() => {
           if (typeof hand.animate === "function") {
             hand.animate(
-              [{ transform: `translate(${P[i - 1].x}px, ${P[i - 1].y}px)` }, { transform: `translate(${p.x}px, ${p.y}px)` }],
+              [{ transform: `translate(${P[i - 1].x / z}px, ${P[i - 1].y / z}px)` }, { transform: `translate(${p.x / z}px, ${p.y / z}px)` }],
               { duration: HOP, easing: "cubic-bezier(.4,.1,.4,1)", fill: "both" },
             );
           } else setT(p);
@@ -1136,6 +1144,11 @@ const Wheel = memo(forwardRef(function Wheel({
    * in my word» bug + the e2e mistakes). */
   const lastPtRef = useRef<{ x: number; y: number } | null>(null);
   const prevPtRef = useRef<{ x: number; y: number } | null>(null);
+  /* v7 — the FULL coalesced pointer trail: Android delivers one event
+   * per frame with several merged samples; recording ALL of them lets
+   * the catch follow the finger's true (possibly curved) path, so fast
+   * strokes never cut a corner and skip a tile. */
+  const trailRef = useRef<{ x: number; y: number }[]>([]);
   const lineStrRef = useRef("");
   /* tile elements for DOM-driven .sel painting (idx → element) */
   const tileElsRef = useRef<Map<number, HTMLElement> | null>(null);
@@ -1298,56 +1311,74 @@ const Wheel = memo(forwardRef(function Wheel({
     return Math.hypot(px - cx, py - cy);
   };
 
-  /* Y — COALESCED SEGMENT catch: runs once per frame from the rAF tick
-   * AND synchronously from up() — a release can never miss a caught
-   * letter. Catches AT MOST the tiles whose centers the finger path
-   * actually passed near (see the note on catchRRef). */
+  /* v7 — CATCH THE WHOLE STROKE (user: «کلمات به سختی کشیده میشه و
+   * درست حسابی وصل نمیشن ب هم سخته»): the old catch registered AT MOST
+   * ONE tile per frame, so a fast stroke skipped seats and words came
+   * out wrong or felt «hard to drag». Now the segment prev→finger is
+   * walked REPEATEDLY: every pass grabs the nearest uncaught tile
+   * within the catch radius and restarts the segment FROM that tile —
+   * one frame can register a whole run of tiles IN ORDER, exactly the
+   * seats the finger passed through (Word-Cookies behaviour). */
   const catchUpTo = (pt: { x: number; y: number } | null) => {
     if (!dragRef.current || !pt) return;
-    const from = prevPtRef.current ?? pt;
     const T = catchRRef.current * catchRRef.current;
-    let best: number | null = null;
-    let bestD = T;
-    const cur = selRef.current;
-    for (const c of centersRef.current) {
-      if (cur.includes(c.idx)) continue;
-      const d = distToSeg(c.x, c.y, from.x, from.y, pt.x, pt.y);
-      if (d * d < bestD) { bestD = d * d; best = c.idx; }
+    let played = false;
+    for (let guard = 0; guard < 14; guard++) {
+      const cur = selRef.current;
+      const from = prevPtRef.current ?? pt;
+      let best: number | null = null;
+      let bestD = T;
+      for (const c of centersRef.current) {
+        if (cur.includes(c.idx)) continue;
+        const d = distToSeg(c.x, c.y, from.x, from.y, pt.x, pt.y);
+        if (d * d < bestD) { bestD = d * d; best = c.idx; }
+      }
+      if (best === null) break;
+      const next = [...cur, best];
+      if (!played) { Audio.sfxLetter(next.length); played = true; } /* one blip per frame max */
+      applySel(next);
+      /* tail snaps to the newly caught tile — then keeps chasing.
+       * NO auto-commit here anymore (v2.0): the word is judged on release */
+      const c = centersRef.current.find((c) => c.idx === best)!;
+      tipCurRef.current = { x: c.x, y: c.y };
+      prevPtRef.current = { x: c.x, y: c.y }; /* next pass starts from the caught tile */
+      /* v1.21 — juicy CATCH POP on the tile + a soft ring pulse
+       * («یکم نرم‌تر و گرافیکی‌تر»): WAAPI, compositor-only. */
+      const el = tileElsRef.current?.get(best);
+      if (el && typeof el.animate === "function") {
+        el.animate(
+          [
+            { transform: "translate(-50%,-50%) scale(1.28)" },
+            { transform: "translate(-50%,-50%) scale(1.1)" },
+          ],
+          { duration: 200, easing: "cubic-bezier(.2,1.6,.4,1)" },
+        );
+      }
+      if (Math.abs(pt.x - c.x) < 1 && Math.abs(pt.y - c.y) < 1) break;
     }
-    if (best === null) { prevPtRef.current = pt; return; }
-    const next = [...cur, best];
-    Audio.sfxLetter(next.length);
-    applySel(next);
-    /* tail snaps to the newly caught tile — then keeps chasing.
-     * NO auto-commit here anymore (v2.0): the word is judged on release */
-    const c = centersRef.current.find((c) => c.idx === best)!;
-    tipCurRef.current = { x: c.x, y: c.y };
-    prevPtRef.current = { x: c.x, y: c.y }; /* next segment starts from the caught tile */
-    /* v1.21 — juicy CATCH POP on the tile + a soft ring pulse
-     * («یکم نرم‌تر و گرافیکی‌تر»): WAAPI, compositor-only. */
-    const el = tileElsRef.current?.get(best);
-    if (el && typeof el.animate === "function") {
-      el.animate(
-        [
-          { transform: "translate(-50%,-50%) scale(1.28)" },
-          { transform: "translate(-50%,-50%) scale(1.1)" },
-        ],
-        { duration: 200, easing: "cubic-bezier(.2,1.6,.4,1)" },
-      );
-    }
+    prevPtRef.current = pt; /* the next frame's segment starts at the finger */
   };
 
   const tick = () => {
+    /* v7 — consume the recorded trail: every pointer sample since the
+     * last frame is caught IN ORDER (fast strokes register every seat) */
+    const trail = trailRef.current;
+    if (trail.length > 0) {
+      if (dragRef.current) for (const pt of trail) catchUpTo(pt);
+      trail.length = 0;
+    }
     const tipT = tipTargetRef.current;
     const tipC = tipCurRef.current;
     if (tipT && tipC) {
-      tipC.x += (tipT.x - tipC.x) * 0.3;
-      tipC.y += (tipT.y - tipC.y) * 0.3;
+      /* v7 — 0.3→0.42: the tail follows the finger visibly faster
+       * (the old 0.3 read as «ب سختی کشیده میشه» lag) while the lerp
+       * still rounds the corners pleasantly */
+      tipC.x += (tipT.x - tipC.x) * 0.42;
+      tipC.y += (tipT.y - tipC.y) * 0.42;
       if (Math.abs(tipT.x - tipC.x) < 0.5 && Math.abs(tipT.y - tipC.y) < 0.5) {
         tipC.x = tipT.x; tipC.y = tipT.y;
       }
     }
-    catchUpTo(lastPtRef.current);
     paintLine();
     const settled = !dragRef.current && tipT && tipC && tipT.x === tipC.x && tipT.y === tipC.y;
     if (settled) { rafRef.current = 0; return; } /* tail fully retracted → stop the loop */
@@ -1367,14 +1398,18 @@ const Wheel = memo(forwardRef(function Wheel({
       y: (p.y / 100) * r.height,
     }));
     /* generous TAP radius (a press is deliberate) */
-    rRef.current = Math.max(34, r.width * 0.17);
-    /* Y — tight SEGMENT catch radius, clamped below the skip-seat
-     * clearance R×(1−cos(2π/n)) so a straight stroke between two seats
-     * can NEVER graze the seat between them */
+    rRef.current = Math.max(34, r.width * 0.18);
+    /* v7 — SEGMENT catch radius, zoom-aware and roomier (user: catch
+     * felt tight/hard): clamped below the skip-seat clearance
+     * R×(1−cos(2π/n)) so a straight stroke between two seats still can
+     * NEVER graze the seat between them. geom.tile is authored in
+     * design-px — multiply by the stage zoom to compare against real
+     * pointer coordinates. */
     const ringR = (geom.wr / 100) * r.width;
     const n = Math.max(3, centersRef.current.length);
     const clear = ringR * (1 - Math.cos((2 * Math.PI) / n));
-    catchRRef.current = Math.max(14, Math.min(geom.tile * 0.42, clear * 0.85));
+    const tilePx = geom.tile * stageZoom();
+    catchRRef.current = Math.max(18, Math.min(tilePx * 0.52, clear * 0.92));
     if (!tileElsRef.current) {
       const m = new Map<number, HTMLElement>();
       wrapRef.current!.querySelectorAll<HTMLElement>("[data-tile]").forEach((el) => {
@@ -1540,10 +1575,17 @@ const Wheel = memo(forwardRef(function Wheel({
     if (!dragRef.current) return;
     const r = rectRef.current;
     if (!r) return;
+    /* v7 — record the FULL coalesced trail (see trailRef); the rAF tick
+     * catches along every sample — pointermove itself stays a cheap
+     * recorder (zero React re-renders, zero layout reads). */
+    const nat = e.nativeEvent as PointerEvent;
+    let evs: PointerEvent[] | null = null;
+    try { evs = typeof nat.getCoalescedEvents === "function" ? nat.getCoalescedEvents() : null; } catch { evs = null; }
+    if (evs && evs.length > 1) {
+      for (const ce of evs) trailRef.current.push({ x: ce.clientX - r.left, y: ce.clientY - r.top });
+    }
     const lx = e.clientX - r.left, ly = e.clientY - r.top;
-    /* Y — pointermove is now ONLY a recorder (coalesced): the rAF tick
-     * does the lerp + hit-test + ribbon paint exactly once per frame,
-     * no matter how many move events arrived. */
+    trailRef.current.push({ x: lx, y: ly });
     tipTargetRef.current = { x: lx, y: ly };
     lastPtRef.current = { x: lx, y: ly };
     ensureRaf();
@@ -1551,8 +1593,14 @@ const Wheel = memo(forwardRef(function Wheel({
 
   const up = () => {
     if (!dragRef.current) return;
-    /* Y — flush any pending catch work BEFORE judging the release (a
-     * stroke can end between two rAF ticks) */
+    /* v7 — flush the whole trail BEFORE judging the release (a fast
+     * stroke that ended between two rAF ticks still registers every
+     * seat it passed through) */
+    const trail = trailRef.current;
+    if (trail.length > 0) {
+      for (const pt of trail) catchUpTo(pt);
+      trail.length = 0;
+    }
     catchUpTo(lastPtRef.current);
     const cur = selRef.current;
     if (cur.length >= 2) {
