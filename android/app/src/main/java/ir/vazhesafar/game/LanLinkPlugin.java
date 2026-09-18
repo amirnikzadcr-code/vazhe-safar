@@ -139,7 +139,8 @@ public class LanLinkPlugin extends Plugin {
             JSObject out = new JSObject();
             out.put("port", bound);
             call.resolve(out);
-            pool.execute(() -> runUdpResponder(bound));
+            final int udpAnnounce = bound; /* lambda capture must be final */
+            pool.execute(() -> runUdpResponder(udpAnnounce));
             while (hosting.get() && !ss.isClosed()) {
                 final Socket s = ss.accept();
                 final String id = "p" + nextId.getAndIncrement();
