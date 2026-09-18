@@ -366,3 +366,16 @@ export const PARTY_MUSIC: MusicConfig & { scale: ScaleName } = {
   motif: [[0,0.5],[2,0.5],[3,0.5],[4,0.5],[5,0.5],[4,0.5],[3,0.5],[2,0.5],[3,1],[1,0.5],[0,0.5],[1,1]],
   motifB: [[4,0.5],[3,0.5],[4,0.5],[5,1],[4,0.5],[3,0.5],[2,1],[1,1],[0,1.5]],
 };
+
+/** GG — the GAME phase of دورهمی (handoff/turn/recap/final) — user:
+ * «یک موزیک هیجانی بزار برای اون قسمت وقتی بازی شروع میشه». A faster,
+ * driving ۶/۸: doubled daf pulses + tombak accents, a racing santur
+ * motif an octave up, brighter drone. Renders to party2.ogg
+ * (scripts/render_party2.py) — the calm-festive party.ogg stays for
+ * the menu/setup screens. */
+export const PARTY_GAME_MUSIC: MusicConfig & { scale: ScaleName } = {
+  track: "party2", scale: "rast", root: 293.66, cents: [...SCALES.rast], bpm: 138, meter: 6,
+  perc: "daf", lead: "santur", octave: 1, drone: 0.45,
+  motif: [[0,0.5],[4,0.5],[3,0.5],[5,0.5],[7,0.5],[5,0.5],[4,0.5],[3,0.5],[4,0.5],[1,0.5],[2,0.5],[3,1]],
+  motifB: [[7,0.5],[8,0.5],[7,0.5],[5,0.5],[4,1],[5,0.5],[3,0.5],[2,0.5],[1,1],[0,1]],
+};

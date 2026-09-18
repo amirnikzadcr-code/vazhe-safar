@@ -23,6 +23,10 @@ public class MainActivity extends BridgeActivity {
      * puts the plugin inside the bridge build — the actual Capacitor
      * documented order for custom plugins. */
     registerPlugin(LanLinkPlugin.class);
+    /* GG — پرداخت درون‌برنامه‌ای مایکت: registers the `VzBilling` bridge
+     * (the contract src/game/core/monetization.ts already calls). Safe
+     * before super.onCreate for the same reason as LanLink above. */
+    registerPlugin(MyketBillingPlugin.class);
     super.onCreate(savedInstanceState);
 
     /* v7 PERF — WebView tuning for the «APK خیلی کنده» complaints:

@@ -1,5 +1,18 @@
 apply plugin: 'com.android.application'
 
+/* GG — OFFICIAL RELEASE SIGNING (user: «یک امضا رسمی بساز و امضا هم
+ * بفرست»). release.keystore (alias vazhesafar, RSA-2048, valid until
+ * 2056) is THE app identity for Myket / Cafe Bazaar — every update
+ * MUST be signed with it or the stores reject the upgrade. The
+ * credentials live in android/keystore.properties (checked into this
+ * PRIVATE repo so CI signs the same APKs; if the file is absent the
+ * build falls back to the debug key so local builds never break). */
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file("keystore.properties")
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
 android {
     namespace "ir.vazhesafar.game"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,14 +20,21 @@ android {
         applicationId "ir.vazhesafar.game"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 14
-        versionName "1.31.0"
+        versionCode 15
+        versionName "1.32.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+        /* GG — MYKET IAB (پرداخت درون‌برنامه‌ای مایکت): the official
+         * myket-billing-client AAR's manifest injects the billing
+         * permission + <queries> for the Myket app through these
+         * placeholders (exact pattern from Myket's own plugin docs). */
+        manifestPlaceholders += [ marketApplicationId: "ir.mservices.market",
+                                  marketBindAddress : "ir.mservices.market.InAppBillingService.BIND",
+                                  marketPermission  : "ir.mservices.market.BILLING" ]
     }
     signingConfigs {
         // Standard Android debug keystore (public 'android' password, checked in
@@ -25,6 +45,19 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            } else {
+                storeFile file('debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
     }
     buildTypes {
         release {
@@ -34,7 +67,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
         }
     }
 }
@@ -51,6 +84,10 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    /* GG — MYKET IN-APP BILLING SDK (verified on JitPack; the AAR ships
+     * the IabHelper v3-style API our VzBilling bridge wraps). Gson comes
+     * transitively. */
+    implementation 'com.github.myketstore:myket-billing-client:1.18'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

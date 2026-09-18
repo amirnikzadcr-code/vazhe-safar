@@ -27,3 +27,7 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 -dontwarn android.webkit.**
+
+# ── GG — Myket in-app billing: keep the SDK intact under R8 ──
+-keep class ir.myket.billingclient.** { *; }
+-dontwarn ir.myket.billingclient.**

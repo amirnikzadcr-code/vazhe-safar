@@ -16,12 +16,14 @@
  *
  *  1) Add a small Capacitor plugin (Java/Kotlin) that registers two
  *     bridge objects with EXACTLY this JSON contract:
- *       VzBilling.purchase(productId) → { ok, orderId?, error? }
- *       VzBilling.owned()             → { ok, owned: string[] }
- *       VzAds.showRewarded()          → { completed: boolean }
- *       VzAds.showInterstitial()      → { ok: boolean }
+ *       VzBilling.purchase({ productId }) → { ok, orderId?, error? }
+ *       VzBilling.owned()                 → { ok, owned: string[] }
+ *       VzAds.showRewarded()              → { completed: boolean }
+ *       VzAds.showInterstitial()          → { ok: boolean }
  *     Accessible as `window.VzBilling` / `window.VzAds`, or through
  *     Capacitor's registry (`Capacitor.Plugins.VzBilling`).
+ *     GG — DONE: MyketBillingPlugin.java (Myket IAB v1.18) registers
+ *     `VzBilling`; paste the RSA key into strings.xml to go live.
  *
  *  2) Store SDKs behind the bridge:
  *     • کافه‌بازار → Poolakey (ir.cafebazaar.poolakey) IAB
@@ -67,7 +69,8 @@ export const REWARDED_COOLDOWN_MS = 3 * 60_000;
 /* ---------------- bridges (native contract) ---------------- */
 
 interface BillingBridge {
-  purchase(productId: string): Promise<{ ok: boolean; orderId?: string; error?: string }>;
+  /** Capacitor convention: the first argument IS the options object */
+  purchase(options: { productId: string }): Promise<{ ok: boolean; orderId?: string; error?: string }>;
   owned?(): Promise<{ ok: boolean; owned: string[] }>;
 }
 interface AdsBridge {
@@ -112,7 +115,7 @@ export async function purchase(sku: Sku): Promise<PurchaseResult> {
   const bridge = billingBridge();
   if (!bridge) return { ok: false, error: BILLING_UNAVAILABLE_MSG, sku };
   try {
-    const r = await bridge.purchase(sku.id);
+    const r = await bridge.purchase({ productId: sku.id });
     if (r?.ok) return { ok: true, sku };
     return { ok: false, error: r?.error || "خرید انجام نشد", sku };
   } catch {

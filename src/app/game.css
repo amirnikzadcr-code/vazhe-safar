@@ -1926,9 +1926,28 @@ button:active { transition-duration: .05s; }
   color: #6b4a1e; font-weight: 800; font-size: 13px; padding: 5px 12px;
   box-shadow: 0 3px 0 #b47708, 0 6px 12px rgba(160,90,0,.3);
 }
-.ps-board { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 8px 14px 10px; position: relative; z-index: 10; }
-.ps-wheel-zone { position: relative; flex: none; display: flex; align-items: center; justify-content: center; padding: 6px 0 0; }
-.pt-timer-holder { position: absolute; top: -2px; right: 0; z-index: 20; }
+.ps-board { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 6px 12px 12px; position: relative; z-index: 10; }
+/* GG REDESIGN — the board is now a calm 4-band column: head strip,
+ * found-words panel (flex:1, scrolls), the BIG ring pushed to the
+ * bottom-centre, and one tidy action row. */
+.ps-head { flex: none; display: flex; align-items: center; margin: 2px 0 4px; }
+.ps-head .pt-coach { margin: 0; }
+.ps-head .pt-coach-bubble { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ps-found {
+  flex: 1 1 auto; min-height: 52px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; justify-content: center;
+  padding: 5px 3px; border-radius: 16px;
+  background: rgba(60,36,10,.30); box-shadow: inset 0 2px 8px rgba(20,10,0,.25);
+}
+.ps-found-empty {
+  color: #d9b87a; font-weight: 700; font-size: 12.5px;
+  align-self: center; text-align: center; padding: 6px 14px;
+}
+.ps-wheel-zone {
+  position: relative; flex: none; display: flex; align-items: center; justify-content: center;
+  margin-top: auto; padding: 8px 0 2px;
+}
+.pt-timer-holder { flex: none; z-index: 20; }
 .pt-timer { position: relative; width: 66px; height: 66px; }
 .pt-timer svg { display: block; filter: drop-shadow(0 3px 6px rgba(40,20,0,.35)); }
 .pt-timer b {
@@ -1939,9 +1958,10 @@ button:active { transition-duration: .05s; }
 .pt-ring { filter: drop-shadow(0 0 4px rgba(255,215,110,.55)); }
 .pt-timer.low .pt-ring { filter: drop-shadow(0 0 5px rgba(255,91,91,.7)); }
 
-/* the letter ring */
+/* the letter ring — GG: BIGGER and pinned to the bottom-centre
+ * (user: «بیار پایین وسط صفحه و بزرگترش بکن») */
 .ps-ring {
-  position: relative; width: min(74vw, 300px); aspect-ratio: 1; margin: 0 auto;
+  position: relative; width: min(84vw, 348px); aspect-ratio: 1; margin: 0 auto;
   transform: translateZ(0); /* Y — own GPU layer during drags */
   border-radius: 999px;
   background:
@@ -1954,11 +1974,11 @@ button:active { transition-duration: .05s; }
 .ps-ring.golden { border-color: #ffd76e; outline-color: #b47708; box-shadow: 0 8px 0 #6b4218, 0 0 0 5px rgba(255,215,110,.4), 0 14px 22px rgba(30,15,0,.45); }
 .pw-tile {
   position: absolute; transform: translate(-50%, -50%);
-  width: 46px; height: 46px; border-radius: 14px; cursor: pointer;
+  width: 52px; height: 52px; border-radius: 15px; cursor: pointer;
   border: 2.5px solid #fff; outline: 2px solid #b9842c;
   background: linear-gradient(180deg,#fffdf4,#f3dfae);
   box-shadow: 0 4px 0 #8a5a2e, 0 7px 10px rgba(30,15,0,.4);
-  color: #5d3a12; font-family: inherit; font-weight: 800; font-size: 21px;
+  color: #5d3a12; font-family: inherit; font-weight: 800; font-size: 24px;
   display: flex; align-items: center; justify-content: center; padding: 0;
   transition: transform .12s ease;
 }
@@ -2003,8 +2023,10 @@ button:active { transition-duration: .05s; }
   100% { opacity: 0; transform: translateY(-42px) scale(1); }
 }
 
-/* action row */
-.ps-actions { display: flex; gap: 8px; margin-top: 4px; }
+/* action row — GG: the countdown ring now lives HERE beside «پایان
+ * نوبت» (and the WiFi reactions), always visible next to the big ring */
+.ps-actions { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
+.ps-actions .ps-act { flex: 1; }
 .ps-act {
   flex: 1; border-radius: 16px; cursor: pointer; padding: 11px 6px;
   border: 2.5px solid #fff; font-family: inherit; font-weight: 800; font-size: 15px;
@@ -3359,9 +3381,9 @@ img { -webkit-user-drag: none; }
 }
 
 /* reactions */
-.wf-reactbar { display: flex; justify-content: center; gap: 9px; margin: 2px 0 8px; }
+.wf-reactbar { display: flex; justify-content: center; gap: 8px; margin: 0; flex: none; }
 .wf-react-btn {
-  width: 44px; height: 44px; border-radius: 999px; cursor: pointer; font-size: 21px;
+  width: 40px; height: 40px; border-radius: 999px; cursor: pointer; font-size: 19px;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(180deg, #fffdf4, #f2dfb2);
   border: 2px solid #fff; outline: 2px solid #c99b4a;

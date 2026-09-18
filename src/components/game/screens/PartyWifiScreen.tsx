@@ -22,9 +22,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "@/components/game/ui/kit";
 import { AVATARS, AvatarFace } from "@/components/game/avatars";
-import { LEVELS, isRealWord } from "@/game/data/levelsIndex";
-import { letters, faNum, buzz } from "@/game/core/utils";
-import { validateWord } from "@/game/core/lexicon";
+import { isRealWord } from "@/game/data/levelsIndex";
+import { faNum, buzz } from "@/game/core/utils";
+import { validateWord, ensureLexicon } from "@/game/core/lexicon";
+import { pickEngineeredWheel } from "@/game/core/partyWheels";
 import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
 import { TurnTimer } from "@/components/game/ui/turntimer";
@@ -53,21 +54,14 @@ const WIFI_TIPS = [
   "همه با یک چرخِ یکسان مسابقه می‌دهید — کاملاً عادلانه!",
 ];
 
-/** pick a random unused level wheel (letters + word pool) */
+/** GG — the WiFi race now draws from the SAME engineered wheel pool
+ * as the pass-and-play mode: 140 offline-generated 9-letter wheels,
+ * each buildable from ۲۰۰+ real Persian words, never repeating until
+ * the pool runs dry (user: «هر دور متفاوت باشه»). */
 function pickWheelLive(used: Set<string>): { key: string; ls: string[]; words: string[]; wordSet: Set<string> } {
-  for (let t = 0; t < 60; t++) {
-    const c = Math.floor(Math.random() * LEVELS.length);
-    const list = LEVELS[c];
-    const i = Math.floor(Math.random() * list.length);
-    const key = `${c}:${i}`;
-    if (used.has(key)) continue;
-    used.add(key);
-    const lv = list[i];
-    const ws = [...lv.words, ...lv.bonus];
-    return { key, ls: letters(lv.wheel), words: ws, wordSet: new Set(ws) };
-  }
-  const lv = LEVELS[0][0];
-  return { key: "0:0", ls: letters(lv.wheel), words: [...lv.words], wordSet: new Set(lv.words) };
+  const w = pickEngineeredWheel(used);
+  const ws = [...w.words];
+  return { key: w.key, ls: w.ls, words: ws, wordSet: new Set(ws) };
 }
 
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
@@ -791,10 +785,28 @@ function WifiRound({
       </div>
 
       <div className="ps-board">
+        {/* GG REDESIGN — same tidy 4-band column as the pass-and-play
+         * screen: claimed words panel on top (scrolls), the BIG ring
+         * at the bottom-centre, timer + actions + reactions on the
+         * last row. */}
+        <div className="ps-found" aria-live="polite">
+          {claimed.length === 0 ? (
+            <span className="ps-found-empty">اولین واژه را بساز و مالکش شو!</span>
+          ) : (
+            claimed.map((c) => (
+              <span key={c.w} className={`ps-tw ${c.me ? "mine" : ""}`}>
+                {c.w} <i>{c.me ? "+تو" : c.by}</i>
+              </span>
+            ))
+          )}
+        </div>
+
+        <div className="ps-msgrow" aria-live="polite">
+          {waitingEnd && <span className="ps-dk">زمان تمام شد — منتظر میزبان…</span>}
+        </div>
+
+        {/* the BIG drag ring — bottom-centre */}
         <div className="ps-wheel-zone">
-          <div className="pt-timer-holder">
-            <TurnTimer ms={roundInfo.seconds * 1000} onEnd={timerEnd} />
-          </div>
           <WifiRing
             ls={ls}
             onClaim={(w) => PartyNet.claimWord(w)}
@@ -802,34 +814,22 @@ function WifiRound({
           />
         </div>
 
-        <div className="ps-msgrow" aria-live="polite">
-          {waitingEnd && <span className="ps-dk">زمان تمام شد — منتظر میزبان…</span>}
-        </div>
-
-        {/* reactions */}
-        <div className="wf-reactbar">
-          {REACTS.map((e) => (
-            <button key={e} type="button" className="wf-react-btn" onClick={() => { Audio.sfxClick(); PartyNet.react(e); }} aria-label={`واکنش ${e}`}>
-              {e}
-            </button>
-          ))}
-        </div>
-
-        {amHost ? (
-          <div className="ps-actions">
+        <div className="ps-actions">
+          <div className="pt-timer-holder">
+            <TurnTimer ms={roundInfo.seconds * 1000} onEnd={timerEnd} />
+          </div>
+          <div className="wf-reactbar">
+            {REACTS.map((e) => (
+              <button key={e} type="button" className="wf-react-btn" onClick={() => { Audio.sfxClick(); PartyNet.react(e); }} aria-label={`واکنش ${e}`}>
+                {e}
+              </button>
+            ))}
+          </div>
+          {amHost && (
             <button type="button" className="ps-act finish" onClick={() => { Audio.sfxClick(); onEndRound(); }}>
               پایان دور
             </button>
-          </div>
-        ) : <div style={{ height: 8 }} />}
-
-        {/* live claimed words */}
-        <div className="ps-turnwords">
-          {claimed.map((c) => (
-            <span key={c.w} className={`ps-tw ${c.me ? "mine" : ""}`}>
-              {c.w} <i>{c.me ? "+تو" : c.by}</i>
-            </span>
-          ))}
+          )}
         </div>
       </div>
 
@@ -859,6 +859,28 @@ function WifiRing({
   const endedRef = useRef(false);
   const checkingRef = useRef(false);
   useEffect(() => { takenMsgRef.current = { set: setMsg }; }, [takenMsgRef]);
+  /* GG-FIX — same watchdog as the pass-and-play ring: pre-warm the
+   * corpus, race the verdict against a 4s timeout, swallow any throw,
+   * and force-clear the «در حال بررسی» chip on unmount. The chip can
+   * never freeze on screen again. */
+  useEffect(() => {
+    void ensureLexicon();
+    return () => { checkingRef.current = false; };
+  }, []);
+  const clearChecking = () => {
+    checkingRef.current = false;
+    setChecking(false);
+  };
+  const verdictWithWatchdog = async (w: string): Promise<boolean> => {
+    try {
+      return await Promise.race([
+        validateWord(w).catch(() => false),
+        new Promise<boolean>((res) => setTimeout(() => res(false), 4000)),
+      ]);
+    } catch {
+      return false;
+    }
+  };
 
   const ringRef = useRef<HTMLDivElement | null>(null);
   const rectRef = useRef<DOMRect | null>(null);
@@ -1031,8 +1053,8 @@ function WifiRing({
     }
     checkingRef.current = true;
     setChecking(true);
-    const good = await validateWord(w);
-    checkingRef.current = false;
+    const good = await verdictWithWatchdog(w);
+    clearChecking();
     if (good) {
       usedWords.current.add(w);
       onClaim(w);

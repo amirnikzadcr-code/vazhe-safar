@@ -21,6 +21,11 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        /* GG — MYKET IAB: the official billing SDK lives on these two
+         * repositories (maven.myket.ir is Myket's own; jitpack serves
+         * com.github.myketstore:myket-billing-client). */
+        maven { url 'https://maven.myket.ir' }
+        maven { url 'https://jitpack.io' }
     }
 }
 

@@ -18,11 +18,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "@/components/game/ui/kit";
 import { AVATARS, AvatarFace } from "@/components/game/avatars";
-import { LEVELS, isRealWord } from "@/game/data/levelsIndex";
-import { letters, faNum, buzz } from "@/game/core/utils";
-import { validateWord, LEXICON_WORDS } from "@/game/core/lexicon";
+import { isRealWord } from "@/game/data/levelsIndex";
+import { faNum, buzz } from "@/game/core/utils";
+import { validateWord, LEXICON_WORDS, ensureLexicon } from "@/game/core/lexicon";
+import { pickEngineeredWheel } from "@/game/core/partyWheels";
 import { Audio } from "@/game/core/audio";
 import { Save } from "@/game/core/save";
+import { PARTY_MUSIC, PARTY_GAME_MUSIC } from "@/game/data/chapters";
 import { TurnTimer } from "@/components/game/ui/turntimer";
 import { WifiRoot } from "@/components/game/screens/PartyWifiScreen";
 
@@ -37,21 +39,11 @@ interface PState { name: string; avatar: string; score: number; streak: number; 
 /** pick a random item */
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
-/** pick a random unused level wheel (letters + valid word set) */
-function pickWheel(used: Set<string>): { key: string; ls: string[]; words: Set<string> } {
-  for (let t = 0; t < 60; t++) {
-    const c = Math.floor(Math.random() * LEVELS.length);
-    const list = LEVELS[c];
-    const i = Math.floor(Math.random() * list.length);
-    const key = `${c}:${i}`;
-    if (used.has(key)) continue;
-    used.add(key);
-    const lv = list[i];
-    return { key, ls: letters(lv.wheel), words: new Set([...lv.words, ...lv.bonus]) };
-  }
-  const lv = LEVELS[0][0];
-  return { key: "0:0", ls: letters(lv.wheel), words: new Set(lv.words) };
-}
+/* GG — the old `pickWheel` (random level wheels, few buildable words)
+ * is REPLACED by the engineered pool: every round now draws a 9-letter
+ * wheel from a 140-wheel offline-generated set, each buildable from
+ * ۲۰۰+ real Persian words — «هر دور متفاوت باشه» with zero runtime
+ * cost. See src/game/core/partyWheels.ts. */
 
 const scoreWord = (len: number, speedSec: number, streak: number, golden: boolean) => {
   const base = len * 10 + Math.max(0, speedSec) * 2 + Math.max(0, streak) * 10;
@@ -331,8 +323,8 @@ function TurnGame({
   const endedRef = useRef(false);
   const checkingRef = useRef(false);
   const t0Ref = useRef(Date.now());
-  /* عمو دانا's coaching line for THIS turn */
-  const coachLine = useMemo(() => pick(COACH_TIPS.slice(1)), []);
+  /* عمو دانا speaks the personalized cheer in the coach strip — the
+   * old separate cheer line + duplicate coach tip are merged (GG). */
   const cheer = useMemo(() => pick(TURN_CHEERS).replace("{n}", p.name), [p.name]);
 
   /* v1.22 — DRAGGABLE PARTY RING (user: «اونجا هم کلمات رو کشیدنی
@@ -520,7 +512,32 @@ function TurnGame({
    * نامه در بازی نبر»). The curated game dictionary answers instantly;
    * the clean corpus file covers everything else.
    * Y-FIX — a REJECTED release clears the stroke immediately (like the
-   * main wheel) so no half-built nonsense lingers on the ring. */
+   * main wheel) so no half-built nonsense lingers on the ring.
+   * GG-FIX (user: «در حال بررسی باگ داره گاهی میمونه تو صفحه و نمیره»)
+   * — the old await had NO try/catch and NO timeout: if the one-time
+   * lexicon load ever threw or stalled in the WebView, the chip froze
+   * on screen forever and (worse) checkingRef blocked every next
+   * stroke. Now: ① the lexicon is PRE-WARMED on mount, ② the verdict
+   * is raced against a 4s watchdog, ③ any throw counts as a miss, and
+   * ④ checking state is force-cleared on unmount AND on turn end. */
+  useEffect(() => {
+    void ensureLexicon(); /* warm the corpus before the first word */
+    return () => { checkingRef.current = false; };
+  }, []);
+  const clearChecking = () => {
+    checkingRef.current = false;
+    setChecking(false);
+  };
+  const verdictWithWatchdog = async (w: string): Promise<boolean> => {
+    try {
+      return await Promise.race([
+        validateWord(w).catch(() => false),
+        new Promise<boolean>((res) => setTimeout(() => res(false), 4000)),
+      ]);
+    } catch {
+      return false;
+    }
+  };
   const clearStroke = () => {
     setSelBoth([]);
     tipTargetRef.current = null;
@@ -546,10 +563,9 @@ function TurnGame({
     }
     checkingRef.current = true;
     setChecking(true);
-    const good = await validateWord(wordStr);
-    checkingRef.current = false;
-    if (endedRef.current) { setChecking(false); return; }
-    setChecking(false);
+    const good = await verdictWithWatchdog(wordStr);
+    clearChecking();
+    if (endedRef.current) return;
     if (good) {
       accept(wordStr, selArr, "واژه تأیید شد!");
     } else {
@@ -561,6 +577,7 @@ function TurnGame({
   const endNow = (scored: boolean) => {
     if (endedRef.current) return;
     endedRef.current = true;
+    clearChecking(); /* GG — never leave the chip up when the turn ends */
     onTurnEnd(scored, turnWordsRef.current);
   };
 
@@ -644,15 +661,40 @@ function TurnGame({
       </div>
       {golden && <div className="ps-golden-note">چرخِ طلایی — امتیازها ۲ برابر!</div>}
 
-      {/* عمو دانا's personalized cheer for this turn */}
-      <div className="ps-cheer" aria-live="polite">{cheer}</div>
-
+      {/* GG REDESIGN — «صفحه بازی دورهمی مرتب‌تر بشه و بازطراحی بشه»:
+          a calm 4-band column: ① coach strip ② found-words panel
+          (scrolls) ③ the BIG ring at the bottom-centre ④ timer +
+          پایان نوبت on one row. The old free-floating cheer line and
+          the mid-screen wheel are gone. */}
       <div className="ps-board">
-        {/* timer + wheel */}
+        {/* عمو دانا's personalized cheer for this turn — one tidy strip */}
+        <div className="ps-head">
+          <Coach line={cheer} small />
+        </div>
+
+        {/* words found this turn — roomy scroll panel, newest first */}
+        <div className="ps-found" aria-live="polite">
+          {turnWords.length === 0 ? (
+            <span className="ps-found-empty">واژه‌هایی که در این نوبت می‌سازی این‌جا جمع می‌شوند</span>
+          ) : (
+            turnWords.map((x) => (
+              <span key={x.w} className="ps-tw">{x.w} <i>+{faNum(x.pts)}</i></span>
+            ))
+          )}
+        </div>
+
+        {/* message + pops + the quiet offline word check */}
+        <div className="ps-msgrow">
+          {msg && <span key={shake} className="ps-msg shake-x">{msg}</span>}
+          {checking && <span className="ps-dk"><span className="spin" />در حال بررسی واژه…</span>}
+          {pops.map((x) => (
+            <span key={x.id} className={`ps-pop ${golden ? "golden" : ""}`}>+{faNum(x.pts)}</span>
+          ))}
+        </div>
+
+        {/* the BIG drag ring — bottom-centre, «بیار پایین وسط صفحه و
+            بزرگترش بکن» */}
         <div className="ps-wheel-zone">
-          <div className="pt-timer-holder">
-            <TurnTimer ms={TURN_MS} onEnd={timerEnd} />
-          </div>
           <div
             ref={ringRef}
             className={`ps-ring ${golden ? "golden" : ""}`}
@@ -700,32 +742,16 @@ function TurnGame({
           </div>
         </div>
 
-        {/* message + pops + the quiet offline word check */}
-        <div className="ps-msgrow">
-          {msg && <span key={shake} className="ps-msg shake-x">{msg}</span>}
-          {checking && <span className="ps-dk"><span className="spin" />در حال بررسی واژه…</span>}
-          {pops.map((x) => (
-            <span key={x.id} className={`ps-pop ${golden ? "golden" : ""}`}>+{faNum(x.pts)}</span>
-          ))}
-        </div>
-
         {/* actions — the drag ring IS the input: build by DRAGGING →
-            release auto-submits (Z: taps never select). The old
-            ثبت/پاک buttons are gone; only «پایان نوبت» remains. */}
+            release auto-submits (Z: taps never select). The timer now
+            lives HERE, right beside «پایان نوبت», always in view. */}
         <div className="ps-actions">
+          <div className="pt-timer-holder">
+            <TurnTimer ms={TURN_MS} onEnd={timerEnd} />
+          </div>
           <button type="button" className="ps-act finish" onClick={() => { Audio.sfxClick(); endNow(turnWordsRef.current.length > 0); }}>
             پایان نوبت
           </button>
-        </div>
-
-        {/* عمو دانا coaching line */}
-        <Coach line={coachLine} small />
-
-        {/* words found this turn (no counter — the count is gone) */}
-        <div className="ps-turnwords">
-          {turnWords.slice(0, 6).map((x) => (
-            <span key={x.w} className="ps-tw">{x.w} <i>+{faNum(x.pts)}</i></span>
-          ))}
         </div>
       </div>
     </div>
@@ -968,6 +994,20 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
   const n = players.length;
   const golden = n > 0 && turnIdx % n === n - 1; /* last turn of every round */
 
+  /* GG — «یک موزیک هیجانی بزار برای اون قسمت وقتی بازی شروع میشه»:
+   * the whole دورهمی section keeps its festive theme while you're in
+   * the menu/setup, but the MOMENT the game starts (handoff → turn →
+   * recap → final) the soundtrack swaps to the new high-energy
+   * ۶/۸ party2 track. The track is pre-warmed here so the very first
+   * swap is instant (no decode jank mid-game). */
+  useEffect(() => {
+    Audio.preloadTrack("party2");
+  }, []);
+  useEffect(() => {
+    const inGame = phase === "handoff" || phase === "turn" || phase === "recap" || phase === "final";
+    Audio.setMusicConfig(inGame ? PARTY_GAME_MUSIC : PARTY_MUSIC);
+  }, [phase]);
+
   const startAll = (conf: PConf[], r: number) => {
     setPlayers(conf.map((c) => ({ ...c, score: 0, streak: 0, best: 0, words: 0 })));
     setRounds(r);
@@ -976,7 +1016,7 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
     setRecap(null);
     usedWords.current = new Set();
     usedWheelKeys.current = new Set();
-    setRoundWheel(pickWheel(usedWheelKeys.current));
+    setRoundWheel(pickEngineeredWheel(usedWheelKeys.current));
     setPhase("handoff");
   };
 
@@ -1000,7 +1040,7 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
       setTurnIdx((t) => t + 1);
       if (isLastOfRound) {
         setRound((r) => r + 1);
-        setRoundWheel(pickWheel(usedWheelKeys.current)); /* Z-FAIR: fresh shared wheel per round */
+        setRoundWheel(pickEngineeredWheel(usedWheelKeys.current)); /* Z-FAIR: fresh shared wheel per round */
       }
     }
     setRecap({ pIdx: me, words, gained, last });
@@ -1022,7 +1062,7 @@ export function PartyScreen({ onExit }: { onExit: () => void }) {
           setPlayers((ps) => ps.map((p) => ({ ...p, score: 0, streak: 0, best: 0, words: 0 })));
           setRound(1); setTurnIdx(0); setRecap(null);
           usedWords.current = new Set(); usedWheelKeys.current = new Set();
-          setRoundWheel(pickWheel(usedWheelKeys.current));
+          setRoundWheel(pickEngineeredWheel(usedWheelKeys.current));
           setPhase("handoff");
         }}
         onNewPlayers={() => setPhase("setup")}
