@@ -1,0 +1,12 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 390, height: 844 } });
+p.on("console", m => { if (m.type() === "error") console.log("ERR:", m.text().slice(0, 120)); });
+p.on("pageerror", e => console.log("PAGEERR:", String(e).slice(0, 200)));
+await p.goto("http://127.0.0.1:3000/", { waitUntil: "domcontentloaded" });
+await p.waitForTimeout(6000);
+console.log("splash count:", await p.locator(".splash-sky").count());
+console.log("sky-letters:", await p.locator(".sky-letters").count());
+console.log("vz-page count:", await p.locator(".vz-page").count());
+console.log("body text:", (await p.locator("body").innerText()).slice(0, 150).replace(/\n/g, " | "));
+await b.close();
