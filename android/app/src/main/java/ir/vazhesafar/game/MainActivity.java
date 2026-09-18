@@ -27,8 +27,7 @@ public class MainActivity extends BridgeActivity {
       wv.setOverScrollMode(View.OVER_SCROLL_NEVER);
       wv.setLayerType(View.LAYER_TYPE_HARDWARE, null);
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        wv.getSettings().setRendererPriorityPolicy(
-            WebSettings.RENDERER_PRIORITY_IMPORTANT, true);
+        wv.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true);
       }
       wv.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
     } catch (Exception ignored) {
