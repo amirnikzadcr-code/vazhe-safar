@@ -54,25 +54,25 @@ export function WinModal({
         </div>
 
         <div style={{ position: "relative", textAlign: "center", paddingTop: 14, overflowY: "auto" }}>
-          {/* stars — v1.22: three FIXED slots that light from the MIDDLE
-              outward (user: «وقتی یک یا دو ستاره‌ست ناتقارنی داره»):
-              ۱★ = the big elevated center star only, ۲★ = center + one
-              side, ۳★ = all. Elevation lives on the slot (static), the
-              pop lives on the inner span — they can never cancel each
-              other again. Lit = golden glow + ping ring; dim = engraved. */}
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 14, marginBottom: 4, minHeight: 62 }}>
+          {/* stars — v8 REBUILD (user: «صفحه برنده شدن مشکل داره وقتی
+              ستاره میده»): fixed-height row (zero layout shift), dim
+              slots painted IMMEDIATELY (the old fade-in+delay left them
+              invisible for up to .44s = broken-looking), lit stars land
+              with a staggered squash-&-stretch spring, a glow bloom and
+              a timed ping ring. All transform/opacity (compositor). */}
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 14, marginBottom: 4, height: 72 }}>
             {[0, 1, 2].map((i) => {
               const lit = stars === 3 ? true : stars === 2 ? i !== 2 : i === 1;
               const mid = i === 1;
               return (
                 <span key={i} className={`star-slot ${mid ? "mid" : ""} ${lit ? "lit" : "dim"}`}>
                   <span
-                    className={lit ? "star-pop" : "fade-in"}
-                    style={{ animationDelay: `${0.12 + i * 0.16}s`, display: "inline-flex" }}
+                    className={lit ? "star-pop" : undefined}
+                    style={{ display: "inline-flex", ...(lit ? { animationDelay: `${0.28 + i * 0.18}s` } : null) }}
                   >
                     <StarGold size={mid ? 58 : 46} className={lit ? "" : "star-ic off"} />
                   </span>
-                  {lit && <span className="ping" style={{ animationDelay: `${0.34 + i * 0.16}s` }} />}
+                  {lit && <span className="ping" style={{ animationDelay: `${0.6 + i * 0.18}s` }} />}
                 </span>
               );
             })}

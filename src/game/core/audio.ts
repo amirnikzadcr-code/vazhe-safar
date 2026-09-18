@@ -108,6 +108,7 @@ class AudioEngine {
   private cfg: MusicConfig | null = null;
   private eventsA: NoteEv[] = [];
   private eventsB: NoteEv[] = [];
+  private _lastLetterAt = 0;      // FF9 — sfxLetter rate limiter
 
   /* — v1.3 rendered-track playback (gapless loop + crossfade) —
    * v4 PERF (user: mobile «جا ب جایی بین صفحات لگ داره» + «گوشی داغ میکنه»):
@@ -756,6 +757,16 @@ class AudioEngine {
    *   • tiny wooden tap (low bandpass noise) instead of a synthetic click
    *   • ±0.4% random detune per hit → organic, alive */
   sfxLetter(idx: number): void {
+    /* FF9 (user: «مطمئن شو تمام موزیک و صدا ها باعث لگ نشن»): the drag
+     * catch can fire this on EVERY frame; each call spawns 5 nodes.
+     * A 45ms min-gap caps the synth at ~22 voices/s — the ear cannot
+     * tell the difference, the main thread (and GC) absolutely can. */
+    const ctx = this.ctx;
+    if (ctx) {
+      const now = ctx.currentTime;
+      if (now - this._lastLetterAt < 0.045) return;
+      this._lastLetterAt = now;
+    }
     const PENT = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];   // major-pentatonic ladder
     const step = PENT[Math.min(Math.max(idx, 0), PENT.length - 1)];
     const det = 1 + (Math.random() * 0.008 - 0.004);        // humanize ±0.4%

@@ -108,22 +108,22 @@ export const CHAPTERS: ChapterTheme[] = [
   },
   {
     id: 6,
-    title: "پارسهٔ کوروش",
-    subtitle: "ستون‌های پارسه، شکوهِ ایران‌زمین زیر آفتابِ طلایی",
+    title: "شهرِ بادگیرها",
+    subtitle: "بادگیرهای خشتی بر آسمانِ فیروزه‌ای، خنکای سحرگاهِ کویر",
     bg: "/assets/bg/ch06.webp",
     accent: "#c9922e", accent2: "#7ec8c0",
     realm: { sky: ["#ffd98c", "#fff2d0"], land: ["#e8bc6e", "#c08a3a"], gate: ["#c9922e", "#96691a"] },
-    /* EE — HISTORICAL RETHEME (user: «زمینه فصل 6 هم تغییر بده چیزای
-     * مذهبی نزار بیشتر تاریخی باشه مثل کوروش کبیر»): the old Yazd
-     * windcatcher/mosque-dome art is replaced by Persepolis (پارسه) —
-     * Achaemenid columns, the Gate of All Nations, Cyrus-era glory.
-     * Music: an imperial homayun santur march, daf 6/8 at 104. */
-    music: { track: "ch06", scale: "homayun", root: 261.63, cents: [], bpm: 104, meter: 6, perc: "daf", lead: "santur", octave: 1, drone: 0.5,
-      motif: [[0,0.5],[1,0.5],[2,1],[2,0.5],[3,0.5],[2,0.5],[1,0.5],[0,1],[4,1],[3,1],[2,1],[1,1],[0,1.5]],
-      motifB: [[3,0.5],[4,0.5],[3,0.5],[2,1],[1,0.5],[2,0.5],[1,1],[0,1.5],[-1,0.5],[0,2]],
+    /* FF — RETHEME, FORGET CYRUS (user: «زمینه فصل 6 رو عوض کن و یچی
+     * دیگ بزار بیخیال کوروش شو»): the Persepolis/Cyrus art is replaced
+     * by the windcatcher city — Yazd's adobe towers, turquoise sky,
+     * zero religious motifs, zero royal figures. Music moved to the
+     * BRIGHT mahur santur family the user approved (فصل ۲۰). */
+    music: { track: "ch06", scale: "mahur", root: 293.66, cents: [], bpm: 104, meter: 6, perc: "daf", lead: "santur", octave: 1, drone: 0.45,
+      motif: [[0,0.5],[1,0.5],[2,0.5],[3,0.5],[4,0.5],[5,1],[4,0.5],[3,0.5],[4,1],[2,0.5],[1,0.5],[2,1],[3,0.5],[2,0.5],[1,0.5],[0,1.5]],
+      motifB: [[5,0.5],[4,0.5],[3,0.5],[2,0.5],[1,1],[2,1],[3,1],[2,0.5],[1,0.5],[0,1],[-1,0.5],[2,0.5],[1,0.5],[0,1.5]],
       },
-    guide: "بر خاستگاه پارسه قدم بزن؛ هر واژه یک ستونِ استوار است!",
-    finaleText: "در پارسه آواز سر دادیم؛ نامِ کوروش در باد پیچید.",
+    guide: "میان بادگیرها قدم بزن؛ هر واژه یک نسیمِ تازه است!",
+    finaleText: "در شهرِ بادگیرها، هر واژه مثل نسیمِ خنکِ سحر خوانده شد.",
   },
   {
     id: 7,
@@ -192,9 +192,12 @@ export const CHAPTERS: ChapterTheme[] = [
     bg: "/assets/bg/ch11.webp",
     accent: "#2f8f7a", accent2: "#a7f3d0",
     realm: { sky: ["#b8ecdf", "#eafcf5"], land: ["#59b98d", "#2e7d5e"], gate: ["#2f8f7a", "#1d6353"] },
-    music: { track: "ch11", scale: "shur", root: 246.94, cents: [], bpm: 84, meter: 6, perc: "daf", lead: "ney", octave: 0, drone: 0.6,
-      motif: [[0,1],[1,0.5],[2,1],[3,0.5],[2,1],[1,1],[4,1.5],[3,0.5],[2,1],[1,1],[0,2]],
-      motifB: [[3,0.5],[2,0.5],[1,1],[0,1.5],[-1,0.5],[2,1],[1,1],[0,2]],
+    /* FF — the user flagged ch11's slow ney-shur track («موزیک فصل 11
+     * مشکل داره، مثله فصل‌های دیگ کن»): moved to the bright rast
+     * santur+daf family — sunny, forward-driving, matching ch20. */
+    music: { track: "ch11", scale: "rast", root: 261.63, cents: [], bpm: 100, meter: 6, perc: "daf", lead: "santur", octave: 1, drone: 0.45,
+      motif: [[0,0.5],[2,0.5],[4,0.5],[5,0.5],[6,0.5],[5,0.5],[4,1],[3,0.5],[4,0.5],[5,0.5],[4,0.5],[3,0.5],[2,1],[1,0.5],[2,0.5],[3,0.5],[2,0.5],[1,0.5],[0,1.5]],
+      motifB: [[4,0.5],[5,0.5],[6,1],[5,0.5],[4,0.5],[3,1],[2,0.5],[3,0.5],[4,0.5],[3,0.5],[2,0.5],[1,1],[0,2]],
       },
     guide: "بالای ابرها نفس عمیق بکش و واژه را محکم بساز!",
     finaleText: "از فراز جنگلِ ابرها، دنیا مثل یک نقاشی آرام بود.",

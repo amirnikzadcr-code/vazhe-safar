@@ -969,7 +969,7 @@ button:active { transition-duration: .05s; }
   content: ""; position: absolute; left: -4%; right: -4%; height: 90px;
   background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,252,238,.95) 58%, rgba(255,214,110,.65));
   filter: blur(1px);
-  transform: translateY(103vh);
+  transform: translateY(103%);
   animation: curtainEdge 1.75s cubic-bezier(.3,.7,.25,1) both;
   will-change: transform, opacity;
 }
@@ -1001,7 +1001,10 @@ button:active { transition-duration: .05s; }
   80% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -62%) scale(.94); }
 }
-.lowfx .ch-curtain { display: none; }
+/* v6 PARITY — the curtain is a ONE-SHOT compositor wash (transform+
+ * opacity, no repaint): it stays on the fallback tier too. The old
+ * `display:none` here is what made the APK chapter flip feel dead
+ * compared to web (user: «انیمیشن صفحه فصل با موبایل یکی نیست»). */
 
 /* chapter plate — medal + title + range + stars + progress ribbon */
 .ch-plate {
@@ -1130,8 +1133,9 @@ button:active { transition-duration: .05s; }
   from { transform: translateX(-50%) translateY(0); }
   to { transform: translateX(-50%) translateY(-3px); }
 }
-.lowfx .cb-plate, .lowfx .cb-medal { animation: none; }
-.lowfx .ch-banner { animation-duration: .01s; }   /* still ends visible */
+/* v6 PARITY — the banner drop-in (.72s, one-shot) and the plate's tiny
+ * sway loops are compositor-only: they survive the fallback tier, so
+ * the chapter page looks THE SAME on APK and web. */
 
 /* side arrows — forward = LEFT (RTL) / back = RIGHT; locked shows a padlock */
 .ch-arrow {
@@ -1266,6 +1270,17 @@ button:active { transition-duration: .05s; }
   background: radial-gradient(circle at 38% 30%, #a8ef86, #5ec131 58%, #3c9e1f 100%);
   border-color: #fff; outline-color: rgba(30,90,10,.55);
   box-shadow: 0 5px 0 #2f8f1f, 0 0 0 4px rgba(140,230,90,.4), 0 10px 16px rgba(20,90,10,.45);
+  /* v6 — the current level LANDS with a springy one-shot pop so the
+   * «you are here» marker is unmissable. `backwards` fill: once the
+   * animation ends the transform is free again, so :active press
+   * feedback keeps working. */
+  animation: nodeCurIn .55s cubic-bezier(.2,1.6,.4,1) .18s backwards;
+}
+@keyframes nodeCurIn {
+  0% { transform: scale(0); }
+  62% { transform: scale(1.22); }
+  82% { transform: scale(.94); }
+  100% { transform: scale(1); }
 }
 /* PERF: the pulse is a composited ::after ring (transform+opacity only)
    — animating box-shadow repaints every frame and janks the page */
@@ -1397,8 +1412,24 @@ button:active { transition-duration: .05s; }
 @keyframes riseIn { from { opacity: 0; transform: translateY(26px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .pop-in { animation: popIn .45s cubic-bezier(.2,1.7,.4,1) both; }
 @keyframes popIn { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
-.star-pop { animation: starPop .55s cubic-bezier(.2,1.8,.4,1) both; }
-@keyframes starPop { 0% { opacity: 0; transform: scale(0) rotate(-90deg); } 65% { opacity: 1; transform: scale(1.3) rotate(8deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+/* v8 — star landing: squash-&-stretch spring (overshoot 1.3 → squashed
+ * 0.92 → rest), timed to land BEFORE the ping ring fires. `both` fill
+ * keeps the star hidden until its own delay — the stagger reads as a
+ * deliberate reveal instead of a flash. */
+.star-pop { animation: starPop .62s cubic-bezier(.2,1.5,.35,1) both; will-change: transform, opacity; }
+@keyframes starPop {
+  0%   { opacity: 0; transform: scale(0) rotate(-70deg); }
+  55%  { opacity: 1; transform: scale(1.28) rotate(6deg); }
+  74%  { transform: scale(.9) rotate(-2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+/* glow bloom on the lit icon, synced with the pop landing */
+.star-slot.lit .star-ic { animation: starBloom .62s cubic-bezier(.2,1.5,.35,1) both; }
+@keyframes starBloom {
+  0%   { filter: drop-shadow(0 3px 5px rgba(150,90,0,0)) drop-shadow(0 0 0 rgba(255,205,80,0)); }
+  55%  { filter: drop-shadow(0 3px 5px rgba(150,90,0,.5)) drop-shadow(0 0 16px rgba(255,205,80,.95)); }
+  100% { filter: drop-shadow(0 3px 5px rgba(150,90,0,.5)) drop-shadow(0 0 10px rgba(255,205,80,.65)); }
+}
 /* ==================================================================
    v1.22 — WIN STAR SLOTS (user: «ستاره‌ها وقتی یک یا دو ستاره‌ست
    ناتقارنی داره و خوشگل نیست — روان‌تر، گرافیکی‌تر»): three FIXED
@@ -2106,8 +2137,9 @@ button:active { transition-duration: .05s; }
 @keyframes boot-sweep { from { transform: translateX(56%); } to { transform: translateX(-56%); } }
 .boot-hint { color: rgba(255,255,255,.92); font-weight: 700; font-size: 13px; text-shadow: 0 2px 4px rgba(0,0,0,.3); }
 /* the body itself gets the splash gradient → zero white flash even
- * during WebView cold start */
-body { background: #5cb2ef; }
+ * during WebView cold start. v8: matches the CLOUD scene's top sky
+ * (the old saturated #5cb2ef was the «صفحه لودینگ آبی» flash). */
+body { background: #bfe7ff; }
 
 /* Y — splash EXIT curtain: the splash fades + gently scales out BEFORE
  * the home screen mounts (compositor-only; the body's matching blue
@@ -2116,6 +2148,94 @@ body { background: #5cb2ef; }
 @keyframes splashOut {
   to { opacity: 0; transform: scale(1.045); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v8 — CLOUD LOADING SCENE (user: «صفحه لودینگ رو حالت ابر بکن که باز
+   میشه ابر خیلی روان و خوشگل، اون صفحه لودینگ آبی حذف کن»)
+   A storybook sky: warm sun glow, 6 cloud layers drifting at different
+   depths/speeds (negative delays = already mid-flight at mount), and
+   عمو دانا riding his own puffy cloud. EVERY motion is transform-only
+   on its own compositor layer — the whole scene animates without a
+   single repaint, so it is as smooth on the APK as on web.
+   ═══════════════════════════════════════════════════════════════════ */
+.splash-sky {
+  background:
+    radial-gradient(130% 55% at 50% 108%, #eaf8d8 0%, rgba(234,248,216,0) 60%),
+    linear-gradient(180deg, #bfe7ff 0%, #9ed4ff 42%, #c8ebff 74%, #e6f6e2 100%);
+  overflow: hidden;
+}
+.sky-sun {
+  position: absolute; top: -78px; left: -78px; width: 250px; height: 250px;
+  border-radius: 999px; pointer-events: none;
+  background: radial-gradient(circle, rgba(255,243,190,.95) 0%, rgba(255,231,140,.55) 40%, rgba(255,231,140,0) 68%);
+  animation: skySun 7s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+@keyframes skySun { from { transform: scale(1); opacity: .85; } to { transform: scale(1.14); opacity: 1; } }
+
+/* cloud PUFF — one element, five shading lobes via box-shadow:
+ * painted once, then only transformed (compositor). */
+.sky-clouds { position: absolute; inset: 0; pointer-events: none; }
+.clw { position: absolute; left: 0; right: 0; height: 0; will-change: transform; }
+.clw.c1 { top: 9%;  transform: scale(1.18); }
+.clw.c2 { top: 21%; transform: scale(0.85); }
+.clw.c3 { top: 34%; transform: scale(1.02); }
+.clw.c4 { top: 55%; transform: scale(1.3); }
+.clw.c5 { top: 71%; transform: scale(0.78); }
+.clw.c6 { top: 86%; transform: scale(1.45); }
+.cl {
+  display: block; position: absolute; top: 0; left: 0;
+  width: 150px; height: 44px; border-radius: 999px; background: #fff;
+  box-shadow:
+    32px -17px 0 9px #fff,
+    -36px -11px 0 3px #fff,
+    64px 3px 0 -7px #fff,
+    -62px 7px 0 -11px #fff,
+    0 -26px 0 5px #fff;
+  opacity: .93;
+  animation: cloudDrift linear infinite;
+  will-change: transform;
+}
+.clw.c1 .cl { animation-duration: 47s; animation-delay: -13s; }
+.clw.c2 .cl { animation-duration: 61s; animation-delay: -39s; opacity: .68; }
+.clw.c3 .cl { animation-duration: 41s; animation-delay: -26s; opacity: .55; }
+.clw.c4 .cl { animation-duration: 53s; animation-delay: -7s;  opacity: .85; }
+.clw.c5 .cl { animation-duration: 45s; animation-delay: -31s; opacity: .6; }
+.clw.c6 .cl { animation-duration: 64s; animation-delay: -50s; opacity: .78; }
+@keyframes cloudDrift {
+  from { transform: translateX(-36vw); }
+  to   { transform: translateX(112vw); }
+}
+
+/* عمو دانا riding his cloud — gentle compositor bob */
+.sky-hero {
+  position: relative; display: flex; flex-direction: column; align-items: center;
+  margin-top: 4px; z-index: 3;
+  animation: skyHeroBob 4.4s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes skyHeroBob { from { transform: translateY(0); } to { transform: translateY(-8px); } }
+.sky-hero img {
+  height: min(30vh, 208px); object-fit: contain; position: relative; z-index: 2;
+  margin-bottom: -22px; pointer-events: none;
+  filter: drop-shadow(0 14px 18px rgba(10,30,60,.3));
+}
+.sky-hero-cloud {
+  width: 200px; height: 56px; border-radius: 999px; background: #fff;
+  box-shadow:
+    42px -18px 0 10px #fff,
+    -46px -12px 0 4px #fff,
+    76px 6px 0 -4px #fff,
+    -72px 8px 0 -8px #fff,
+    0 -28px 0 6px #fff;
+  filter: drop-shadow(0 10px 14px rgba(60,110,160,.28));
+}
+.sky-cap {
+  position: absolute; bottom: 22px; color: #2b5d86; font-weight: 700;
+  font-size: 13px; opacity: .85;
+}
+/* fallback tier: freeze the loops (clouds rest mid-sky, still pretty) */
+.lowfx .sky-sun, .lowfx .cl, .lowfx .sky-hero { animation: none; }
 
 /* ---------- unified profile plate (HUD) — Y: compact, level chip is
    a STANDALONE inline badge (no longer docked on the avatar face) */
@@ -2413,9 +2533,10 @@ body { background: #5cb2ef; }
    game 60 fps-smooth and cool on low-end phones.
    ═══════════════════════════════════════════════════════════════════ */
 .lowfx .float-slow,
-.lowfx .map-node.cur::after,
-.lowfx .map-node.cur::before,
-.lowfx .cur-tag,
+/* v6 PARITY — the «شما اینجایید» anchor (current-node double halo +
+ * bobbing tag) is THREE tiny compositor loops on ONE node: it is the
+ * player's landmark and NEVER stops animating, on any tier. Only the
+ * genuinely heavy decorations below still shed under lowfx. */
 .lowfx .shop-hero::after,
 .lowfx .shop-bundle .breathe { animation: none !important; }
 .lowfx .confetti i:nth-child(n + 13),
@@ -2432,17 +2553,18 @@ body { background: #5cb2ef; }
 .lowfx .pbar > i,
 .lowfx .prof-xpbar > i,
 .lowfx .plate-xpbar > i { transition: none !important; }
-.lowfx .page-enter.fwd,
-.lowfx .page-enter.back { animation: pageFadeSoft .14s ease both !important; }
+/* v6 PARITY — page fades are .22s opacity-only one-shots: they run
+ * identically on every tier, no shedding (old pageFadeSoft gutted the
+ * APK transitions and made them feel cheaper than web). */
 /* v7 — the screen-swap frame IS expensive (whole screen mounts); the
  * old v5 “no animation at all” made that cost visible as a silent
  * frozen hitch («سوئیچ بین صفحات ب شدت لگ داره»). A 140ms opacity-only
  * fade is nearly free (compositor) and turns the same work into a
  * soft beat — masking the mount instead of exposing it. */
 @keyframes pageFadeSoft { from { opacity: 0; } to { opacity: 1; } }
-/* v1.19 — paged-map + celebration opt-outs for weak phones */
-.lowfx .ch-scene.in-fwd,
-.lowfx .ch-scene.in-back { animation: none !important; }
+/* v1.19 — celebration opt-outs for weak phones */
+/* v6 PARITY — chapter flip slides are .3s one-shot compositor moves:
+ * they run on every tier (the old kill made the APK flip feel dead). */
 .lowfx .unlock-go { animation: celebPop .5s cubic-bezier(.34,1.56,.64,1) 2.35s both !important; }
 .lowfx .unlock-lock .ul-body { animation: none !important; }
 .lowfx .ch-chip { transition: none !important; }

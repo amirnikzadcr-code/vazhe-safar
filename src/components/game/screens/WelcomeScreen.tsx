@@ -154,24 +154,43 @@ export function Splash({ onDone }: { onDone: () => void }) {
 
   return (
     <div
-      className={`vz-page ${out ? "splash-out" : ""}`}
-      style={{ background: "linear-gradient(180deg,#8fd0ff 0%,#5cb2ef 55%,#3d9df0 100%)", alignItems: "center", justifyContent: "center" }}
+      className={`vz-page splash-sky ${out ? "splash-out" : ""}`}
+      style={{ alignItems: "center", justifyContent: "center" }}
     >
-      <Vines />
+      {/* v8 CLOUD LOADING SCENE (user: «صفحه لودینگ رو حالت ابر بکن که
+       * باز میشه ابر خیلی روان و خوشگل، اون صفحه لودینگ آبی حذف کن») —
+       * a soft storybook sky: sun glow + 6 drifting cloud layers + عمو
+       * دانا riding his own cloud. Every motion is transform-only on
+       * its own compositor layer (60fps even on weak phones), and the
+       * flat blue page is gone. */}
+      <div className="sky-sun" aria-hidden />
+      <div className="sky-clouds" aria-hidden>
+        <i className="clw c1"><b className="cl" /></i>
+        <i className="clw c2"><b className="cl" /></i>
+        <i className="clw c3"><b className="cl" /></i>
+        <i className="clw c4"><b className="cl" /></i>
+        <i className="clw c5"><b className="cl" /></i>
+        <i className="clw c6"><b className="cl" /></i>
+      </div>
 
-      <img src="/assets/char/seat.webp" alt="عمو دانا" className="pop-in" style={{ height: "min(34vh, 240px)", objectFit: "contain", filter: "drop-shadow(0 16px 22px rgba(10,30,60,.35))" }} />
-      <h1 className="title3d pop-in" data-t="واژه‌سفر" style={{ fontSize: "clamp(44px, 14vw, 64px)", marginTop: 6, animationDelay: ".15s" }}>
+      <div className="sky-hero">
+        <img src="/assets/char/seat.webp" alt="عمو دانا" className="pop-in" />
+        <div className="sky-hero-cloud" />
+      </div>
+
+      <h1 className="title3d pop-in" data-t="واژه‌سفر" style={{ fontSize: "clamp(44px, 14vw, 64px)", marginTop: 10, animationDelay: ".15s" }}>
         واژه‌سفر
       </h1>
+
       <div
-        className="rise-in"
-        style={{ marginTop: 14, width: 170, height: 12, borderRadius: 999, background: "rgba(255,255,255,.4)", overflow: "hidden", border: "2px solid rgba(255,255,255,.7)", animationDelay: ".3s", padding: 2 }}
+        className="sky-bar rise-in"
+        style={{ animationDelay: ".3s" }}
         aria-hidden
       >
         {/* fill = compositor scaleX, driven by the rAF lerp above */}
-        <div ref={fillRef} style={{ width: "100%", height: "100%", borderRadius: 999, background: "linear-gradient(180deg,#ffe08a,#f79c0d)", transform: "scaleX(0.08)", transformOrigin: "100% 50%", willChange: "transform" }} />
+        <div ref={fillRef} className="sky-bar-fill" />
       </div>
-      <span style={{ position: "absolute", bottom: 24, color: "rgba(255,255,255,.9)", fontWeight: 700, fontSize: 13, textShadow: "0 2px 4px rgba(0,0,0,.3)" }}>
+      <span className="sky-cap">
         برای شروع آماده می‌شویم…
       </span>
     </div>

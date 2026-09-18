@@ -390,8 +390,11 @@ def main():
             w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
             w.writeframes(pcm.tobytes())
         ogg = f"{OUT_DIR}/{name}.ogg"
+        # FF — render DIRECTLY at 48 kHz: the game pins its AudioContext
+        # to 48 kHz, so decodeAudioData does no resample, and the track
+        # never goes through a lossy 44.1k→48k re-encode (encode_music_48k).
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", raw,
-                        "-c:a", "libvorbis", "-q:a", "5", "-ar", "44100", ogg], check=True)
+                        "-c:a", "libvorbis", "-q:a", "5", "-ar", "48000", ogg], check=True)
         print(f"  -> {ogg} {os.path.getsize(ogg)//1024}KB", flush=True)
 
 if __name__ == "__main__":
