@@ -1,0 +1,103 @@
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><style>
+@font-face { font-family:"V"; src:url("Vazirmatn-ExtraBold.woff2") format("woff2"); font-weight:800; }
+@font-face { font-family:"V"; src:url("Vazirmatn-Bold.woff2") format("woff2"); font-weight:700; }
+@font-face { font-family:"V"; src:url("Vazirmatn-Medium.woff2") format("woff2"); font-weight:500; }
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:540px; height:960px; overflow:hidden; }
+body {
+  font-family:"V", sans-serif; direction:rtl; position:relative;
+  background:
+    radial-gradient(52% 30% at 16% 4%, rgba(255,244,180,.95) 0%, rgba(255,231,140,0) 70%),
+    radial-gradient(70% 34% at 88% 100%, rgba(120,230,140,.55) 0%, rgba(120,230,140,0) 70%),
+    linear-gradient(180deg,#3fa9ee 0%, #74cbf6 26%, #a9e3fa 50%, #cdf3e2 74%, #f3f7c1 100%);
+}
+/* scene decorations */
+.cloud { position:absolute; background:#fff; border-radius:999px; opacity:.9; box-shadow:0 6px 14px rgba(40,110,170,.12); }
+.cloud::before, .cloud::after { content:""; position:absolute; background:#fff; border-radius:999px; }
+.cloud::before { width:52%; height:150%; top:-62%; right:12%; }
+.cloud::after  { width:38%; height:110%; top:-42%; right:52%; }
+.sp { position:absolute; background:linear-gradient(180deg,#ffffff,#ffe27a);
+  clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%); }
+.dot { position:absolute; border-radius:50%; }
+.fl { position:absolute; font-weight:800; color:#1f6fa8; opacity:.14; }
+/* header */
+.head { position:absolute; top:18px; right:0; left:0; text-align:center; z-index:6; }
+.head h1 {
+  font-size:41px; font-weight:800; letter-spacing:-.5px; line-height:1.12;
+  background:linear-gradient(180deg,#fffbe0 6%, #ffde59 46%, #ff9d00 92%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  filter:drop-shadow(0 3px 0 #b96e00) drop-shadow(0 8px 14px rgba(120,50,0,.42));
+}
+.head p { margin-top:5px; font-size:15.5px; line-height:1.3; font-weight:800; color:#14547f; white-space:nowrap;
+  text-shadow:0 1px 0 rgba(255,255,255,.75); }
+.chips { position:absolute; z-index:6; display:flex; gap:9px; justify-content:center; right:0; left:0; top:97px; }
+.chip {
+  background:linear-gradient(180deg,#ffffff,#ffedbe); border:2.5px solid #f2a900; color:#8a5200;
+  font-size:13.5px; font-weight:800; padding:5px 14px 7px; border-radius:999px;
+  box-shadow:0 5px 10px rgba(120,60,0,.18);
+}
+/* phone mockup — FULL screenshot, nothing cropped */
+.glow { position:absolute; z-index:2; width:470px; height:470px; border-radius:50%;
+  background:radial-gradient(circle, rgba(255,213,80,.6) 0%, rgba(255,213,80,0) 66%); }
+.phone { position:absolute; z-index:4; background:#17222f; border-radius:36px; padding:9px;
+  box-shadow: inset 0 0 0 2.5px #3c4d63, 0 0 0 5.5px #ffffff, 0 0 0 9px #f3b21f,
+    0 26px 44px rgba(12,40,80,.40), 0 8px 18px rgba(12,40,80,.28);
+  transform:rotate(-2deg); }
+.phone .scr { width:302px; height:653px; border-radius:28px; overflow:hidden; background:#fff; }
+.phone .scr img { display:block; width:100%; }
+/* bottom wave + character + pill + CTA */
+.wave { position:absolute; z-index:3; left:-3%; right:-3%; bottom:0; height:150px;
+  background:linear-gradient(180deg,#93e56e 0%, #4fc455 46%, #2ea843 100%);
+  border-radius:100% 88% 0 0 / 34px 30px 0 0; box-shadow:0 -8px 18px rgba(30,120,50,.25); }
+.wave2 { position:absolute; z-index:2; left:-6%; right:-6%; bottom:0; height:172px;
+  background:rgba(255,255,255,.5); border-radius:100% 80% 0 0 / 40px 36px 0 0; }
+.char { position:absolute; z-index:9; filter:drop-shadow(0 10px 14px rgba(10,30,60,.30)); }
+.pill {
+  position:absolute; z-index:8; right:20px; width:352px; bottom:88px; height:40px;
+  background:rgba(255,255,255,.96); border:2.5px solid #f2a900; border-radius:999px;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  font-size:15.5px; font-weight:800; color:#8a5200; box-shadow:0 6px 12px rgba(100,50,0,.22);
+}
+.cta {
+  position:absolute; z-index:8; right:20px; width:352px; height:60px; bottom:16px;
+  background:linear-gradient(180deg,#43da70,#12a63f); border-radius:19px;
+  border:3px solid #fff; outline:3.5px solid #0b7a30;
+  box-shadow:0 12px 20px rgba(8,80,30,.38), inset 0 3px 0 rgba(255,255,255,.45);
+  display:flex; align-items:center; justify-content:center; gap:12px;
+  color:#fff; font-size:21.5px; font-weight:800; text-shadow:0 2px 0 rgba(0,90,40,.45);
+}
+.cta::after { content:""; position:absolute; top:5px; right:14px; left:14px; height:11px;
+  background:rgba(255,255,255,.34); border-radius:999px; }
+.dl { width:0; height:0; border-left:10px solid transparent; border-right:10px solid transparent;
+  border-top:15px solid #fff; margin-top:8px; filter:drop-shadow(0 1px 0 rgba(0,90,40,.4)); }
+</style></head>
+<body>
+  
+  <div class="cloud" style="width:150px;height:38px;top:138px;left:-34px"></div>
+  <div class="cloud" style="width:104px;height:28px;top:342px;right:-28px;opacity:.7"></div>
+  <div class="cloud" style="width:120px;height:32px;top:648px;left:-38px;opacity:.75"></div>
+  <span class="sp" style="width:34px;height:34px;top:88px;right:52px"></span>
+  <span class="sp" style="width:20px;height:20px;top:212px;left:64px;opacity:.85"></span>
+  <span class="sp" style="width:26px;height:26px;bottom:246px;right:38px;opacity:.8"></span>
+  <span class="sp" style="width:16px;height:16px;top:368px;left:150px;opacity:.6"></span>
+  <i class="dot" style="width:12px;height:12px;top:180px;right:120px;background:#ff8a65"></i>
+  <i class="dot" style="width:9px;height:9px;top:300px;left:96px;background:#ffd54f"></i>
+  <i class="dot" style="width:11px;height:11px;bottom:210px;left:44px;background:#4dd0e1"></i>
+  <i class="dot" style="width:8px;height:8px;top:96px;left:220px;background:#ab47bc;opacity:.7"></i>
+  <i class="dot" style="width:10px;height:10px;bottom:300px;right:16px;background:#66bb6a"></i>
+  <span class="fl" style="font-size:34px;top:148px;left:26px">ا</span>
+  <span class="fl" style="font-size:26px;top:420px;right:20px">س</span>
+  <span class="fl" style="font-size:30px;bottom:280px;left:150px">ب</span>
+  <span class="fl" style="font-size:22px;top:250px;left:330px">ک</span>
+  <span class="fl" style="font-size:26px;bottom:120px;right:200px;opacity:.1">گ</span>
+  <div class="head"><h1>۲۰ سرزمین تازه در راه است</h1><p>هر فصل یک سرزمین تازه با موسیقی خودش</p></div>
+  <div class="chips"><span class="chip">۲۰ موسیقی اختصاصی</span><span class="chip">نقشهٔ بزرگ</span><span class="chip">ستاره جمع کن</span></div>
+  <div class="glow" style="top:240px; left:35px"></div>
+  <div class="phone" style="top:141px; left:104px">
+    <div class="scr"><img src="map.png" alt=""></div>
+  </div>
+  <div class="wave2"></div><div class="wave"></div>
+  <img class="char" src="point.webp" style="width:150px; bottom:12px; left:8px" alt="">
+  <div class="pill"><span class="sp" style="position:static; width:15px;height:15px"></span>ستاره‌ها را جمع کن و نقشه را کامل کن!</div>
+  <div class="cta">همین حالا رایگان بازی کن! <i class="dl"></i></div>
+</body></html>

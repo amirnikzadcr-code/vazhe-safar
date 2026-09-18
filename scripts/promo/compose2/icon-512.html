@@ -1,0 +1,29 @@
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><style>
+@font-face { font-family:"V"; src:url("Vazirmatn-ExtraBold.woff2") format("woff2"); font-weight:800; }
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:256px; height:256px; overflow:hidden; }
+body { font-family:"V",sans-serif; direction:rtl; position:relative;
+  background:linear-gradient(160deg,#ffd54d 0%, #ffb02e 52%, #ff8a00 100%); }
+.ring { position:absolute; inset:0; border-radius:56px; box-shadow:inset 0 0 0 9px rgba(255,255,255,.92), inset 0 0 0 13px #e08e00; }
+.sun { position:absolute; width:190px; height:190px; border-radius:50%; top:-52px; right:-42px;
+  background:radial-gradient(circle, rgba(255,255,255,.55), rgba(255,255,255,0) 70%); }
+.tile { position:absolute; background:#fffdf4; border-radius:22px; display:flex; align-items:center; justify-content:center;
+  color:#7a4a00; font-weight:800; box-shadow:0 8px 14px rgba(140,70,0,.35), inset 0 -5px 0 rgba(160,90,0,.16); }
+.big { width:104px; height:104px; top:34px; left:76px; font-size:64px; border:5px solid #f2a900; transform:rotate(3deg); }
+.sm { width:52px; height:52px; font-size:30px; border:3.5px solid #f2a900; }
+.sp { position:absolute; background:linear-gradient(180deg,#fff,#ffe27a);
+  clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%); }
+.dlbar { position:absolute; bottom:24px; left:0; right:0; text-align:center; color:#7a4a00; font-size:21px; font-weight:800;
+  text-shadow:0 2px 0 rgba(255,255,255,.6); }
+</style></head>
+<body>
+  <div class="ring"></div><div class="sun"></div>
+  <span class="sp" style="width:30px;height:30px;top:26px;left:24px"></span>
+  <span class="sp" style="width:18px;height:18px;top:64px;left:58px;opacity:.85"></span>
+  <span class="sp" style="width:22px;height:22px;top:96px;right:26px"></span>
+  <div class="tile big">و</div>
+  <div class="tile sm" style="bottom:78px; left:24px; transform:rotate(-6deg)">ا</div>
+  <div class="tile sm" style="bottom:66px; left:102px; transform:rotate(4deg)">س</div>
+  <div class="tile sm" style="bottom:78px; left:180px; transform:rotate(-3deg)">ف</div>
+  <div class="dlbar">واژه‌سفر</div>
+</body></html>
