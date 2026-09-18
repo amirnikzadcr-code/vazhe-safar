@@ -185,9 +185,6 @@ export function ShopScreen({ onBack }: { onBack: () => void }) {
             )
           )}
 
-          <p className="shop2-note">
-            پرداخت امن از طریق <b>مایکت</b> و <b>کافه‌بازار</b>
-          </p>
         </div>
       </div>
 
