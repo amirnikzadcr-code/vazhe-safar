@@ -181,6 +181,15 @@ export function PlayScreen({
    * که کاربر می‌سازه دیده بشه»). Written IMPERATIVELY by the Wheel
    * (zero re-renders during drags — same pattern as the stroke). */
   const guessRef = useRef<HTMLDivElement | null>(null);
+  /* EE — DUPLICATE NOTICE (user: «اون متن تکراری بودن رو جایگاه و
+   * انیمیشنش رو بهتر بکن»): instead of the generic bottom toast, a
+   * golden chip blooms EXACTLY above the guess strip (where the word
+   * was built) carrying the word + a short line. One state write per
+   * duplicate submit — duplicates are rare, so this never janks. */
+  const [dup, setDup] = useState<{ word: string; msg: string; k: number } | null>(null);
+  const dupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dupKRef = useRef(0);
+  useEffect(() => () => { if (dupTimerRef.current) clearTimeout(dupTimerRef.current); }, []);
   const shuffleBtnRef = useRef<HTMLButtonElement | null>(null);
   /* v1.21 — the row currently playing its letter-by-letter entry */
   const [justFound, setJustFound] = useState<string | null>(null);
@@ -232,6 +241,14 @@ export function PlayScreen({
   }, [progressKey]);
 
   const { toast, show } = useToast();
+
+  /* EE — the duplicate notice host (see the .dup-toast CSS) */
+  const showDup = useCallback((word: string, msg: string) => {
+    dupKRef.current += 1;
+    setDup({ word, msg, k: dupKRef.current });
+    if (dupTimerRef.current) clearTimeout(dupTimerRef.current);
+    dupTimerRef.current = setTimeout(() => setDup(null), 1950);
+  }, []);
 
   /* v4 PERF — probe DURING real gameplay on the first screens; weak
    * phones get the lowfx tier shed automatically (the boot probe ran
@@ -289,6 +306,11 @@ export function PlayScreen({
     setFound(next);
     setJustFound(word);
     Audio.sfxSettle();
+    /* EE — GLOBAL MAIN-WORD LEDGER (user: «مراقب باش کلا چ هر فصل باشه
+     * چ مرحله کاربر تکراری وارد نکنه»): every main word ever built —
+     * ANY chapter, ANY level — is remembered forever. The hidden-word
+     * check refuses to re-award it as a bonus in a later level. */
+    Save.noteMainWord(word);
     if (wordRows.length > 0 && next.size >= wordRows.length) {
       winDelayRef.current = LETTER_T0 + letters(word).length * LETTER_STEP + WIN_EXTRA_MS;
     }
@@ -391,18 +413,21 @@ export function PlayScreen({
     const groups = document.querySelectorAll<HTMLElement>(".wboard .wgroup.done");
     for (const el of groups) {
       if (el.textContent !== word || typeof el.animate !== "function") continue;
+      /* EE — a friendlier gold pulse: pop + a tiny happy tilt so the
+       * row visibly «greetings» the repeated guess (compositor only) */
       el.animate(
         [
-          { transform: "scale(1)" },
-          { transform: "scale(1.07)", offset: 0.3 },
-          { transform: "scale(1)" },
+          { transform: "scale(1) rotate(0deg)" },
+          { transform: "scale(1.07) rotate(-1.2deg)", offset: 0.3 },
+          { transform: "scale(1.03) rotate(1deg)", offset: 0.62 },
+          { transform: "scale(1) rotate(0deg)" },
         ],
-        { duration: 620, easing: "cubic-bezier(.3,1.4,.4,1)" },
+        { duration: 640, easing: "cubic-bezier(.3,1.4,.4,1)" },
       );
       break;
     }
-    show("این واژه را قبلاً ساختی!");
-  }, [show]);
+    showDup(word, "قبلاً ساختی!");
+  }, [showDup]);
 
   /* words completed purely by hints → auto-found */
   useEffect(() => {
@@ -458,15 +483,20 @@ export function PlayScreen({
     }
     const uniq = new Set(wordRows);
     if (!uniq.has(str) && isRealWord(str) && canBuild(str, level.wheel)) {
-      if (Save.addBonusWord(ch, lv, str)) {
+      /* EE — NO DUPLICATES ANYWHERE (user: «مراقب باش کلا چ هر فصل باشه
+       * چ مرحله کاربر تکراری وارد نکنه»): a word that was EVER a main
+       * answer (any chapter / any level — mainAll ledger) or EVER a
+       * hidden word (bonusAll ledger) is never re-awarded — the golden
+       * duplicate chip explains it right above the guess strip. */
+      if (Save.data.mainAll.includes(str) || !Save.addBonusWord(ch, lv, str)) {
+        showDup(str, "این واژهٔ پنهان را قبلاً یافتی!");
+      } else {
         Save.countBonus();
         Save.addCoins(REWARDS.perBonus);
         earnedRef.current = { ...earnedRef.current, bonus: earnedRef.current.bonus + 1 };
         Audio.sfxBonus();
         flyHiddenWord(str); /* Z — the word melts up into the profile */
         show(`واژه پنهان! +${faNum(REWARDS.perBonus)} سکه`);
-      } else {
-        show("این واژهٔ پنهان را قبلاً یافتی!");
       }
       return false;
     }
@@ -475,7 +505,7 @@ export function PlayScreen({
     buzz(40, Save.data.settings.haptics);
     setShaking(true);
     return false;
-  }, [wordRows, level, ch, lv, show, celebrate, flashKnown, flyHiddenWord]);
+  }, [wordRows, level, ch, lv, show, celebrate, flashKnown, flyHiddenWord, showDup]);
 
   /* ------------ hint: reveal next letter of the first unfound word ------------ */
   const doHint = () => {
@@ -645,9 +675,18 @@ export function PlayScreen({
           تداخل داره و از کادر خارج شده»). The strip is idle exactly
           while the banner plays — the built word graduates in the box
           where it was built. */}
-      <div className="guess-strip" aria-hidden>
-        <div ref={guessRef} className="guess-inner" />
-        <span className="guess-hint">واژه‌ات را اینجا بساز…</span>
+      <div className="guess-strip">
+        <div ref={guessRef} className="guess-inner" aria-hidden />
+        <span className="guess-hint" aria-hidden>واژه‌ات را اینجا بساز…</span>
+        {/* EE — duplicate notice: blooms right above the strip, where the
+            word was built (user: «جایگاه و انیمیشنش رو بهتر بکن») */}
+        {dup && (
+          <div key={dup.k} className="dup-toast" role="status">
+            <span className="dup-ic" aria-hidden>!</span>
+            <b className="dup-word" aria-hidden>{dup.word}</b>
+            <span className="dup-msg">{dup.msg}</span>
+          </div>
+        )}
         <div ref={bannerRef} className="word-banner" aria-hidden>
           <span className="wb-ribbon">
             <i className="wb-star l" />

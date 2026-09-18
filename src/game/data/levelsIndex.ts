@@ -26,6 +26,7 @@ import ch20 from "./levels/ch20.json";
 import { DICT } from "./dictionary";
 import { EXTRA_WORDS } from "./dictionary_extra";
 import { PARTY_WORDS } from "./dictionary_party";
+import { HIDDEN_WORDS } from "./dictionary_hidden";
 
 export interface LevelData {
   id: number;         // global 1-based level number (۱..۲۲۰)
@@ -65,8 +66,10 @@ export const TOTAL_LEVELS: number = levelsBefore(21);
 
 /* v5 — FULL validity set: generated dictionary + curated everyday words
  * + the +5453-word دورهمی expansion (user: «۵۰۰۰ تا دیگ اضافه بکن و
- * جمله‌های دو حرفی هم قبول باشه») → 8,800+ real Persian words. */
-export const ALL_DICT_WORDS: string[] = [...DICT, ...EXTRA_WORDS, ...PARTY_WORDS];
+ * جمله‌های دو حرفی هم قبول باشه») + the EE hidden-word pack (~1240 more
+ * everyday words — user: «واژه‌های پنهان زیادی تری اضافه بکن») →
+ * 10,000+ real Persian words. */
+export const ALL_DICT_WORDS: string[] = [...DICT, ...EXTRA_WORDS, ...PARTY_WORDS, ...HIDDEN_WORDS];
 export const FULL_DICT: Set<string> = new Set(ALL_DICT_WORDS);
 
 /** runtime bonus-word check: any real dictionary word buildable from the wheel */

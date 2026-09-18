@@ -529,15 +529,19 @@ button:active { transition-duration: .05s; }
    ================================================================== */
 .wtile .wl { display: block; line-height: 1; }
 .wrow.new .wtile { animation: none; }               /* steady boxes… */
+/* EE — SMOOTHER (user: «یکی انیمیشن حدس کلمه رو روان تر بکن»): the
+ * glyph now glides on a gentle ARC (down + a soft lateral swing that
+ * suits the RTL eye), the overshoot is calmer and the tail lands with
+ * a two-step settle — same juice, none of the snap. */
 .wrow.new .wtile .wl {                              /* …letters fly */
   opacity: 0;
-  animation: letterFly .52s cubic-bezier(.2,1.5,.4,1) both;
+  animation: letterFly .58s cubic-bezier(.25,1.25,.35,1) both;
 }
 @keyframes letterFly {
-  0%   { opacity: 0; transform: translateY(-34px) scale(.45) rotate(-9deg); }
-  58%  { opacity: 1; transform: translateY(5px) scale(1.22) rotate(3deg); }
-  82%  { transform: translateY(-2px) scale(.98) rotate(-1deg); }
-  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+  0%   { opacity: 0; transform: translateY(-42px) translateX(12px) scale(.5) rotate(-7deg); }
+  55%  { opacity: 1; transform: translateY(5px) translateX(-3px) scale(1.14) rotate(2deg); }
+  78%  { transform: translateY(-2px) translateX(1px) scale(.99) rotate(-1deg); }
+  100% { opacity: 1; transform: translateY(0) translateX(0) scale(1) rotate(0); }
 }
 .wrow.new::after { animation-delay: var(--ld, 2.4s); }
 
@@ -697,6 +701,14 @@ button:active { transition-duration: .05s; }
   flex: 0 0 auto;
   height: 64px;
   margin: 8px 24px 0;
+  /* EE — Z-ORDER FIX (user: «وقتی کلمه حدس زده میشه انیمیشنش میره زیر
+   * کادر دایره»): the strip carries transform: translateZ(0) (GPU rule
+   * below) → it IS a stacking context, and the word-banner's own
+   * z-index 45 is trapped INSIDE it. As a z-index:auto sibling that
+   * precedes the wheel in the DOM, the whole strip — banner included —
+   * painted UNDER .wheel-wrap. An explicit z-index lifts the strip (and
+   * the banner with it) above the wheel ring and the board. */
+  z-index: 30;
   border-radius: 20px;
   background:
     radial-gradient(circle at 14% 18%, rgba(255,255,255,.5) 0 7px, transparent 8px),
@@ -1264,6 +1276,17 @@ button:active { transition-duration: .05s; }
   pointer-events: none;
   will-change: transform, opacity;
 }
+/* EE — DOUBLE HALO (user: «در صفحه مرحله ها اون مرحله که توشه با
+ * انیمیشن و علامت دار نمایش داده بشه»): a second, GOLD ring follows
+ * the green one half a beat behind — the current node now visibly
+ * breathes with a two-layer ripple. Compositor-only, zero repaint. */
+.map-node.cur::before {
+  content: ""; position: absolute; inset: -4px; border-radius: 999px;
+  border: 3px solid rgba(255,222,120,.95);
+  animation: curPulse 1.6s ease-in-out .8s infinite;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
 @keyframes curPulse {
   0%, 100% { transform: scale(1); opacity: .9; }
   50% { transform: scale(1.28); opacity: 0; }
@@ -1273,17 +1296,40 @@ button:active { transition-duration: .05s; }
   bottom: -16px; display: flex; gap: 1px; justify-content: center; width: 64px;
 }
 .node-stars .star-ic { width: 13px; height: 13px; }
+/* EE — ANIMATED MARKER (user: «مرحله‌ای که توشه با انیمیشن و علامت
+ * دار نمایش داده بشه»): the «شما اینجایید» pill is now a floating
+ * PIN — it gently bobs up/down above its node and a small triangular
+ * pointer keeps it glued to the node below (flipped for the .below
+ * variant under the chapter banner). Transform-only → free on GPUs. */
 .cur-tag {
-  position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%);
+  position: absolute; bottom: 44px; left: 50%;
   background: linear-gradient(180deg,#fffdf4,#ffeecb);
   border: 2px solid #fff; color: #7a5a2e; font-weight: 800; font-size: 10.5px;
-  padding: 2px 10px; border-radius: 999px; white-space: nowrap;
+  padding: 3px 11px; border-radius: 999px; white-space: nowrap;
   box-shadow: 0 3px 0 #dcb87a, 0 6px 10px rgba(0,0,0,.25); z-index: 13;
+  animation: curBob 1.9s ease-in-out infinite;
+  will-change: transform;
+}
+.cur-tag::after {
+  content: ""; position: absolute; bottom: -6.5px; left: 50%;
+  width: 11px; height: 11px; background: #ffeecb;
+  border-right: 2px solid #fff; border-bottom: 2px solid #fff;
+  transform: translateX(-50%) rotate(45deg);
+}
+@keyframes curBob {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -7px); }
 }
 /* v7 — first-row nodes sit directly under the chapter banner: their
  * «شما اینجایید» tag flips BELOW the node so it can never tangle with
  * the banner plate on any screen height (user-reported overlap). */
-.cur-tag.below { bottom: auto; top: 46px; }
+.cur-tag.below {
+  bottom: auto; top: 46px;
+}
+.cur-tag.below::after {
+  bottom: auto; top: -6.5px;
+  transform: translateX(-50%) rotate(225deg);
+}
 
 /* dotted stone trail between level nodes (static decoration, zero cost) */
 .path-stone {
@@ -1391,6 +1437,54 @@ button:active { transition-duration: .05s; }
   animation: toastIn .25s ease both; max-width: 88%; text-align: center;
 }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* ==================================================================
+   EE — DUPLICATE-WORD NOTICE (user: «اون متن تکراری بودن رو جایگاه
+   و انیمیشنش رو بهتر بکن»): the old message was the generic bottom
+   toast. Now the notice blooms EXACTLY where the word was built — a
+   golden chip right above the guess strip, carrying the word itself
+   + a short line. Pop-in spring → friendly wiggle → soft lift-out.
+   Compositor-only (transform/opacity), one-shot, bounded.
+   ================================================================== */
+.dup-toast {
+  position: absolute; bottom: calc(100% + 12px); right: 50%;
+  display: flex; align-items: center; gap: 8px;
+  background: linear-gradient(180deg, #fffdf4, #ffeecb);
+  border: 2.5px solid #fff; outline: 2px solid #e2a43c;
+  color: #7a4a00; font-weight: 800; font-size: 13px;
+  padding: 7px 14px; border-radius: 999px;
+  box-shadow: 0 5px 0 rgba(180,119,8,.45), 0 10px 18px rgba(60,35,0,.3);
+  white-space: nowrap; pointer-events: none; z-index: 6;
+  animation: dupPop .48s cubic-bezier(.2,1.5,.4,1) both, dupWiggle .8s ease .55s, dupOut .32s ease 1.58s both;
+  will-change: transform, opacity;
+}
+.dup-toast .dup-ic {
+  width: 21px; height: 21px; border-radius: 999px; flex: none;
+  background: radial-gradient(circle at 36% 30%, #ffd76e, #f0a92c);
+  border: 2px solid #fff; color: #7a4a00; font-weight: 900; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 0 #b47708;
+}
+.dup-toast .dup-word {
+  background: linear-gradient(180deg,#ffe9ae,#ffd76e);
+  border: 1.5px solid #fff; outline: 1px solid #d9a52c;
+  padding: 1px 10px 2px; border-radius: 9px; font-size: 15px; color: #5d3a12;
+}
+.dup-toast .dup-msg { color: #8a6a3e; font-size: 12px; }
+@keyframes dupPop {
+  0%   { opacity: 0; transform: translateX(50%) translateY(16px) scale(.55); }
+  100% { opacity: 1; transform: translateX(50%) translateY(0) scale(1); }
+}
+@keyframes dupWiggle {
+  0%, 100% { transform: translateX(50%) rotate(0deg); }
+  20% { transform: translateX(50%) rotate(2.2deg); }
+  45% { transform: translateX(50%) rotate(-1.8deg); }
+  70% { transform: translateX(50%) rotate(1deg); }
+}
+@keyframes dupOut {
+  to { opacity: 0; transform: translateX(50%) translateY(-10px) scale(.9); }
+}
+.lowfx .dup-toast { animation: dupPop .3s ease both, dupOut .25s ease 1.5s both; }
 
 /* tutorial */
 .tut-hand { animation: handTap 1.15s ease-in-out infinite; }
@@ -2320,6 +2414,8 @@ body { background: #5cb2ef; }
    ═══════════════════════════════════════════════════════════════════ */
 .lowfx .float-slow,
 .lowfx .map-node.cur::after,
+.lowfx .map-node.cur::before,
+.lowfx .cur-tag,
 .lowfx .shop-hero::after,
 .lowfx .shop-bundle .breathe { animation: none !important; }
 .lowfx .confetti i:nth-child(n + 13),

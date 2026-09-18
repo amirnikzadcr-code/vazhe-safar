@@ -11,9 +11,19 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    /* دورهمی WiFi — hotspot LAN play (TCP host/guest + UDP discovery) */
+    /* EE — CRITICAL LAN FIX (user: «در دورهمی وقتی میزنم روی ساخت اتاق
+     * میزنه روی دستگاه شما ممکن نبود خطا میده»): BridgeActivity.onCreate
+     * (i.e. super.onCreate) BUILDS the bridge — it consumes every plugin
+     * registered so far via this.load() at its very end. registerPlugin()
+     * called AFTER super.onCreate() appended to a builder whose bridge
+     * was already created → the LanLink plugin was NEVER registered →
+     * EVERY native LAN call (startHost/discoverHost/connect/send)
+     * rejected with "not implemented" → «ساخت اتاق روی این دستگاه
+     * ممکن نشد» on EVERY device. Registering BEFORE super.onCreate()
+     * puts the plugin inside the bridge build — the actual Capacitor
+     * documented order for custom plugins. */
     registerPlugin(LanLinkPlugin.class);
+    super.onCreate(savedInstanceState);
 
     /* v7 PERF — WebView tuning for the «APK خیلی کنده» complaints:
      *  • never overscroll (no edge-glow repaints on fling)

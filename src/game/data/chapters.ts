@@ -57,16 +57,20 @@ export const CHAPTERS: ChapterTheme[] = [
   {
     id: 3,
     title: "کویرِ زرین",
-    subtitle: "کاروان در افق، و آسمانی که سرخ‌طلایی می‌شود",
+    subtitle: "کاروانِ شاد در نورِ روز، و آسمانی فیروزه‌ای بر دشتِ طلا",
     bg: "/assets/bg/ch03.webp",
     accent: "#e89b3a", accent2: "#ff8a5e",
     realm: { sky: ["#ffc98c", "#ffe9c4"], land: ["#f2cd8e", "#dba45f"], gate: ["#e89b3a", "#c47a1e"] },
-    music: { track: "ch03", scale: "dashti", root: 220.0, cents: [], bpm: 72, meter: 4, perc: "tombak", lead: "ney", octave: 0, drone: 0.6,
-      motif: [[0,2],[1,0.5],[2,0.5],[1,1],[0,2],[-1,1],[4,1],[3,1],[2,2],[1,1],[0,3]],
-      motifB: [[3,1],[2,1],[1,2],[0,2],[-1,1],[1,1],[0,3]],
+    /* EE — the old dashti/ney 72bpm piece was «کلا رو مخ» (user):
+     * replaced with a BRIGHT santur+daf caravan tune in the family the
+     * user loves (ch20 = mahur/santur/daf/octave+1). A fresh motif,
+     * D root, 4/4 at 100 bpm — same festive energy, its own identity. */
+    music: { track: "ch03", scale: "mahur", root: 293.66, cents: [], bpm: 100, meter: 4, perc: "daf", lead: "santur", octave: 1, drone: 0.45,
+      motif: [[0,1],[1,0.5],[2,0.5],[3,1],[2,0.5],[1,0.5],[0,1],[-1,0.5],[2,1],[4,1],[3,0.5],[2,0.5],[1,1],[0,2]],
+      motifB: [[4,0.5],[3,0.5],[2,1],[3,1],[2,0.5],[1,0.5],[0,1.5],[1,0.5],[0,1],[-1,1],[0,2.5]],
       },
-    guide: "مثل کاروان، شمرده برو؛ واژه‌ها آب‌خوری‌های این راه‌اند!",
-    finaleText: "شب که فرارسید، دور آتشِ کاروان حلقه زدیم؛ آسمان پر از ستاره شد.",
+    guide: "کاروان راه افتاده! مثل دَفِ شاد، واژه‌ها را یکی‌یکی بزن!",
+    finaleText: "کاروان به چشمه رسید؛ آوازِ ما با بال کبوترها در آمیخت.",
   },
   {
     id: 4,
@@ -75,9 +79,12 @@ export const CHAPTERS: ChapterTheme[] = [
     bg: "/assets/bg/ch04.webp",
     accent: "#3a9e6e", accent2: "#d4ff8f",
     realm: { sky: ["#a8d8c8", "#e2f4ea"], land: ["#57a878", "#337c50"], gate: ["#3a9e6e", "#25754d"] },
-    music: { track: "ch04", scale: "nava", root: 246.94, cents: [], bpm: 60, meter: 6, perc: "none", lead: "ney", octave: 0, drone: 0.7,
-      motif: [[0,1],[2,1],[3,1.5],[2,0.5],[1,1],[0,1.5],[-1,0.5],[1,1],[2,2],[0,1.5]],
-      motifB: [[3,1],[2,1],[1,1],[0,1.5],[-1,0.5],[1,1],[0,3]],
+    /* EE — the mournful nava/ney 60bpm drone was in the «رو مخ»
+     * family: now a sunny rast santur piece, daf-driven 6/8 at 96 —
+     * bright forest-morning energy, still its own melody. */
+    music: { track: "ch04", scale: "rast", root: 261.63, cents: [], bpm: 96, meter: 6, perc: "daf", lead: "santur", octave: 1, drone: 0.45,
+      motif: [[0,0.5],[2,0.5],[1,0.5],[0,0.5],[2,1],[3,0.5],[2,0.5],[1,1],[-1,0.5],[1,0.5],[0,1.5],[0,0.5],[1,0.5],[2,1]],
+      motifB: [[3,0.5],[2,0.5],[1,1],[2,0.5],[1,0.5],[0,1.5],[-1,0.5],[0,0.5],[1,1],[0,2]],
       },
     guide: "مه که غلیظ باشد واژه‌ها پنهان‌تر می‌شوند؛ خوب نگاه کن!",
     finaleText: "مه گشوده شد و ستون‌های نور از میان درختان فرود آمدند.",
@@ -89,31 +96,34 @@ export const CHAPTERS: ChapterTheme[] = [
     bg: "/assets/bg/ch05.webp",
     accent: "#5e83ad", accent2: "#ffd98a",
     realm: { sky: ["#a8ccff", "#e8f2ff"], land: ["#9ab4cc", "#708aa4"], gate: ["#5e83ad", "#41638a"] },
-    /* v1.20 — ch05 was «ب شدت رو مخ» (user): chahargah @ bpm100,
-     * kamancheh, octave+1 = the sharpest, most piercing combo in the
-     * game. Replaced with a GENTLE dawn piece: low E abuata, ney lead,
-     * slow 64 bpm, soft tombak, deep drone. A brand-new calm track is
-     * rendered for ch05.ogg. */
-    music: { track: "ch05", scale: "abuata", root: 164.81, cents: [], bpm: 64, meter: 4, perc: "tombak", lead: "ney", octave: 0, drone: 0.72,
-      motif: [[0,1],[1,0.5],[2,1],[1,1],[0,1.5],[-1,0.5],[3,1],[2,0.5],[1,1],[2,1],[1,0.5],[0,2]],
-      motifB: [[2,0.5],[1,0.5],[0,1.5],[-1,0.5],[1,1],[0,2]],
+    /* EE — v1.20 made ch05 a GENTLE dawn piece; the user now flagged
+     * the whole slow-ney family «کلا رو مخ». Bright mahur santur at
+     * 92 bpm with a light daf — a confident mountain-morning march. */
+    music: { track: "ch05", scale: "mahur", root: 329.63, cents: [], bpm: 92, meter: 4, perc: "daf", lead: "santur", octave: 1, drone: 0.45,
+      motif: [[0,1],[2,1],[4,1],[3,0.5],[2,0.5],[3,1],[2,1],[1,0.5],[0,0.5],[1,1.5],[-1,0.5],[0,2]],
+      motifB: [[4,1],[3,1],[2,0.5],[3,0.5],[2,1],[1,1],[0,1.5],[1,1],[0,2.5]],
       },
     guide: "دیوارها بلندند، اما هر واژه کلیدِ یکی از این درهاست!",
     finaleText: "خورشید از پشت قله برآمد و برف‌ها طلایی شدند.",
   },
   {
     id: 6,
-    title: "شهرِ بادگیرها",
-    subtitle: "شهرِ گِل، چراغ‌به‌چراغ در آستانهٔ شب",
+    title: "پارسهٔ کوروش",
+    subtitle: "ستون‌های پارسه، شکوهِ ایران‌زمین زیر آفتابِ طلایی",
     bg: "/assets/bg/ch06.webp",
-    accent: "#c98a4b", accent2: "#7ec8c0",
-    realm: { sky: ["#ffcf9e", "#fff0e0"], land: ["#e8b183", "#c78c55"], gate: ["#c98a4b", "#a56a30"] },
-    music: { track: "ch06", scale: "homayun", root: 261.63, cents: [], bpm: 76, meter: 4, perc: "tombak", lead: "ney", octave: 0, drone: 0.6,
-      motif: [[0,1],[1,1],[2,2],[1,1],[0,1],[-1,1],[3,1],[4,2],[3,1],[2,1],[1,2],[0,1]],
-      motifB: [[4,1],[3,1],[2,1],[1,1],[0,2],[-1,1],[2,1],[1,1],[0,2]],
+    accent: "#c9922e", accent2: "#7ec8c0",
+    realm: { sky: ["#ffd98c", "#fff2d0"], land: ["#e8bc6e", "#c08a3a"], gate: ["#c9922e", "#96691a"] },
+    /* EE — HISTORICAL RETHEME (user: «زمینه فصل 6 هم تغییر بده چیزای
+     * مذهبی نزار بیشتر تاریخی باشه مثل کوروش کبیر»): the old Yazd
+     * windcatcher/mosque-dome art is replaced by Persepolis (پارسه) —
+     * Achaemenid columns, the Gate of All Nations, Cyrus-era glory.
+     * Music: an imperial homayun santur march, daf 6/8 at 104. */
+    music: { track: "ch06", scale: "homayun", root: 261.63, cents: [], bpm: 104, meter: 6, perc: "daf", lead: "santur", octave: 1, drone: 0.5,
+      motif: [[0,0.5],[1,0.5],[2,1],[2,0.5],[3,0.5],[2,0.5],[1,0.5],[0,1],[4,1],[3,1],[2,1],[1,1],[0,1.5]],
+      motifB: [[3,0.5],[4,0.5],[3,0.5],[2,1],[1,0.5],[2,0.5],[1,1],[0,1.5],[-1,0.5],[0,2]],
       },
-    guide: "باد اگر حرف‌ها را پرت کرد، دوباره بِبرشان؛ عجله نکن!",
-    finaleText: "غروب که رسید، تمام پنجره‌های شهر یک‌باره جان گرفتند.",
+    guide: "بر خاستگاه پارسه قدم بزن؛ هر واژه یک ستونِ استوار است!",
+    finaleText: "در پارسه آواز سر دادیم؛ نامِ کوروش در باد پیچید.",
   },
   {
     id: 7,
@@ -136,9 +146,10 @@ export const CHAPTERS: ChapterTheme[] = [
     bg: "/assets/bg/ch08.webp",
     accent: "#8a6a45", accent2: "#7adcb0",
     realm: { sky: ["#b8d8ff", "#f0f7ff"], land: ["#96c47e", "#649e52"], gate: ["#6f9e4a", "#4e7a34"] },
-    music: { track: "ch08", scale: "abuata", root: 220.0, cents: [], bpm: 66, meter: 4, perc: "tombak", lead: "kamancheh", octave: 0, drone: 0.65,
-      motif: [[0,2],[1,1],[2,1],[1,1],[0,2],[-1,1],[3,1],[2,1],[1,2],[0,3]],
-      motifB: [[2,1],[1,1],[0,2],[-1,1],[1,1],[0,3]],
+    /* EE — village morning: bright G mahur santur, soft tombak, 88. */
+    music: { track: "ch08", scale: "mahur", root: 246.94, cents: [], bpm: 88, meter: 4, perc: "tombak", lead: "santur", octave: 1, drone: 0.45,
+      motif: [[0,0.5],[1,0.5],[2,1],[1,0.5],[2,0.5],[3,1],[2,1],[1,1],[0,1.5],[-1,0.5],[1,1],[0,2]],
+      motifB: [[2,0.5],[3,0.5],[2,0.5],[1,1],[0,0.5],[1,0.5],[0,1.5],[-1,0.5],[0,2.5]],
       },
     guide: "پله‌پله برو؛ هر مرحله یک خانه بالاتر!",
     finaleText: "ساعتِ آبی؛ همهٔ پنجره‌های روستا مثل ستاره‌ها روشن شدند.",
@@ -150,9 +161,11 @@ export const CHAPTERS: ChapterTheme[] = [
     bg: "/assets/bg/ch09.webp",
     accent: "#4a5fa5", accent2: "#ffd76e",
     realm: { sky: ["#26386e", "#46558e"], land: ["#2e3f70", "#1c2a50"], gate: ["#4a5fa5", "#33437c"] },
-    music: { track: "ch09", scale: "segah", root: 220.0, cents: [], bpm: 56, meter: 4, perc: "none", lead: "ney", octave: 0, drone: 0.75,
-      motif: [[0,1.5],[1,0.5],[2,2],[1,1],[0,2],[-1,1],[3,1],[2,1],[1,1.5],[0,2.5]],
-      motifB: [[2,1],[1,1],[0,2],[-1,2],[0,1],[1,1],[0,3]],
+    /* EE — starry night, AWAKE now: A mahur santur (oct 0 lead keeps
+     * it dreamy) + light daf at 84 — bright-twilight, not mournful. */
+    music: { track: "ch09", scale: "mahur", root: 220.0, cents: [], bpm: 84, meter: 6, perc: "daf", lead: "santur", octave: 0, drone: 0.5,
+      motif: [[0,1],[2,0.5],[3,0.5],[4,1],[3,1],[2,1.5],[1,0.5],[0,2],[-1,0.5],[2,1],[1,0.5],[0,1.5]],
+      motifB: [[4,0.5],[3,0.5],[2,1],[3,1],[2,1],[1,1],[0,1.5],[-1,0.5],[0,2.5]],
       },
     guide: "واژه‌ها را مثل ستاره‌ها به هم وصل کن تا صورت فلکی بسازی!",
     finaleText: "شهاب‌ها آسمان را دو نیم کردند؛ آرزو کن!",
@@ -193,9 +206,11 @@ export const CHAPTERS: ChapterTheme[] = [
     bg: "/assets/bg/ch12.webp",
     accent: "#4a6fa5", accent2: "#bfe3ff",
     realm: { sky: ["#2b3f74", "#4a5f96"], land: ["#3a5a8c", "#23395e"], gate: ["#4a6fa5", "#2d4670"] },
-    music: { track: "ch12", scale: "segah", root: 220.0, cents: [], bpm: 64, meter: 6, perc: "tombak", lead: "santur", octave: 0, drone: 0.7,
-      motif: [[0,1.5],[1,0.5],[2,1],[3,1],[2,1.5],[1,0.5],[0,2],[-1,0.5],[1,1.5],[0,2.5]],
-      motifB: [[2,1],[3,1],[2,1],[1,1.5],[0,1.5],[-1,0.5],[0,2.5]],
+    /* EE — moonlit lake, luminous not sleepy: F rast santur + soft
+     * tombak at 88 with a gentle drone. */
+    music: { track: "ch12", scale: "rast", root: 246.94, cents: [], bpm: 88, meter: 6, perc: "tombak", lead: "santur", octave: 1, drone: 0.45,
+      motif: [[0,1],[1,0.5],[2,0.5],[3,1.5],[2,0.5],[1,1],[2,1],[1,0.5],[0,0.5],[-1,0.5],[0,2]],
+      motifB: [[3,1],[2,0.5],[3,0.5],[2,1],[1,1],[0,1.5],[-1,0.5],[0,2.5]],
       },
     guide: "ماه روی آب می‌درخشد؛ واژه‌ها هم روی حرف‌ها!",
     finaleText: "ماه روی دریاچه پخش شد و نیلوفرها گواهِ واژه‌های ما بودند.",
@@ -207,9 +222,10 @@ export const CHAPTERS: ChapterTheme[] = [
     bg: "/assets/bg/ch13.webp",
     accent: "#7a58c0", accent2: "#7ff0e0",
     realm: { sky: ["#3d2a63", "#6a4a9e"], land: ["#4a3573", "#2b1c49"], gate: ["#7a58c0", "#533a85"] },
-    music: { track: "ch13", scale: "nava", root: 233.08, cents: [], bpm: 70, meter: 4, perc: "tombak", lead: "kamancheh", octave: 0, drone: 0.72,
-      motif: [[0,1],[2,0.5],[3,1],[4,1.5],[3,0.5],[2,1],[1,1],[2,1.5],[0,2]],
-      motifB: [[4,1],[3,1],[2,1.5],[1,0.5],[0,2],[-1,0.5],[1,1],[0,2.5]],
+    /* EE — crystal cave, SPARKLING: B♭ homayun santur + daf at 90. */
+    music: { track: "ch13", scale: "homayun", root: 233.08, cents: [], bpm: 90, meter: 4, perc: "daf", lead: "santur", octave: 1, drone: 0.5,
+      motif: [[0,0.5],[1,0.5],[2,1],[4,1],[3,0.5],[2,0.5],[3,1],[2,1],[1,1],[2,0.5],[1,0.5],[0,2]],
+      motifB: [[4,0.5],[3,0.5],[2,1],[1,0.5],[2,0.5],[1,1],[0,1.5],[-1,0.5],[0,2.5]],
       },
     guide: "در غار هر واژه یک صدا دارد؛ شفاف و درست حدس بزن!",
     finaleText: "بلورها آوای ما را چند برابر کردند؛ غار پر از نور شد.",
@@ -277,9 +293,10 @@ export const CHAPTERS: ChapterTheme[] = [
     bg: "/assets/bg/ch18.webp",
     accent: "#3a8fa5", accent2: "#9fefc9",
     realm: { sky: ["#1e3a5c", "#3d6a8c"], land: ["#4a7a96", "#28495e"], gate: ["#3a8fa5", "#22637a"] },
-    music: { track: "ch18", scale: "abuata", root: 220.0, cents: [], bpm: 62, meter: 4, perc: "none", lead: "ney", octave: 0, drone: 0.75,
-      motif: [[0,1.5],[1,1],[2,1.5],[1,0.5],[0,2],[-1,1],[3,1.5],[2,1],[1,1.5],[0,2.5]],
-      motifB: [[2,1],[1,1],[0,1.5],[-1,1.5],[0,1],[1,1],[0,3]],
+    /* EE — aurora sky, ALIVE: C mahur santur + soft tombak at 86. */
+    music: { track: "ch18", scale: "mahur", root: 261.63, cents: [], bpm: 86, meter: 4, perc: "tombak", lead: "santur", octave: 1, drone: 0.5,
+      motif: [[0,1],[2,1],[3,1],[4,0.5],[3,0.5],[2,1],[3,1],[2,0.5],[1,0.5],[0,1.5],[-1,0.5],[0,2]],
+      motifB: [[3,0.5],[2,0.5],[3,1],[4,1],[3,1],[2,1],[1,1.5],[0,1],[0,2]],
       },
     guide: "شفق روشن است؛ آخرین تلاش‌ها زیباترین‌اند!",
     finaleText: "شفق روی برف‌ها رقصید؛ سردیِ کوه با واژه‌ها گرم شد.",
@@ -291,9 +308,10 @@ export const CHAPTERS: ChapterTheme[] = [
     bg: "/assets/bg/ch19.webp",
     accent: "#4a9ed9", accent2: "#e0f6ff",
     realm: { sky: ["#bfe4f5", "#eef9ff"], land: ["#9cc8e8", "#5a8ab8"], gate: ["#4a9ed9", "#2a6ba0"] },
-    music: { track: "ch19", scale: "segah", root: 246.94, cents: [], bpm: 68, meter: 6, perc: "tombak", lead: "kamancheh", octave: 0, drone: 0.68,
-      motif: [[0,1],[1,0.5],[2,1],[3,1],[4,1.5],[3,1],[2,1],[1,1.5],[0,2]],
-      motifB: [[3,0.5],[4,0.5],[3,1],[2,1],[1,1.5],[0,1.5],[-1,0.5],[0,2.5]],
+    /* EE — ice palace, GLITTERING: D rast santur + daf at 92. */
+    music: { track: "ch19", scale: "rast", root: 293.66, cents: [], bpm: 92, meter: 6, perc: "daf", lead: "santur", octave: 1, drone: 0.45,
+      motif: [[0,0.5],[1,0.5],[2,1],[3,0.5],[2,0.5],[3,1],[4,1],[3,0.5],[2,0.5],[1,1.5],[0,1],[0,1.5]],
+      motifB: [[4,0.5],[5,0.5],[4,0.5],[3,1],[2,1],[3,0.5],[2,0.5],[1,1],[0,2]],
       },
     guide: "یخ‌ها سخت‌اند؛ اما واژه‌های تو گرم‌اند، ذوبشان کن!",
     finaleText: "قصرِ یخی با گرمای واژه‌ها آب نشد؛ بلکه روشن‌تر شد.",

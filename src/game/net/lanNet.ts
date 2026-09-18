@@ -209,11 +209,27 @@ class LanPartyNet {
     if (!isNativeLan()) { this.lastError = "لینک محلی در دسترس نیست"; return { ok: false }; }
     this.wireBridge();
     this.teardownLocal();
-    try {
-      await LanLink.startHost({ port: 48765 });
-    } catch {
-      try { await LanLink.stop(); await LanLink.startHost({ port: 48765 }); }
-      catch { this.lastError = "ساخت اتاق روی این دستگاه ممکن نشد"; return { ok: false }; }
+    /* EE — STOP first, then start: a previous session's server may still
+     * be alive-but-stale; Java's `if (hosting.get()) resolve()` would
+     * early-resolve on that zombie and the room would exist with NO live
+     * listener. A fresh stop() guarantees startHost rebinds for real.
+     * Then up to 3 bind attempts (the plugin walks 12 ports per call):
+     * transient port-release races no longer surface as «ساخت اتاق روی
+     * این دستگاه ممکن نشد». */
+    try { await LanLink.stop(); } catch { /* nothing to stop yet */ }
+    let started = false;
+    for (let attempt = 0; attempt < 3 && !started; attempt++) {
+      try {
+        await LanLink.startHost({ port: 48765 });
+        started = true;
+      } catch {
+        try { await LanLink.stop(); } catch { /* ignore */ }
+        await new Promise((r) => setTimeout(r, 260));
+      }
+    }
+    if (!started) {
+      this.lastError = "ساخت اتاق ممکن نشد — گوشی را یک‌بار ببندید و دوباره تلاش کنید";
+      return { ok: false };
     }
     this.role = "host";
     this.myId = "host";

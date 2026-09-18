@@ -49,6 +49,11 @@ export interface SaveData {
    * (user: «واژه‌های پنهان رو اگر در مرحله‌های قبل پیدا شده و در
    * مرحله‌های بعد پیدا کرد تکراری حساب بشه») --- */
   bonusAll: string[];
+  /* --- EE (session EE): GLOBAL main-word ledger — every TARGET word
+   * ever completed in ANY chapter/level. A hidden-word submission that
+   * matches it is a duplicate (user: «مراقب باش کلا چ هر فصل باشه چ
+   * مرحله کاربر تکراری وارد نکنه») --- */
+  mainAll: string[];
 }
 
 const KEY = "vazhe_safar_save_v1";
@@ -83,6 +88,7 @@ function fresh(): SaveData {
     adsRemoved: false,
     lastRewardedAd: 0,
     bonusAll: [],
+    mainAll: [],
   };
 }
 
@@ -258,6 +264,15 @@ export const Save = {
     d.bonusAll.push(word);   // lifetime ledger (tiny strings)
     Save.persist();
     return true;
+  },
+
+  /** EE — remember a MAIN word forever (any chapter / any level). The
+   * hidden-word checker refuses to re-award these as bonuses later. */
+  noteMainWord(word: string): void {
+    const d = Save.data;
+    if (d.mainAll.includes(word)) return;
+    d.mainAll.push(word);
+    Save.persist();
   },
 
   setSetting<K extends keyof SaveData["settings"]>(k: K, v: SaveData["settings"][K]): void {
