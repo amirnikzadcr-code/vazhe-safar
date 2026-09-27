@@ -56,6 +56,11 @@ public class MyketBillingPlugin extends Plugin {
 
     private static final String RSA_KEY_RES = "myket_rsa_public_key";
     private static final String NOT_CONNECTED = "اتصال به فروشگاه برقرار نشد؛ کمی بعد دوباره تلاش کن";
+    /** classic IAB v3 response code — user backed out of the purchase dialog */
+    private static final int RESPONSE_USER_CANCELED = 1;
+    private static final String CANCELED = "خرید لغو شد";
+    /** consumables = every coin pack; remove_ads must stay OWNED forever */
+    private static final String NON_CONSUMABLE = "remove_ads";
     private static final long SETUP_WATCHDOG_MS = 15_000;
 
     private IabHelper helper;
@@ -146,19 +151,27 @@ public class MyketBillingPlugin extends Plugin {
                         @Override public void onIabPurchaseFinished(final IabResult result, final Purchase purchase) {
                             activity.runOnUiThread(new Runnable() {
                                 @Override public void run() {
-                                    if (result != null && result.isSuccess() && purchase != null) {
+                                    if (result != null && result.isSuccess() && purchase != null
+                                            && sku.equals(purchase.getSku())) {
                                         JSObject r = new JSObject();
                                         r.put("ok", true);
                                         r.put("orderId", purchase.getOrderId());
                                         r.put("sku", purchase.getSku());
                                         once.resolve(r);
-                                        /* coins are consumable → free the token
-                                         * right away so the user can buy again */
-                                        try {
-                                            helper.consumeAsync(purchase, new IabHelper.OnConsumeFinishedListener() {
-                                                @Override public void onConsumeFinished(Purchase p, IabResult cResult) { /* done */ }
-                                            });
-                                        } catch (Exception ignored) { /* grant already delivered */ }
+                                        /* coin packs are consumable → free the token
+                                         * right away so the user can buy again.
+                                         * KK: remove_ads is a permanent entitlement
+                                         * and must NOT be consumed. */
+                                        if (!NON_CONSUMABLE.equals(sku)) {
+                                            try {
+                                                helper.consumeAsync(purchase, new IabHelper.OnConsumeFinishedListener() {
+                                                    @Override public void onConsumeFinished(Purchase p, IabResult cResult) { /* done */ }
+                                                });
+                                            } catch (Exception ignored) { /* grant already delivered */ }
+                                        }
+                                    } else if (result != null
+                                            && result.getResponse() == RESPONSE_USER_CANCELED) {
+                                        once.resolve(fail(CANCELED));
                                     } else {
                                         once.resolve(fail(NOT_CONNECTED));
                                     }

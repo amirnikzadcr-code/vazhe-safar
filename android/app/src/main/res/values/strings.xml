@@ -4,9 +4,6 @@
     <string name="title_activity_main">واژه‌سفر</string>
     <string name="package_name">ir.vazhesafar.game</string>
     <string name="custom_url_scheme">ir.vazhesafar.game</string>
-    <!-- GG — MYKET IAB: paste the app's RSA public key from the Myket
-         developer panel (کنسول مایکت → برنامه → پرداخت درون‌برنامه‌ای →
-         کلید عمومی) here. While empty, the VzBilling bridge reports a
-         neutral "store not connected" error and nothing crashes. -->
-    <string name="myket_rsa_public_key" translatable="false"></string>
+    <!-- KK — Myket in-app billing RSA public key (from the developer panel) -->
+    <string name="myket_rsa_public_key" translatable="false">MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC+N54NiDp4CdDY9U2hgzHsU+qYTAt4JKNCbOC1YrTyjhDKoa2MnZWYWgeikxxjv5qxUTuKnyJncXxP0LvSZkeoondffnQKhHuRsXbVwdLz6EnW3Cvxbgjka9CF3KGL+znLqVoCQUFHO8wQjZ8RJjrL7zAhuOYirWcIwloNIOTedwIDAQAB</string>
 </resources>

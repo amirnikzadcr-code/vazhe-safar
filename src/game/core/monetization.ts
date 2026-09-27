@@ -52,14 +52,20 @@ export interface Sku {
 }
 
 /** live inventory — single source of truth for the shop + billing.
- * IDs match the products registered in the Myket / Bazaar consoles. */
+ * IDs match the products registered in the Myket / Bazaar consoles.
+ * KK — user: «قیمت سکه های بازی رو یکم افزایش بده مثلا از 25 هزار تومن
+ * شروع بشه و درصد بندی بکن برو جلو» → ladder starts at ۲۵٬۰۰۰ and each
+ * tier steps ≈ +۴۰٪ in price while the per-coin value keeps improving
+ * (base ۱۰۰ تومان/سکه): 35k=+15% · 49k=+22% · 69k=+30% · 99k=+41% ·
+ * 149k=+68% → badges show the honest rounded bonus. */
 export const SKUS: Sku[] = [
-  { id: "coins_50",   kind: "coins", title: "کیسهٔ سکه",       price: "۵٬۰۰۰ تومان",   coins: 50 },
-  { id: "coins_250",  kind: "coins", title: "صندوق سکه",      price: "۱۹٬۰۰۰ تومان",  coins: 250, hot: true, bonus: "+۱۵٪ هدیه" },
-  { id: "coins_550",  kind: "coins", title: "خمرهٔ سکه",      price: "۳۹٬۰۰۰ تومان",  coins: 550, bonus: "+۲۵٪ هدیه" },
-  { id: "coins_1200", kind: "coins", title: "گنج سکه",        price: "۷۹٬۰۰۰ تومان",  coins: 1200, bonus: "+۴۰٪ هدیه" },
-  { id: "golden_bundle", kind: "bundle", title: "بستهٔ طلایی مسافر", price: "۱۲۹٬۰۰۰ تومان", coins: 2000 },
-  { id: "remove_ads", kind: "removeads", title: "حذف تبلیغات",  price: "۲۹٬۰۰۰ تومان" },
+  { id: "coins_250",     kind: "coins",     title: "کیسهٔ سکه",          price: "۲۵٬۰۰۰ تومان",  coins: 250 },
+  { id: "coins_400",     kind: "coins",     title: "صندوق سکه",         price: "۳۵٬۰۰۰ تومان",  coins: 400, hot: true, bonus: "+۱۵٪ هدیه" },
+  { id: "coins_600",     kind: "coins",     title: "خمرهٔ سکه",          price: "۴۹٬۰۰۰ تومان",  coins: 600, bonus: "+۲۰٪ هدیه" },
+  { id: "coins_900",     kind: "coins",     title: "گنج سکه",           price: "۶۹٬۰۰۰ تومان",  coins: 900, bonus: "+۳۰٪ هدیه" },
+  { id: "coins_1400",    kind: "coins",     title: "گنجینهٔ سفر",        price: "۹۹٬۰۰۰ تومان",  coins: 1400, bonus: "+۴۰٪ هدیه" },
+  { id: "golden_bundle", kind: "bundle",    title: "بستهٔ طلایی مسافر",   price: "۱۴۹٬۰۰۰ تومان", coins: 2500, bonus: "+۶۵٪ هدیه" },
+  { id: "remove_ads",    kind: "removeads", title: "حذف تبلیغات",       price: "۳۹٬۰۰۰ تومان" },
 ];
 
 export const REWARDED_COINS = 30;
